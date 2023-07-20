@@ -1,0 +1,19 @@
+﻿{
+    "db_file_name": "database.sqlite3",
+    "db_connection_string": "",
+    "no_permission_file": "nopower.gif",
+
+    "discord_bot_token": "YOUR_BOT_TOKEN",
+    "discord_bot_manager_role": "Manage Character",
+
+    "hoster_discord_id": null,
+    "discord_logs_channel_id": null,
+    "rate_limit": 10,
+
+    "use_character_ai": true,
+    "use_character_ai_plus_mode": false,
+    "character_ai_user_auth_token": "YOUR_AUTH_TOKEN",
+    "puppeteer_browser_type": "chrome",
+    "puppeteer_browser_directory": null,
+    "puppeteer_browser_executable_path": null
+}
