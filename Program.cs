@@ -11,7 +11,10 @@ namespace CharacterEngineDiscord
         private async Task MainAsync()
         {
             SetEnvs();
-            AppLaunchLog();
+
+            Log("Working directory: ");
+            LogYellow(EXE_DIR + '\n');
+
             await SetupDiscordClient();
             await Task.Delay(-1);
         }

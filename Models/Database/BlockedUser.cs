@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngineDiscord.Models.Database
 {
-    public class IgnoredUser
+    public class BlockedUser
     {
         public required ulong Id { get; set; }
     }

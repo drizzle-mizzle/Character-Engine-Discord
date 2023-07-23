@@ -2,12 +2,6 @@
 {
     internal static partial class CommonService
     {
-        internal static void AppLaunchLog()
-        {
-            Log("Working directory: ");
-            LogYellow(EXE_DIR + '\n');
-        }
-
         internal static void Log(object? text)
         {
             Console.Write($"{text + (text is not string ? "\n" : "")}");

@@ -10,6 +10,11 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
+using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Models.CharacterHub;
+using System.Xml.Linq;
+using Castle.Components.DictionaryAdapter.Xml;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -19,14 +24,12 @@ namespace CharacterEngineDiscord.Handlers
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly IntegrationsService _integration;
-        private readonly InteractionService _interactions;
 
         public ButtonsAndReactionsHandler(IServiceProvider services)
         {
             _services = services;
             _db = _services.GetRequiredService<StorageContext>();
             _integration = _services.GetRequiredService<IntegrationsService>();
-            _interactions = _services.GetRequiredService<InteractionService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
 
             _client.ButtonExecuted += (component) =>
@@ -53,7 +56,7 @@ namespace CharacterEngineDiscord.Handlers
             var user = reaction.User.Value;
             if (user is null) return;
 
-            var userReacted = (SocketUser)user;
+            var userReacted = (SocketGuildUser)user;
             if (userReacted.IsBot) return;
 
             var characterMessage = await rawMessage.DownloadAsync();
@@ -84,103 +87,21 @@ namespace CharacterEngineDiscord.Handlers
             if (reaction.Emote.Name == ARROW_LEFT.Name && webhook.CurrentSwipeIndex > 0)
             {   // left arrow
                 webhook.CurrentSwipeIndex--;
-                try { await SwipeMessageAsync(characterMessage, webhook); }
+                try { await SwipeMessageAsync(characterMessage, webhook, userReacted); }
                 catch(Exception e) { LogException(new[] {e}); }
             }
             else if (reaction.Emote.Name == ARROW_RIGHT.Name)
             {   // right arrow
                 webhook.CurrentSwipeIndex++;
-                try { await SwipeMessageAsync(characterMessage, webhook); }
+                try { await SwipeMessageAsync(characterMessage, webhook, userReacted); }
                 catch (Exception e) { LogException(new[] { e }); }
             }
-        }
-
-        private async Task SwipeMessageAsync(IUserMessage characterMessage, CharacterWebhook characterWebhook)
-        {
-            //Drop delay
-            //if (RemoveEmojiRequestQueue.ContainsKey(message.Id))
-            //RemoveEmojiRequestQueue[message.Id] = BotConfig.BtnsRemoveDelay;
-
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
-            if (webhookClient is null) return;
-
-            // Check if fetching a new message, or just swiping among already available ones
-            if (characterWebhook.AvailableCharacterMessages.Count < characterWebhook.CurrentSwipeIndex + 1)
-            {   // fetch new
-                await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
-                {
-                    msg.Content = null;
-                    msg.Embeds = new List<Embed> { InlineEmbed(WAIT_MESSAGE, Color.Teal) };
-                    msg.AllowedMentions = AllowedMentions.None;
-                });
-
-                Models.CharacterResponse characterResponse;
-                switch (characterWebhook.IntegrationType)
-                {
-                    case IntegrationType.CharacterAI:
-                        characterResponse = await GetCaiCharacterResponseAsync(characterWebhook, _integration.CaiClient);
-                        break;
-                    default:
-                        return;
-                }
-                
-                if (!characterResponse.IsSuccessful)
-                {
-                    await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
-                    {
-                        msg.Embeds = new List<Embed> { InlineEmbed(characterResponse.Text, Color.Red) };
-                        msg.AllowedMentions = AllowedMentions.All;
-                    });
-                    return;
-                }
-
-                // Add to the storage
-                characterWebhook.AvailableCharacterMessages.Add(characterResponse.CharacterMessageId!, new(characterResponse.Text, characterResponse.ImageRelPath));
-            }
-
-            var newCharacterMessage = characterWebhook.AvailableCharacterMessages.ElementAt(characterWebhook.CurrentSwipeIndex);
-            characterWebhook.LastCharacterMsgUuId = newCharacterMessage.Key;
-
-            // Add image to the message
-            var embeds = new List<Embed>();
-            var imageUrl = newCharacterMessage.Value.Value;
-
-            if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
-                embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
-
-            // Add text to the message
-            string responseText = newCharacterMessage.Value.Key;
-            if (responseText.Length > 2000)
-                responseText = responseText[0..1994] + "[...]";
-
-            // Send (update) message
-            await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
-            {
-                msg.Content = $"{responseText}";
-                msg.Embeds = embeds;
-                msg.AllowedMentions = AllowedMentions.All;
-            });
-            //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
-            //if (tm is not null) tm.IsTranslated = false;
-        }
-
-        private static async Task<Models.CharacterResponse> GetCaiCharacterResponseAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
-        {
-            if (client is null)
-            {
-                return new($"{WARN_SIGN_DISCORD} CharacterAI integration is disabled", false);
-            }
-
-            var response = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt, characterWebhook.ActiveHistoryId, parentMsgUuId: characterWebhook.LastUserMsgUuId);
-            var text = response.IsSuccessful ? response.Response!.Text : response.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD);
-
-            return new(text, response.IsSuccessful, response.Response?.UuId, response.Response?.ImageRelPath);
         }
 
         private async Task HandleButtonAsync(SocketMessageComponent component)
         {
             await component.DeferAsync();
-            
+
             var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
             if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
             if (searchQuery.AuthorId != component.User.Id) return;
@@ -210,42 +131,52 @@ namespace CharacterEngineDiscord.Handlers
                     else searchQuery.CurrentPage++;
                     break;
                 case "select":
-                    await component.Message.ModifyAsync(msg =>
+                    try
                     {
-                        msg.Embed = InlineEmbed(WAIT_MESSAGE, Color.Teal);
-                        msg.Components = null;
-                    });
+                        await component.Message.ModifyAsync(msg =>
+                        {
+                            msg.Embed = InlineEmbed(WAIT_MESSAGE, Color.Teal);
+                            msg.Components = null;
+                        });
 
-                    _integration.SearchQueries.Remove(searchQuery);
-                    int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
-                    string characterId = searchQuery.SearchQueryData.Characters[index].Id;
+                        _integration.SearchQueries.Remove(searchQuery);
+                        int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
+                        string characterId = searchQuery.SearchQueryData.Characters[index].Id;
 
-                    Models.Database.Character? character;
-                    switch (searchQuery.IntegrationType)
-                    {
-                        case IntegrationType.CharacterAI:
-                            character = await SelectCaiCharacterAsync(characterId);
-                            break;
-                        default:
+                        Models.Database.Character? character;
+
+                        if (searchQuery.SearchQueryData.IntegrationType is IntegrationType.CharacterAI)
+                        {
+                            character = await SelectCaiCharacterAsync(characterId, searchQuery.ChannelId);
+                        }
+                        else if (searchQuery.SearchQueryData.IntegrationType is IntegrationType.OpenAI)
+                        {
+                            var chubCharacter = await GetChubCharacterInfo(characterId, _integration.HttpClient);
+                            character = CharacterFromChubCharacterInfo(chubCharacter);
+                        }
+                        else
+                        {
                             return;
+                        }
+
+                        if (character is null)
+                        {
+                            await component.Message.ModifyAsync(msg => msg.Embed = FailedToSetCharacterEmbed());
+                            return;
+                        }
+
+                        var context = new InteractionContext(_client, component);
+
+                        var webhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _db, _integration);
+                        if (webhook is null) return;
+
+                        var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.WebhookToken);
+                        _integration.WebhookClients.Add(webhook.Id, webhookClient);
+
+                        await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(webhook, character));
+                        await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting}");
                     }
-
-                    if (character is null)
-                    {
-                        await component.Message.ModifyAsync(msg => msg.Embed = FailedToSetCharacterEmbed());
-                        return;
-                    }
-
-                    var context = new InteractionContext(_client, component);
-                    
-                    var webhook = await CreateChannelCharacterWebhookAsync(searchQuery.IntegrationType, context, character, _db, _integration);
-                    if (webhook is null) return;
-
-                    var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.WebhookToken);
-                    _integration.WebhookClients.Add(webhook.Id, webhookClient);
-
-                    await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(webhook, character));
-                    await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting}");
+                    catch (Exception e) { LogException(new[] { e }); }
 
                     return;
                 default:
@@ -256,11 +187,119 @@ namespace CharacterEngineDiscord.Handlers
             await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
         }
 
-        private async Task<Models.Database.Character?> SelectCaiCharacterAsync(string characterId)
+        private async Task SwipeMessageAsync(IUserMessage characterMessage, CharacterWebhook characterWebhook, SocketGuildUser caller)
+        {
+            //Drop delay
+            if (_integration.RemoveEmojiRequestQueue.ContainsKey(characterMessage.Id))
+                _integration.RemoveEmojiRequestQueue[characterMessage.Id] = characterWebhook.Channel.Guild.BtnsRemoveDelay;
+
+            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
+            if (webhookClient is null) return;
+
+            // Check if fetching a new message, or just swiping among already available ones
+            if (characterWebhook.AvailableCharacterResponses.Count < characterWebhook.CurrentSwipeIndex + 1) // fetch new
+            {
+                await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+                {
+                    msg.Content = null;
+                    msg.Embeds = new List<Embed> { InlineEmbed(WAIT_MESSAGE, Color.Teal) };
+                    msg.AllowedMentions = AllowedMentions.None;
+                });
+
+                CharacterResponse characterResponse;
+                if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+                    characterResponse = await SwipeCaiCharaterResponseAsync(characterWebhook, _integration.CaiClient);
+                else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
+                {
+                    var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook);
+                    var openAiResponse = await CallChatOpenAiAsync(openAiParams, _integration.HttpClient);
+                    characterResponse = new(openAiResponse.Message!, openAiResponse.IsSuccessful, openAiResponse.MessageID, null);
+                    characterWebhook.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
+                } else return;
+                
+                if (!characterResponse.IsSuccessful)
+                {
+                    await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+                    {
+                        msg.Embeds = new List<Embed> { InlineEmbed(characterResponse.Text, Color.Red) };
+                        msg.AllowedMentions = AllowedMentions.All;
+                    });
+                    return;
+                }
+
+                // Add to the storage
+                characterWebhook.AvailableCharacterResponses.Add(characterResponse.CharacterMessageId!, new(characterResponse.Text, characterResponse.ImageRelPath));
+            }
+
+            var newCharacterMessage = characterWebhook.AvailableCharacterResponses.ElementAt(characterWebhook.CurrentSwipeIndex);
+            characterWebhook.LastCharacterMsgUuId = newCharacterMessage.Key;
+            
+            // Add image to message
+            var embeds = new List<Embed>();
+            var imageUrl = newCharacterMessage.Value.Value;
+
+            if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
+                embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
+
+            // Add text to message
+            string responseText = newCharacterMessage.Value.Key;
+            if (responseText.Length > 2000)
+                responseText = responseText[0..1994] + "[...]";
+
+            // Send (update) message
+            await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+            {
+                msg.Content = $"{caller.Mention} {responseText}".Replace("{{char}}", $"**{characterWebhook.Character.Name}**")
+                                                                .Replace("{{user}}", $"**{caller.Nickname ?? caller.GlobalName ?? caller.Username}**");
+                msg.Embeds = embeds;
+                msg.AllowedMentions = AllowedMentions.All;
+            });
+
+            if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
+            {
+                characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
+                characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = newCharacterMessage.Value.Key, CharacterWebhookId = characterWebhook.Id });
+                await _db.SaveChangesAsync();
+            }
+            //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
+            //if (tm is not null) tm.IsTranslated = false;
+        }
+
+        private static async Task<CharacterResponse> SwipeCaiCharaterResponseAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
+        {
+            if (client is null)
+            {
+                return new($"{WARN_SIGN_DISCORD} CharacterAI integration is disabled", false);
+            }
+
+            var caiToken = characterWebhook.Channel.Guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
+            if (string.IsNullOrWhiteSpace(caiToken))
+            {
+                return new($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", false);
+            }
+
+            var plusMode = characterWebhook.Channel.Guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+            var response = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, parentMsgUuId: characterWebhook.LastUserMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var text = response.IsSuccessful ? response.Response!.Text : response.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD);
+
+            return new(text, response.IsSuccessful, response.Response?.UuId, response.Response?.ImageRelPath);
+        }
+
+        /// <summary>
+        /// Called when user presses "select" button in search
+        /// </summary>
+        private async Task<Models.Database.Character?> SelectCaiCharacterAsync(string characterId, ulong channelId)
         {
             if (_integration.CaiClient is null) return null;
 
-            var caiCharacter = await _integration.CaiClient.GetInfoAsync(characterId);
+            var channel = await _db.Channels.FindAsync(channelId);
+            if (channel is null) return null;
+
+            var caiToken = channel.Guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
+            var plusMode = channel.Guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+            if (string.IsNullOrWhiteSpace(caiToken)) return null;
+
+            var caiCharacter = await _integration.CaiClient.GetInfoAsync(characterId, customAuthToken: caiToken, customPlusMode: plusMode);
             return CharacterFromCaiCharacterInfo(caiCharacter);
         }
     }

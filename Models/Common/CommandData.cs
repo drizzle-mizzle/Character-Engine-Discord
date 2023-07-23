@@ -1,4 +1,4 @@
-﻿namespace CharacterEngineDiscord.Models
+﻿namespace CharacterEngineDiscord.Models.Common
 {
     internal class CommandData
     {

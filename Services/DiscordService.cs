@@ -1,11 +1,12 @@
-﻿using Discord;
+﻿using System.Reflection;
+using Discord;
 using Discord.WebSocket;
 using Discord.Interactions;
-using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Handlers;
+using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -15,8 +16,6 @@ namespace CharacterEngineDiscord.Services
         private DiscordSocketClient _client = null!;
         private IntegrationsService _integration = null!;
         private InteractionService _interactions = null!;
-        private SlashCommandsHandler _commandsHandler = null!;
-        private ButtonsAndReactionsHandler _buttonsAndReactionsHandler = null!;
 
         internal async Task SetupDiscordClient()
         {
@@ -28,8 +27,12 @@ namespace CharacterEngineDiscord.Services
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
-            _commandsHandler = _services.GetRequiredService<SlashCommandsHandler>();
-            _buttonsAndReactionsHandler = _services.GetRequiredService<ButtonsAndReactionsHandler>();
+            _services.GetRequiredService<ButtonsAndReactionsHandler>();
+            _services.GetRequiredService<TextMessagesHandler>();
+            _services.GetRequiredService<SlashCommandsHandler>();
+
+
+            await _services.GetRequiredService<StorageContext>().Database.MigrateAsync();
 
             _client.Ready += () =>
             {
@@ -54,21 +57,28 @@ namespace CharacterEngineDiscord.Services
                 .AddSingleton<TextMessagesHandler>()
                 .AddSingleton<ButtonsAndReactionsHandler>()
                 .AddSingleton<IntegrationsService>()
-                .AddSingleton<StorageContext>()
+                .AddScoped<StorageContext>()
                 .AddSingleton(new InteractionService(discordClient.Rest));
 
             return services.BuildServiceProvider();
         }
 
         private async Task SetupIntegrationAsync()
-            => await _integration.Initialize();      
+        {
+            try { await _integration.Initialize(); }
+            catch (Exception e) { LogException(new[] { e }); }
+        }
 
         private async Task CreateSlashCommandsAsync()
         {
-            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
-            
-            foreach (var guild in _client.Guilds)
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+            try
+            {
+                await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+
+                foreach (var guild in _client.Guilds)
+                    await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+            }
+            catch (Exception e) { LogException(new[] { e }); }
         }
 
         private static DiscordSocketClient CreateDiscordClient()

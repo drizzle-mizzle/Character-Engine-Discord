@@ -1,9 +1,9 @@
 ﻿using Discord;
 using Discord.Interactions;
-using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -17,15 +17,14 @@ namespace CharacterEngineDiscord.Services
                 Color = Color.Gold,
                 Description = $"Use *`\"{webhook.CallPrefix}\"`* prefix or replies to call the character.",
                 ImageUrl = webhook.Character.AvatarUrl
-            }.AddField("Usage example:", $"*`{webhook.CallPrefix}hey!`*")
-             .AddField("Configuration", $"Webhook ID: *`{webhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.")
-             .AddField(webhook.Character.Name, $"*\"{character.Title}\"*\n\n" +
-                                               $"{character.Description}\n\n" +
-                                               $"*Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\n" +
-                                               $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n" +
-                                               $"Interactions: {character.Interactions}*")
-             .WithFooter($"Created by {character.AuthorName}");
-
+            }
+            .WithFooter($"Created by {character.AuthorName}")
+            .AddField("Usage example:", $"*`{webhook.CallPrefix}hey!`*") 
+            .AddField("Configuration", $"Webhook ID: *`{webhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.")
+            .AddField(webhook.Character.Name, $"*\"{character.Title}\"*\n\n{character.Description}\n\n" +
+                                              (webhook.IntegrationType is IntegrationType.CharacterAI ? $"*Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\n" : "") +
+                                              $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n" +
+                                              (webhook.IntegrationType is IntegrationType.CharacterAI ? $"Interactions: {character.Interactions}*" : $"Stars: {character.Stars}"));
             return embed.Build();
         }
 
@@ -72,8 +71,13 @@ namespace CharacterEngineDiscord.Services
 
                 if (i + 1 == query.CurrentRow)
                     fTitle += " - ✅";
+                string interactionsOrStars;
+                if (query.SearchQueryData.IntegrationType is IntegrationType.CharacterAI)
+                    interactionsOrStars = $"Interactions: {character.Interactions}";
+                else
+                    interactionsOrStars = $"Stars: {character.Stars}";
 
-                list.AddField($"{index + 1}. {fTitle}", $"Interactions: {character.Interactions} | Author: {character.AuthorName}");
+                list.AddField($"{index + 1}. {fTitle}", $"{interactionsOrStars} | Author: {character.AuthorName}");
             }
 
             return list.Build();
@@ -92,5 +96,7 @@ namespace CharacterEngineDiscord.Services
 
             return buttons.Build();
         }
+
+        
     }
 }

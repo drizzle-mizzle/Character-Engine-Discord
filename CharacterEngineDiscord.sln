@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.6.33815.320
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CharacterEngineDiscord", "CharacterEngineDiscord.csproj", "{DFAADA61-C789-4043-AA67-7913CBAB30D7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Character-Engine-Discord", "Character-Engine-Discord.csproj", "{DFAADA61-C789-4043-AA67-7913CBAB30D7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

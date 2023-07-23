@@ -27,6 +27,8 @@ namespace CharacterEngineDiscord.Services
 
         internal static void SetEnvs()
         {
+            Environment.SetEnvironmentVariable("RUNNING", "!");
+
             string path = $"{EXE_DIR}env.json";
             if (!File.Exists(path)) return;
 
@@ -37,10 +39,10 @@ namespace CharacterEngineDiscord.Services
                 var env = JsonConvert.DeserializeObject(content) as JObject;
 
                 string? envDiscordToken = env?["DISCORD_TOKEN"]?.Value<string?>();
-                string? envCAIToken = env?["CAI_TOKEN"]?.Value<string?>();
+                string? envCAIToken = env?["DEFAULT_CAI_TOKEN"]?.Value<string?>();
 
                 Environment.SetEnvironmentVariable("DISCORD_TOKEN", envDiscordToken, EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("CAI_TOKEN", envCAIToken, EnvironmentVariableTarget.Process);
+                Environment.SetEnvironmentVariable("DEFAULT_CAI_TOKEN", envCAIToken, EnvironmentVariableTarget.Process);
             }
             catch { }
         }

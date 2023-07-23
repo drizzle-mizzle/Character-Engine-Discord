@@ -1,9 +1,11 @@
-﻿namespace CharacterEngineDiscord.Models.Database
+﻿using Discord.Interactions;
+
+namespace CharacterEngineDiscord.Models.Database
 {
     public class Character
     {
         public required string Id { get; set; }
-        public required string Tgt { get; set; }
+        public required string? Tgt { get; set; }
         public required string Name { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
@@ -13,7 +15,13 @@
         public required string Link { get; set; }
         public string? AvatarUrl { get; set; }
         public required ulong Interactions { get; set; }
-        public virtual List<Guild> GuildsWhereCharacterIsDefault { get; } = new();
-        public virtual List<CharacterWebhook> WebhooksWithThisCharacter { get; } = new();
+
+        // Tavern stuff
+        public required ulong? Stars { get; set; }
+        public required string? Personality { get; set; }
+        public required string? Scenario { get; set; }
+        public required string? ExampleDialogs { get; set; }
+
+        public virtual List<CharacterWebhook> CharacterWebhooks { get; } = new();
     }
 }

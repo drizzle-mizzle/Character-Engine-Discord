@@ -1,31 +1,58 @@
-﻿using CharacterEngineDiscord.Models;
+﻿using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using System.Xml;
 using static CharacterEngineDiscord.Services.CommonService;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Services
 {
     internal class StorageContext : DbContext
     {
+        internal DbSet<BlockedGuild> BlockedGuilds { get; set; }
+        internal DbSet<BlockedUser> BlockedUsers { get; set; }
+        internal DbSet<CaiHistory> CaiHistories { get; set; }
         internal DbSet<Channel> Channels { get; set; }
-        internal DbSet<Guild> Guilds { get; set; }
-        internal DbSet<IgnoredUser> IgnoredUsers { get; set; }
         internal DbSet<Character> Characters { get; set; }
         internal DbSet<CharacterWebhook> CharacterWebhooks { get; set; }
-        internal DbSet<History> Histories { get; set; }
+        internal DbSet<Guild> Guilds { get; set; }
         internal DbSet<HuntedUser> HuntedUsers { get; set; }
+        internal DbSet<OpenAiHistoryMessage> OpenAiHistoryMessages { get; set; }
 
-        public StorageContext()
-            => Database.Migrate();
+        public StorageContext() { }
 
+        
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            var connString = string.IsNullOrWhiteSpace(ConfigFile.DbConnString.Value) ?
+            // Needed for migration builds
+            if (Environment.GetEnvironmentVariable("RUNNING") is not null)
+            {
+                Console.BackgroundColor = ConsoleColor.DarkYellow;
+                Console.WriteLine(new string(' ', Console.WindowWidth));
+                Console.ResetColor();
+                Environment.SetEnvironmentVariable("RUNNING", null);
+            }
+
+            var connString = ConfigFile.DbConnString.Value.IsEmpty() ?
                    $"Data Source={EXE_DIR}storage{sc}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
-            Log("Database connection: "); LogYellow(connString + "\n\n");
-            optionsBuilder.UseLazyLoadingProxies().UseSqlite(connString);
+            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
+
+            if (ConfigFile.DbLogEnabled.Value.ToBool())
+                optionsBuilder.LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });
+        }
+
+
+        protected internal static void SqlLog(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            Console.WriteLine(new string('~', Console.WindowWidth));
+            Console.ResetColor();
+            LogYellow(text + "\n");
         }
 
         protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext db)
@@ -34,8 +61,8 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId };
-                db.Guilds.Add(guild);
+                guild = new() { Id = guildId, DefaultCaiPlusMode = false, DefaultCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, BtnsRemoveDelay = 90 };
+                await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
             }
 
@@ -48,21 +75,21 @@ namespace CharacterEngineDiscord.Services
 
             if (channel is null)
             {
-                channel = new() { Id = channelId, Guild = await FindOrStartTrackingGuildAsync(guildId, db) };
-                db.Channels.Add(channel);
+                channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id };
+                await db.Channels.AddAsync(channel);
                 await db.SaveChangesAsync();
             }
 
             return channel;
         }
 
-        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character character, StorageContext db)
+        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext db)
         {
-            var record = await db.Characters.FindAsync(character.Id);
+            var character = await db.Characters.FindAsync(notSavedCharacter.Id);
 
-            if (record is null)
+            if (character is null)
             {
-                db.Characters.Add(character);
+                character = db.Characters.Add(notSavedCharacter).Entity;
                 await db.SaveChangesAsync();
             }
 

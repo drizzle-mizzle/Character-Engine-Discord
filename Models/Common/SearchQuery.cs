@@ -1,12 +1,11 @@
 ﻿using static CharacterEngineDiscord.Services.IntegrationsService;
 
-namespace CharacterEngineDiscord.Models
+namespace CharacterEngineDiscord.Models.Common
 {
     public class SearchQuery
     {
         public ulong ChannelId { get; }
         public ulong AuthorId { get; }
-        public IntegrationType IntegrationType { get; }
         public SearchQueryData SearchQueryData { get; }
         public int Pages { get; }
         public int CurrentRow { get; set; }
@@ -16,12 +15,12 @@ namespace CharacterEngineDiscord.Models
         public SearchQuery(ulong channelId, ulong authorId, SearchQueryData data, int pages)
         {
             ChannelId = channelId;
+            AuthorId = authorId;
             SearchQueryData = data;
             Pages = pages;
             CurrentRow = 1;
             CurrentPage = 1;
             CreatedAt = DateTime.UtcNow;
-            AuthorId = authorId;
         }
     }
 }

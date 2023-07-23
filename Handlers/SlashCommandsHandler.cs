@@ -12,17 +12,13 @@ namespace CharacterEngineDiscord.Handlers
 {
     public class SlashCommandsHandler
     {
-        private readonly StorageContext _db;
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integration;
         private readonly InteractionService _interactions;
 
         public SlashCommandsHandler(IServiceProvider services)
         {
             _services = services;
-            _db = _services.GetRequiredService<StorageContext>();
-            _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _client.SlashCommandExecuted += (command) =>

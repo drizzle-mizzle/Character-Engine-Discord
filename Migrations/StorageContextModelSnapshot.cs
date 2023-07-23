@@ -21,6 +21,49 @@ namespace CharacterEngineDiscord.Migrations
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true);
 
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.BlockedGuild", b =>
+                {
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BlockedGuilds");
+                });
+
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.BlockedUser", b =>
+                {
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BlockedUsers");
+                });
+
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CaiHistory", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<ulong>("CharacterWebhookId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterWebhookId");
+
+                    b.ToTable("CaiHistories");
+                });
+
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Channel", b =>
                 {
                     b.Property<ulong>("Id")
@@ -51,6 +94,9 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ExampleDialogs")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Greeting")
                         .HasColumnType("TEXT");
 
@@ -68,8 +114,16 @@ namespace CharacterEngineDiscord.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Personality")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Scenario")
+                        .HasColumnType("TEXT");
+
+                    b.Property<ulong?>("Stars")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Tgt")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -86,8 +140,7 @@ namespace CharacterEngineDiscord.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ActiveHistoryId")
-                        .IsRequired()
+                    b.Property<string>("CaiActiveHistoryId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CallPrefix")
@@ -101,15 +154,42 @@ namespace CharacterEngineDiscord.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("EnableTranslator")
+                    b.Property<int>("IntegrationType")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("IntegrationType")
+                    b.Property<int?>("LastRequestTokensUsage")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("MessagesFormat")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("OpenAiContextSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float?>("OpenAiFreqPenalty")
+                        .HasColumnType("REAL");
+
+                    b.Property<int?>("OpenAiMaxTokens")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OpenAiModel")
+                        .HasColumnType("TEXT");
+
+                    b.Property<float?>("OpenAiPresencePenalty")
+                        .HasColumnType("REAL");
+
+                    b.Property<float?>("OpenAiTemperature")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("PersonalCaiUserAuthToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PersonalOpenAiApiToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ReferencesEnabled")
+                        .HasColumnType("INTEGER");
 
                     b.Property<float>("ReplyChance")
                         .HasColumnType("REAL");
@@ -117,8 +197,7 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("ReplyDelay")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("TranslateLanguage")
-                        .IsRequired()
+                    b.Property<string>("UniversalJailbreakPrompt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("WebhookToken")
@@ -140,38 +219,24 @@ namespace CharacterEngineDiscord.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CharacterId")
+                    b.Property<int>("BtnsRemoveDelay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("DefaultCaiPlusMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DefaultCaiUserToken")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DefaultUserToken")
+                    b.Property<string>("GuildOpenAiApiToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GuildOpenAiModel")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CharacterId");
 
                     b.ToTable("Guilds");
-                });
-
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.History", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<ulong>("CharacterWebhookId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CharacterWebhookId");
-
-                    b.ToTable("Histories");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.HuntedUser", b =>
@@ -183,7 +248,7 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<float>("Chance")
                         .HasColumnType("REAL");
 
-                    b.Property<ulong?>("CharacterWebhookId")
+                    b.Property<ulong>("CharacterWebhookId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -193,15 +258,39 @@ namespace CharacterEngineDiscord.Migrations
                     b.ToTable("HuntedUsers");
                 });
 
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.IgnoredUser", b =>
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.OpenAiHistoryMessage", b =>
                 {
                     b.Property<ulong>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<ulong>("CharacterWebhookId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
-                    b.ToTable("IgnoredUsers");
+                    b.HasIndex("CharacterWebhookId");
+
+                    b.ToTable("OpenAiHistoryMessages");
+                });
+
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CaiHistory", b =>
+                {
+                    b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", "CharacterWebhook")
+                        .WithMany("CaiHistories")
+                        .HasForeignKey("CharacterWebhookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CharacterWebhook");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Channel", b =>
@@ -224,7 +313,7 @@ namespace CharacterEngineDiscord.Migrations
                         .IsRequired();
 
                     b.HasOne("CharacterEngineDiscord.Models.Database.Character", "Character")
-                        .WithMany("WebhooksWithThisCharacter")
+                        .WithMany("CharacterWebhooks")
                         .HasForeignKey("CharacterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -234,17 +323,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Navigation("Character");
                 });
 
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Guild", b =>
-                {
-                    b.HasOne("CharacterEngineDiscord.Models.Database.Character", null)
-                        .WithMany("GuildsWhereCharacterIsDefault")
-                        .HasForeignKey("CharacterId");
-                });
-
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.History", b =>
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.HuntedUser", b =>
                 {
                     b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", "CharacterWebhook")
-                        .WithMany("Histories")
+                        .WithMany("HuntedUsers")
                         .HasForeignKey("CharacterWebhookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -252,11 +334,15 @@ namespace CharacterEngineDiscord.Migrations
                     b.Navigation("CharacterWebhook");
                 });
 
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.HuntedUser", b =>
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.OpenAiHistoryMessage", b =>
                 {
-                    b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", null)
-                        .WithMany("HuntedUsers")
-                        .HasForeignKey("CharacterWebhookId");
+                    b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", "CharacterWebhook")
+                        .WithMany("OpenAiHistoryMessages")
+                        .HasForeignKey("CharacterWebhookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CharacterWebhook");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Channel", b =>
@@ -266,16 +352,16 @@ namespace CharacterEngineDiscord.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Character", b =>
                 {
-                    b.Navigation("GuildsWhereCharacterIsDefault");
-
-                    b.Navigation("WebhooksWithThisCharacter");
+                    b.Navigation("CharacterWebhooks");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CharacterWebhook", b =>
                 {
-                    b.Navigation("Histories");
+                    b.Navigation("CaiHistories");
 
                     b.Navigation("HuntedUsers");
+
+                    b.Navigation("OpenAiHistoryMessages");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Guild", b =>
