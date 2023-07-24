@@ -33,7 +33,13 @@ namespace CharacterEngineDiscord.Models.Common
         public class ConfigField
         {
             public readonly string Label;
-            public string? Value { get => ConfigParsed[Label]?.Value<dynamic?>()?.ToString(); }
+            public string? Value {
+                get
+                {
+                    string? data = ConfigParsed[Label]?.Value<string?>();
+                    return string.IsNullOrWhiteSpace(data) ? null : data;
+                }
+            }
 
             public ConfigField(string label)
             {

@@ -11,7 +11,19 @@ namespace CharacterEngineDiscord.Services
     internal static class CommandsService
     {
         internal static bool IsHoster(this SocketGuildUser? user)
-            => user is not null && user.Id == ulong.Parse(ConfigFile.HosterDiscordID.Value!);
+        {
+            string? hosterId = ConfigFile.HosterDiscordID.Value;
+
+            try
+            {
+                return hosterId is not null && user is not null && user.Id == ulong.Parse(hosterId);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+                return false;
+            }
+        }
 
         internal static bool IsServerOwner(this SocketGuildUser? user)
             => user is not null && user.Id == user.Guild.OwnerId;
@@ -21,11 +33,19 @@ namespace CharacterEngineDiscord.Services
 
         internal static async Task SendNoPowerFileAsync(this InteractionContext context)
         {
-            var filename = ConfigFile.NoPermissionFile.Value;
-            if (filename is null) return;
+            try
+            {
+                await context.Interaction.DeferAsync();
+                var filename = ConfigFile.NoPermissionFile.Value;
+                if (filename is null) return;
 
-            var stream = File.OpenRead($"{EXE_DIR}storage{SC}{filename}");
-            await context.Interaction.RespondWithFileAsync(stream, filename);
+                var stream = File.OpenRead($"{EXE_DIR}storage{SC}{filename}");
+                await context.Interaction.FollowupWithFileAsync(stream, filename);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+            }
         }
 
         internal static Embed SpawnCharacterEmbed(CharacterWebhook webhook, Models.Database.Character character)
