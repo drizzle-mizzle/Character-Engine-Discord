@@ -21,11 +21,19 @@ namespace CharacterEngineDiscord.Services
         internal HttpClient HttpClient { get; set; } = new();
         internal CharacterAIClient? CaiClient { get; set; }
         internal List<SearchQuery> SearchQueries { get; set; } = new();
+
+        /// <summary>
+        /// Webhook ID : WebhookClient
+        /// </summary>
         internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; set; } = new();
+
+        /// <summary>
+        /// Message ID : Delay
+        /// </summary>
         internal Dictionary<ulong, int> RemoveEmojiRequestQueue { get; set; } = new();
 
         /// <summary>
-        /// (user id : (current minute : count))
+        /// (User ID : [current minute : interactions count])
         /// </summary>
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
 
@@ -40,27 +48,31 @@ namespace CharacterEngineDiscord.Services
             string? envToken = Environment.GetEnvironmentVariable("DEFAULT_CAI_TOKEN");
             Environment.SetEnvironmentVariable("DEFAULT_CAI_TOKEN", null);
 
-            bool useCai = ConfigFile.CaiEnabled.Value.ToBool();
 
             HttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
             HttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
             HttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36");
-
+            
+            bool useCai = ConfigFile.CaiEnabled.Value.ToBool();
             if (useCai)
             {
                 CaiClient = new(
-                    userToken: envToken ?? ConfigFile.CaiDefaultUserAuthToken.Value!,
-                    caiPlusMode: ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool(),
+                    userToken: envToken ?? ConfigFile.DefaultCaiUserAuthToken.Value!,
+                    caiPlusMode: ConfigFile.DefaultCaiPlusMode.Value.ToBool(),
                     browserType: ConfigFile.PuppeteerBrowserType.Value,
                     customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
                     customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
                 );
                 await CaiClient.LaunchBrowserAsync(killDuplicates: true);
                 AppDomain.CurrentDomain.ProcessExit += (s, args) => CaiClient.KillBrowser();
+
                 Log("CharacterAI - "); LogGreen("Ready\n\n");
             }
         }
 
+        /// <summary>
+        /// Temporary "raw" solution, will be redone into a library later
+        /// </summary>
         internal static async Task<OpenAiChatResponse> CallChatOpenAiAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
         {
             // Build data payload
@@ -83,34 +95,90 @@ namespace CharacterEngineDiscord.Services
             return new(response);
         }
 
+        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook)
+        {
+            string jailbreakPrompt = $"{characterWebhook.UniversalJailbreakPrompt}.  " +
+                                     $"{{{{char}}}}'s name: {characterWebhook.Character.Name}. {{{{char}}}} calls {{{{user}}}} by {{{{user}}}} or any name introduced by {{{{user}}}}.  " +
+                                     $"{{{{char}}}}'s personality: {characterWebhook.Character.Personality}.  " +
+                                     (string.IsNullOrWhiteSpace(characterWebhook.Character.Scenario) ? "" : $"Scenario of the roleplay: {characterWebhook.Character.Scenario}.  ") +
+                                     (string.IsNullOrWhiteSpace(characterWebhook.Character.ExampleDialogs) ? "" : $"Example conversations between {{{{char}}}} and {{{{user}}}}: {characterWebhook.Character.ExampleDialogs}.");
+
+            // Add jailbreak prompt and first character message to the payload
+            var messages = new List<OpenAiMessage> { new("system", jailbreakPrompt) };
+            string? firstMessage = characterWebhook.Character.Greeting;
+            if (firstMessage is not null)
+                messages.Add(new("assistant", firstMessage));
+
+            // Count~ tokens
+            float currentAmountOfTokens = (jailbreakPrompt.Length + (firstMessage?.Length ?? 0)) / 4f;
+
+            // Create a separate list and fill it with the dialog history in reverse order.
+            // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
+            var oldMessages = new List<OpenAiMessage>();
+            for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
+            {
+                string msgContent = characterWebhook.OpenAiHistoryMessages[i].Content;
+                float tokensInThisMessage = msgContent.Length / 3.8f;
+                if ((currentAmountOfTokens + tokensInThisMessage) > 4000f) break;
+
+                // Build history message
+                var historyMessage = new OpenAiMessage(characterWebhook.OpenAiHistoryMessages[i].Role, msgContent);
+                oldMessages.Add(historyMessage);
+
+                // Update token counter
+                currentAmountOfTokens += tokensInThisMessage;
+            }
+
+            oldMessages.Reverse(); // restore natural order
+            messages.AddRange(oldMessages); // add history message to the payload
+
+            // Build request payload
+            var openAiParams = new OpenAiChatRequestParams()
+            {
+                ApiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
+                UniversalJailbreakPrompt = jailbreakPrompt,
+                Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
+                FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.85f,
+                PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.85f,
+                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 130,
+                Model = characterWebhook.OpenAiModel!,
+                Messages = messages
+            };
+
+            return openAiParams;
+        }
+
+        /// <summary>
+        /// Task that will delete all emoji-buttons from the message after some time
+        /// </summary>
         internal async Task RemoveButtonsAsync(IMessage message, int delay)
         {
-            
-            // Wait for remove delay to become 0
-            // Delay can be and does being updated outside of this method
-            ulong key = message.Id;
-            while (RemoveEmojiRequestQueue[key] > 0)
+            // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
+            while (RemoveEmojiRequestQueue[message.Id] > 0)
             {
                 await Task.Delay(1000);
-                RemoveEmojiRequestQueue[key]--; // value contains the time that left before removing
+                RemoveEmojiRequestQueue[message.Id]--; // value contains the time that left before removing
             }
 
             // Add request to the end of the line
-            RemoveEmojiRequestQueue.Add(key, value: delay);
+            RemoveEmojiRequestQueue.Add(message.Id, delay);
 
-            // Delay it until it will take the first place. Parallel attemps to remove emojis may cause rate limit problems.
-            while (RemoveEmojiRequestQueue.First().Key != key) 
-                await Task.Delay(100);
-
-            // May fail because of permissions or some connection problems
-            try
+            // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
+            while (RemoveEmojiRequestQueue.First().Key != message.Id)
             {
+                await Task.Delay(100);
+            }
+            
+            try
+            {  // May fail because of missing permissions or some connection problems 
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, STOP_BTN };
                 foreach (var btn in btns)
                     await message.RemoveReactionAsync(btn, message.Author).ConfigureAwait(false);
-            } catch { }
-
-            RemoveEmojiRequestQueue.Remove(key);
+            }
+            finally
+            {
+                RemoveEmojiRequestQueue.Remove(message.Id);
+            }
         }
 
         internal static async Task<ChubSearchResponse> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
@@ -141,7 +209,8 @@ namespace CharacterEngineDiscord.Services
 
         internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, StorageContext db, IntegrationsService integration)
         {
-            string callPrefix = $"..{unsavedCharacter.Name![..2].ToLower()} ";
+            // Create basic call prefix from two first letters in the character name
+            string callPrefix = $"..{unsavedCharacter.Name![..2].ToLower()} "; // => "..ch " (with spacebar)
             var discordChannel = (IIntegrationChannel)(await context.Interaction.GetOriginalResponseAsync()).Channel;
            
             var image = await TryDownloadImgAsync(unsavedCharacter.AvatarUrl, integration.HttpClient);
@@ -151,11 +220,8 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 var guild = await FindOrStartTrackingGuildAsync((ulong)context.Interaction.GuildId!, db);
-                if (guild is null) return null;
-
-                var channel = guild.Channels.Find(c => c.Id == context.Interaction.ChannelId) ??
-                                await FindOrStartTrackingChannelAsync((ulong)context.Interaction.ChannelId!, guild.Id, db);
-                if (channel is null) return null;
+                var channel = guild.Channels.Find(c => c.Id == context.Interaction.ChannelId);
+                channel ??= await FindOrStartTrackingChannelAsync((ulong)context.Interaction.ChannelId!, guild.Id, db);
 
                 string? caiHistoryId, openAiModel, jailbreakPrompt;
                 caiHistoryId = openAiModel = jailbreakPrompt = null;
@@ -170,17 +236,17 @@ namespace CharacterEngineDiscord.Services
                 {
                     if (integration.CaiClient is null) return null;
 
-                    var caiToken = guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
+                    var caiToken = guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
                     if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
-                    var plusMode = guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+                    var plusMode = guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
 
                     caiHistoryId = await integration.CaiClient.CreateNewChatAsync(unsavedCharacter.Id, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (caiHistoryId is null) return null;
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
-                    openAiModel = guild.GuildOpenAiModel ?? ConfigFile.OpenAiDefaultModel.Value;
+                    openAiModel = guild.GuildOpenAiModel ?? ConfigFile.DefaultOpenAiModel.Value;
                     openAiFreqPenalty = 0.9f;
                     openAiPresPenalty = 0.9f;
                     openAiTemperature = 1.05f;
@@ -228,60 +294,6 @@ namespace CharacterEngineDiscord.Services
                 await channelWebhook.DeleteAsync();
                 return null;
             }
-        }
-
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook)
-        {
-            string jailbreakPrompt = $"{characterWebhook.UniversalJailbreakPrompt}.  " +
-                                     $"{{{{char}}}}'s name: {characterWebhook.Character.Name}. {{{{char}}}} calls {{{{user}}}} by {{{{user}}}} or any name introduced by {{{{user}}}}.  " +
-                                     $"{{{{char}}}}'s personality: {characterWebhook.Character.Personality}.  " +
-                                     (string.IsNullOrWhiteSpace(characterWebhook.Character.Scenario) ? "" : $"Scenario of the roleplay: {characterWebhook.Character.Scenario}.  ") +
-                                     (string.IsNullOrWhiteSpace(characterWebhook.Character.ExampleDialogs) ? "" : $"Example conversations between {{{{char}}}} and {{{{user}}}}: {characterWebhook.Character.ExampleDialogs}.");
-
-            // Add jailbreak prompt and first character message to the payload
-            var messages = new List<OpenAiMessage> { new("system", jailbreakPrompt) };
-            string? firstMessage = characterWebhook.Character.Greeting;
-            if (firstMessage is not null)
-                messages.Add(new("assistant", firstMessage));
-
-            // Count~ tokens
-            float currentAmountOfTokens = (jailbreakPrompt.Length + (firstMessage?.Length ?? 0)) / 4f;
-
-            // Create separate list and fill it with dialog history in reverse order.
-            // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
-            var oldMessages = new List<OpenAiMessage>();
-            for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
-            {
-                string msgContent = characterWebhook.OpenAiHistoryMessages[i].Content;
-                float tokensInThisMessage = msgContent.Length / 3.8f;
-                if ((currentAmountOfTokens + tokensInThisMessage) > 4000f) break;
-
-                // Build history message
-                var historyMessage = new OpenAiMessage(characterWebhook.OpenAiHistoryMessages[i].Role, msgContent);
-                oldMessages.Add(historyMessage);
-
-                // Update token counter~
-                currentAmountOfTokens += tokensInThisMessage;
-            }
-
-            oldMessages.Reverse(); // restore natural order
-            messages.AddRange(oldMessages); // add history message to the payload
-
-
-            // Build request payload
-            var openAiParams = new OpenAiChatRequestParams()
-            {
-                ApiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
-                UniversalJailbreakPrompt = jailbreakPrompt,
-                Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
-                FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.85f,
-                PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.85f,
-                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 130,
-                Model = characterWebhook.OpenAiModel!,
-                Messages = messages
-            };
-
-            return openAiParams;
         }
 
         internal static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
@@ -401,14 +413,16 @@ namespace CharacterEngineDiscord.Services
         internal static async Task<bool> UserIsBanned(IUser user, StorageContext db)
             => (await db.BlockedUsers.FindAsync(user.Id)) is not null;
 
+
+        // Shortcuts
+
         internal static Embed InlineEmbed(string text, Color color)
-            => new EmbedBuilder() { Description = $"**{text}**", Color = color }.Build();
+            => new EmbedBuilder().WithDescription($"**{text}**").WithColor(color).Build();
 
         internal static Embed FailedToSetCharacterEmbed()
             => InlineEmbed($"{WARN_SIGN_DISCORD} Failed to set a character", Color.Red);
 
         internal static Embed SuccessEmbed()
             => InlineEmbed($"{OK_SIGN_DISCORD} Success", Color.Green);
-
     }
 }

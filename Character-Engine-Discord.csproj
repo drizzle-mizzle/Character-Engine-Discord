@@ -48,7 +48,6 @@
 
     <ItemGroup>
       <Folder Include="Migrations\" />
-      <Folder Include="Models\OpenAI\" />
       <Folder Include="storage\" />
     </ItemGroup>
     

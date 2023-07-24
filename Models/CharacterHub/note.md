@@ -1,1 +1,1 @@
-﻿Probably will make it into a proper library later
+﻿Will be redone into a proper library later

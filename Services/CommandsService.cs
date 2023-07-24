@@ -4,24 +4,41 @@ using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using CharacterEngineDiscord.Models.Common;
+using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Services
 {
     internal static class CommandsService
     {
+        internal static bool IsHoster(this SocketGuildUser? user)
+            => user is not null && user.Id == ulong.Parse(ConfigFile.HosterDiscordID.Value!);
+
+        internal static bool IsServerOwner(this SocketGuildUser? user)
+            => user is not null && user.Id == user.Guild.OwnerId;
+
+        internal static bool IsCharManager(this SocketGuildUser? user)
+            => user is not null && user.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value);
+
+        internal static async Task SendNoPowerFileAsync(this InteractionContext context)
+        {
+            var filename = ConfigFile.NoPermissionFile.Value;
+            if (filename is null) return;
+
+            var stream = File.OpenRead($"{EXE_DIR}storage{SC}{filename}");
+            await context.Interaction.RespondWithFileAsync(stream, filename);
+        }
+
         internal static Embed SpawnCharacterEmbed(CharacterWebhook webhook, Models.Database.Character character)
         {
             var embed = new EmbedBuilder()
-            {
-                Title = $"{OK_SIGN_DISCORD} **Success**",
-                Color = Color.Gold,
-                Description = $"Use *`\"{webhook.CallPrefix}\"`* prefix or replies to call the character.",
-                ImageUrl = webhook.Character.AvatarUrl
-            }
-            .WithFooter($"Created by {character.AuthorName}")
-            .AddField("Usage example:", $"*`{webhook.CallPrefix}hey!`*") 
-            .AddField("Configuration", $"Webhook ID: *`{webhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.")
-            .AddField(webhook.Character.Name, $"*\"{character.Title}\"*\n\n{character.Description}\n\n" +
+                .WithTitle($"{OK_SIGN_DISCORD} **Success**")
+                .WithColor(Color.Gold)
+                .WithDescription($"Use *`\"{webhook.CallPrefix}\"`* prefix or replies to call the character.")
+                .WithImageUrl(webhook.Character.AvatarUrl)
+                .WithFooter($"Created by {character.AuthorName}")
+                .AddField("Usage example:", $"*`{webhook.CallPrefix}hey!`*") 
+                .AddField("Configuration", $"Webhook ID: *`{webhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.")
+                .AddField(webhook.Character.Name, $"*\"{character.Title}\"*\n\n{character.Description}\n\n" +
                                               (webhook.IntegrationType is IntegrationType.CharacterAI ? $"*Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\n" : "") +
                                               $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n" +
                                               (webhook.IntegrationType is IntegrationType.CharacterAI ? $"Interactions: {character.Interactions}*" : $"Stars: {character.Stars}"));
@@ -57,7 +74,7 @@ namespace CharacterEngineDiscord.Services
             var list = new EmbedBuilder()
                 .WithTitle($"Characters found by query \"{query.SearchQueryData.OriginalQuery}\":\n({query.SearchQueryData.Characters.Count})\n")
                 .WithFooter($"Page {query.CurrentPage}/{query.Pages}")
-                .WithColor(Color.Blue);
+                .WithColor(Color.Green);
 
             // Fill with first 10 or less
             int tail = query.SearchQueryData.Characters.Count - (query.CurrentPage - 1) * 10;

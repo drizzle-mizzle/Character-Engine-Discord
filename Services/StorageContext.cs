@@ -37,7 +37,7 @@ namespace CharacterEngineDiscord.Services
             }
 
             var connString = ConfigFile.DbConnString.Value.IsEmpty() ?
-                   $"Data Source={EXE_DIR}storage{sc}{ConfigFile.DbFileName.Value}" :
+                   $"Data Source={EXE_DIR}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
             optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
@@ -61,7 +61,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, DefaultCaiPlusMode = false, DefaultCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, BtnsRemoveDelay = 90 };
+                guild = new() { Id = guildId, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, BtnsRemoveDelay = 90 };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
             }

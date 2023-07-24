@@ -77,7 +77,10 @@ namespace CharacterEngineDiscord.Handlers
         private async Task TryToCallCaiCharacterAsync(CharacterWebhook characterWebhook, SocketUserMessage userMessage)
         {
             string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
-            text = characterWebhook.MessagesFormat.Replace("{{msg}}", $"{text}");
+            if (userMessage.Author is not SocketGuildUser user) return;
+
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{user.Nickname ?? user.DisplayName ?? user.Username}")
+                                                  .Replace("{{msg}}", $"{text}");
 
             if (_integration.CaiClient is null)
             {
@@ -85,14 +88,14 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-            var caiToken = characterWebhook.Channel.Guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
+            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             if (string.IsNullOrWhiteSpace(caiToken))
             {
                 await userMessage.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", Color.Red));
                 return;
             }
 
-            var plusMode = characterWebhook.Channel.Guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+            var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var characterResponse = await _integration.CaiClient.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, text, primaryMsgUuId: characterWebhook.LastCharacterMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
             if (!characterResponse.IsSuccessful)
             {
@@ -128,7 +131,10 @@ namespace CharacterEngineDiscord.Handlers
         private async Task TryToCallOpenAiCharacterAsync(CharacterWebhook characterWebhook, SocketUserMessage userMessage)
         {
             string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
-            text = characterWebhook.MessagesFormat.Replace("{{msg}}", $"{text}");
+            if (userMessage.Author is not SocketGuildUser user) return;
+
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{user.Nickname ?? user.DisplayName ?? user.Username}")
+                                                  .Replace("{{msg}}", $"{text}");
 
             string? openAiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
             if (string.IsNullOrWhiteSpace(openAiToken))
@@ -169,7 +175,6 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Reformatting
-            var user = (SocketGuildUser)userMessage.Author;
             string characterMessage = characterResponse.Message!.Replace("{{char}}", $"**{characterWebhook.Character.Name}**")
                                                                 .Replace("{{user}}", $"**{user.Nickname ?? user.GlobalName ?? user.Username}**");
             characterMessage = $"{userMessage.Author.Mention} {characterMessage}";
@@ -199,7 +204,7 @@ namespace CharacterEngineDiscord.Handlers
             if (withRefMessage)
                 id = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id)?.Id;
             else
-                id = channel.CharacterWebhooks.Find(w => text.StartsWith(w.CallPrefix))?.Id;
+                id = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix))?.Id;
 
             if (id is not null) return await db.CharacterWebhooks.FindAsync(id);
 

@@ -272,13 +272,13 @@ namespace CharacterEngineDiscord.Handlers
                 return new($"{WARN_SIGN_DISCORD} CharacterAI integration is disabled", false);
             }
 
-            var caiToken = characterWebhook.Channel.Guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
+            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             if (string.IsNullOrWhiteSpace(caiToken))
             {
                 return new($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", false);
             }
 
-            var plusMode = characterWebhook.Channel.Guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+            var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var response = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, parentMsgUuId: characterWebhook.LastUserMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
             var text = response.IsSuccessful ? response.Response!.Text : response.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD);
 
@@ -295,8 +295,8 @@ namespace CharacterEngineDiscord.Handlers
             var channel = await _db.Channels.FindAsync(channelId);
             if (channel is null) return null;
 
-            var caiToken = channel.Guild.DefaultCaiUserToken ?? ConfigFile.CaiDefaultUserAuthToken.Value;
-            var plusMode = channel.Guild.DefaultCaiPlusMode ?? ConfigFile.CaiDefaultPlusModeEnabled.Value.ToBool();
+            var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+            var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
             var caiCharacter = await _integration.CaiClient.GetInfoAsync(characterId, customAuthToken: caiToken, customPlusMode: plusMode);

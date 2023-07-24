@@ -222,10 +222,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("BtnsRemoveDelay")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool?>("DefaultCaiPlusMode")
+                    b.Property<bool?>("GuildCaiPlusMode")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("DefaultCaiUserToken")
+                    b.Property<string>("GuildCaiUserToken")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildOpenAiApiToken")

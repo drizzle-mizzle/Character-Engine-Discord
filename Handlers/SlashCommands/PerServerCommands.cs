@@ -16,6 +16,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         private readonly IntegrationsService _integration;
         private readonly StorageContext _db;
 
+        public PerServerCommands(IServiceProvider services)
+        {
+            _integration = services.GetRequiredService<IntegrationsService>();
+            _db = services.GetRequiredService<StorageContext>();
+        }
+
         public enum OpenAiModel
         {
             [ChoiceDisplay("gpt-3.5-turbo")]
@@ -25,31 +31,43 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             GPT_4
         }
 
-        public PerServerCommands(IServiceProvider services)
-        {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _db = services.GetRequiredService<StorageContext>();
-        }
-
         [SlashCommand("clear-webhooks", "Remove all character-webhooks from this server")]
         public async Task ClearServerWebhooks()
         {
-            try { await ClearServerWebhooksAsync(); }
-            catch (Exception e) { LogException(new[] { e }); }
+            var user = Context.User as SocketGuildUser;
+            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            {
+                try { await ClearServerWebhooksAsync(); }
+                catch (Exception e) { LogException(new[] { e }); }
+            }
+            else
+                await Context.SendNoPowerFileAsync();
         }
 
         [SlashCommand("set-server-cai-user-token", "Set default CharacterAI auth token for this server")]
         public async Task SetDefaultGuildCaiToken(string token, bool hasCaiPlusSubscription)
         {
-            try { await SetDefaultGuildCaiTokenAsync(token, hasCaiPlusSubscription); }
-            catch (Exception e) { LogException(new[] { e }); }
+            var user = Context.User as SocketGuildUser;
+            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            {
+                try { await SetDefaultGuildCaiTokenAsync(token, hasCaiPlusSubscription); }
+                catch (Exception e) { LogException(new[] { e }); }
+            }
+            else
+                await Context.SendNoPowerFileAsync();
         }
 
         [SlashCommand("set-server-openai-api-token", "Set default OpenAI api token for this server")]
         public async Task SetDefaultGuildOpenAiToken(string token, OpenAiModel gptModel)
         {
-            try { await SetDefaultGuildOpenAiTokenAsync(token, gptModel); }
-            catch (Exception e) { LogException(new[] { e }); }
+            var user = Context.User as SocketGuildUser;
+            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            {
+                try { await SetDefaultGuildOpenAiTokenAsync(token, gptModel); }
+                catch (Exception e) { LogException(new[] { e }); }
+            }
+            else
+                await Context.SendNoPowerFileAsync();
         }
 
 
@@ -82,8 +100,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            guild.DefaultCaiUserToken = token;
-            guild.DefaultCaiPlusMode = hasCaiPlusSubscription;
+            guild.GuildCaiUserToken = token;
+            guild.GuildCaiPlusMode = hasCaiPlusSubscription;
 
             await _db.SaveChangesAsync();
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);

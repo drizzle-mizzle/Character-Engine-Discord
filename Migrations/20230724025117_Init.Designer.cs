@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    [Migration("20230723030114_Init")]
+    [Migration("20230724025117_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -225,10 +225,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("BtnsRemoveDelay")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool?>("DefaultCaiPlusMode")
+                    b.Property<bool?>("GuildCaiPlusMode")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("DefaultCaiUserToken")
+                    b.Property<string>("GuildCaiUserToken")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildOpenAiApiToken")

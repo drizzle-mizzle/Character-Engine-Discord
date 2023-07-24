@@ -4,6 +4,8 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
+using Discord.WebSocket;
+using System.Security.AccessControl;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -20,23 +22,40 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("shutdown", "Shutdown")]
         public async Task ShutdownAsync()
         {
-            await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Shutting down...", Color.Orange));
-            try { _integration?.CaiClient?.KillBrowser(); }
-            catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
-            Environment.Exit(0);
+            var user = Context.User as SocketGuildUser;
+            if (user.IsHoster())
+            {
+                await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Shutting down...", Color.Orange));
+                try { _integration?.CaiClient?.KillBrowser(); }
+                catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
+                Environment.Exit(0);
+            }
+            else
+                await Context.SendNoPowerFileAsync();
         }
 
         [SlashCommand("shout-out", "Send a message in each channel where bot was ever called")]
         public async Task ShoutOut(string? title, string? desc, string? imageUrl)
         {
-            await ShoutOutAsync(title, desc, imageUrl);
+            var user = Context.User as SocketGuildUser;
+            if (user.IsHoster())
+            {
+                await ShoutOutAsync(title, desc, imageUrl);
+            }
+            else
+                await Context.SendNoPowerFileAsync();
         }
+
+
+        ////////////////////////////
+        //// Main logic section ////
+        ////////////////////////////
 
         private async Task ShoutOutAsync(string? title, string? desc, string? imageUrl)
         {
             await DeferAsync();
 
-            var embed = new EmbedBuilder();
+            var embed = new EmbedBuilder().WithColor(Color.Orange);
             if (title is not null) embed.WithTitle(title);
             if (desc is not null) embed.WithDescription(desc);
             if (imageUrl is not null) embed.WithImageUrl(imageUrl);

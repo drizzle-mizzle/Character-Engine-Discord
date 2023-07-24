@@ -27,9 +27,12 @@ namespace CharacterEngineDiscord.Services
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
+
+            // Initialize handlers
             _services.GetRequiredService<ButtonsAndReactionsHandler>();
-            _services.GetRequiredService<TextMessagesHandler>();
             _services.GetRequiredService<SlashCommandsHandler>();
+            _services.GetRequiredService<TextMessagesHandler>();
+            _services.GetRequiredService<ModalsHandler>();
 
 
             await _services.GetRequiredService<StorageContext>().Database.MigrateAsync();
@@ -56,6 +59,7 @@ namespace CharacterEngineDiscord.Services
                 .AddSingleton<SlashCommandsHandler>()
                 .AddSingleton<TextMessagesHandler>()
                 .AddSingleton<ButtonsAndReactionsHandler>()
+                .AddSingleton<ModalsHandler>()
                 .AddSingleton<IntegrationsService>()
                 .AddScoped<StorageContext>()
                 .AddSingleton(new InteractionService(discordClient.Rest));
