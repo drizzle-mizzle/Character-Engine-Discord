@@ -13,7 +13,7 @@
     "max_characters_per_channel": 15, // can be only 15 or less, as Discord won't allow to create more than 15 webhooks in a single channel
 
     // c.ai integration
-    "use_character_ai": false, // c.ai requires to use a very heavy PuppeteerSharp library, so it can be considered unneeded
+    "use_character_ai": true, // c.ai requires to use a very heavy PuppeteerSharp library, so it can be considered unneeded
     "character_ai_default_user_auth_token": null,
     "character_ai_default_plus_mode": false, // set with true if you have c.ai+ on your account
     "puppeteer_browser_type": "chrome", // the only option for now, firefox is not tested yet

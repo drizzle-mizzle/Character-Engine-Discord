@@ -3,6 +3,7 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
 
@@ -65,7 +66,7 @@ namespace CharacterEngineDiscord.Services
             return embed.Build();
         }
 
-        internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData)
+        internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData, StorageContext db)
         {
             if (!searchQueryData.IsSuccessful)
             {
@@ -79,8 +80,12 @@ namespace CharacterEngineDiscord.Services
                 return null;
             }
 
+            ulong channelId = context.Interaction.ChannelId ?? (await context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+            ulong guildId = context.Interaction.GuildId ?? (await context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+            await FindOrStartTrackingChannelAsync(channelId, guildId, db);
+
             int pages = (int)Math.Ceiling(searchQueryData.Characters.Count / 10.0f);
-            var query = new SearchQuery((ulong)context.Interaction.ChannelId!, context.User.Id, searchQueryData, pages);
+            var query = new SearchQuery(channelId, context.User.Id, searchQueryData, pages);
             var list = BuildCharactersList(query);
             var buttons = BuildSelectButtons(query);
             await context.Interaction.ModifyOriginalResponseAsync(msg => { msg.Embed = list; msg.Components = buttons; });

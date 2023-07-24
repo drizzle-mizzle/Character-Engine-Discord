@@ -7,10 +7,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
-using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.CharacterHub;
-using Discord.WebSocket;
-using Newtonsoft.Json.Linq;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -47,7 +43,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await _db.Channels.FindAsync(Context.Interaction.ChannelId);
+            ulong channelId = Context.Interaction.ChannelId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+            var channel = await _db.Channels.FindAsync(channelId);
             if (channel is null || channel.CharacterWebhooks.Count == 0)
             {
                 await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} No characters were found in this channel", Color.Orange));

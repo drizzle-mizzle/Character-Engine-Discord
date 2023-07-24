@@ -220,8 +220,9 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 var guild = await FindOrStartTrackingGuildAsync((ulong)context.Interaction.GuildId!, db);
-                var channel = guild.Channels.Find(c => c.Id == context.Interaction.ChannelId);
-                channel ??= await FindOrStartTrackingChannelAsync((ulong)context.Interaction.ChannelId!, guild.Id, db);
+                ulong channelId = context.Interaction.ChannelId ?? (await context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+                var channel = guild.Channels.Find(c => c.Id == channelId);
+                channel ??= await FindOrStartTrackingChannelAsync(channelId, guild.Id, db);
 
                 string? caiHistoryId, openAiModel, jailbreakPrompt;
                 caiHistoryId = openAiModel = jailbreakPrompt = null;

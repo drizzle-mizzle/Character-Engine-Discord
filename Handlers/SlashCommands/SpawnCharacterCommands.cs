@@ -163,7 +163,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var channel = await FindOrStartTrackingChannelAsync((ulong)Context.Interaction.ChannelId!, (ulong)Context.Interaction.GuildId!, _db);
+            ulong channelId = Context.Interaction.ChannelId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+            ulong guildId = Context.Interaction.GuildId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
+            var channel = await FindOrStartTrackingChannelAsync(channelId, guildId, _db);
 
             var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _db, _integration);
             if (characterWebhook is null)
@@ -181,13 +183,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task FinishSearchAsync(SearchQueryData searchQueryData)
         {
-            var query = await BuildAndSendSelectionMenuAsync(Context, searchQueryData);
+            var query = await BuildAndSendSelectionMenuAsync(Context, searchQueryData, _db);
             if (query is null) return;
 
             // Stop tracking last query in this channel
-            var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == Context.Interaction.ChannelId);
+            var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == query.ChannelId);
             if (lastSQ is not null) _integration.SearchQueries.Remove(lastSQ);
 
+            // Start tracking this one
             _integration.SearchQueries.Add(query);
         }
     }
