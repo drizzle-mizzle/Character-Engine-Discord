@@ -89,19 +89,23 @@ namespace CharacterEngineDiscord.Services
         {
             // Define GatewayIntents
             var intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
-        
+
             // Create client
             var clientConfig = new DiscordSocketConfig { MessageCacheSize = 5, GatewayIntents = intents };
             var client = new DiscordSocketClient(clientConfig);
 
             // Bind event handlers
             client.Log += (msg) => Task.Run(() => Log($"{msg}\n"));
-            client.JoinedGuild += (guild) => Task.Run(()
-                => LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}"));
-
-            // So it would simply not show that annoying error in console...
-            // Presence Intent itself is actually needed for some commands which require a user as an argument
-            client.PresenceUpdated += (a, b, c) => Task.CompletedTask;
+            client.JoinedGuild += (guild) => Task.Run(async () =>
+            {
+                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
+                if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
+                    await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
+            });
+            client.LeftGuild += (guild) => Task.Run(async () =>
+            {
+                LogRed($"Left guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
+            });
 
             return client;
         }
