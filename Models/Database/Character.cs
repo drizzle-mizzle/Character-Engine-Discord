@@ -12,15 +12,12 @@ namespace CharacterEngineDiscord.Models.Database
         public string? Greeting { get; set; }
         public string? AuthorName { get; set; }
         public required bool ImageGenEnabled { get; set; }
-        public required string Link { get; set; }
         public string? AvatarUrl { get; set; }
-        public required ulong Interactions { get; set; }
+        public required ulong? Interactions { get; set; }
 
         // Tavern stuff
         public required ulong? Stars { get; set; }
-        public required string? Personality { get; set; }
-        public required string? Scenario { get; set; }
-        public required string? ExampleDialogs { get; set; }
+        public required string? Definition { get; set; }
 
         public virtual List<CharacterWebhook> CharacterWebhooks { get; } = new();
     }

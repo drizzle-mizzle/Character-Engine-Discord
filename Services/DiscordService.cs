@@ -8,11 +8,13 @@ using static CharacterEngineDiscord.Services.CommonService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace CharacterEngineDiscord.Services
 {
     internal class DiscordService
     {
         private ServiceProvider _services = null!;
+        private StorageContext _db = null!;
         private DiscordSocketClient _client = null!;
         private IntegrationsService _integration = null!;
         private InteractionService _interactions = null!;
@@ -24,6 +26,8 @@ namespace CharacterEngineDiscord.Services
 
             _services = CreateServices();
             _services.GetRequiredService<TextMessagesHandler>();
+
+            _db = _services.GetRequiredService<StorageContext>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
@@ -43,6 +47,26 @@ namespace CharacterEngineDiscord.Services
                 Task.Run(async () => await SetupIntegrationAsync());
                 return Task.CompletedTask;
             };
+
+            _client.JoinedGuild += (guild) => Task.Run(async () =>
+            {
+                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
+
+                bool guildIsBlocked = await _db.BlockedGuilds.FindAsync(guild.Id) is not null;
+                if (guildIsBlocked)
+                {
+                    await guild.LeaveAsync();
+                }
+                else if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
+                {
+                    var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
+                }
+            });
+
+            _client.LeftGuild += (guild) => Task.Run(() =>
+            {
+                LogRed($"Left guild: {guild?.Name} | Owner: {guild?.Owner?.Username} | Members: {guild?.MemberCount}\n");
+            });
 
             await _client.LoginAsync(TokenType.Bot, envToken ?? ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
@@ -96,16 +120,6 @@ namespace CharacterEngineDiscord.Services
 
             // Bind event handlers
             client.Log += (msg) => Task.Run(() => Log($"{msg}\n"));
-            client.JoinedGuild += (guild) => Task.Run(async () =>
-            {
-                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
-                if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
-                    await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
-            });
-            client.LeftGuild += (guild) => Task.Run(async () =>
-            {
-                LogRed($"Left guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
-            });
 
             return client;
         }

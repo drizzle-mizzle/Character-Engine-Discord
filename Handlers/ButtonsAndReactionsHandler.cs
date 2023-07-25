@@ -8,13 +8,8 @@ using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.CharacterHub;
-using System.Xml.Linq;
-using Castle.Components.DictionaryAdapter.Xml;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -53,93 +48,94 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
-            var user = reaction.User.Value;
-            if (user is null) return;
+            try {
+                var user = reaction.User.Value;
+                if (user is null) return;
 
-            var userReacted = (SocketGuildUser)user;
-            if (userReacted.IsBot) return;
+                var userReacted = (SocketGuildUser)user;
+                if (userReacted.IsBot) return;
 
-            var characterMessage = await rawMessage.DownloadAsync();
-            if (!characterMessage.Author.IsWebhook) return;
+                var characterMessage = await rawMessage.DownloadAsync();
+                if (!characterMessage.Author.IsWebhook) return;
 
-            var channel = await _db.Channels.FindAsync(discordChannel.Id);
-            if (channel is null) return;
+                var channel = await _db.Channels.FindAsync(discordChannel.Id);
+                if (channel is null) return;
 
-            var webhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
-            if (webhook is null) return;
+                var webhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
+                if (webhook is null) return;
 
-            if (reaction.Emote.Name == STOP_BTN.Name)
-            {
-                webhook.SkipNextBotMessage = true;
-                return;
+                if (reaction.Emote.Name == STOP_BTN.Name)
+                {
+                    webhook.SkipNextBotMessage = true;
+                    return;
+                }
+
+                //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
+                //{
+                //    _ = TranslateMessageAsync(message, currentChannel.Data.TranslateLanguage);
+                //    return;
+                //}
+
+                bool userIsLastCaller = webhook.LastDiscordUserCallerId == userReacted.Id;
+                bool msgIsSwipable = characterMessage.Id == webhook.LastCharacterDiscordMsgId;
+                if (!(userIsLastCaller && msgIsSwipable)) return;
+
+                if (reaction.Emote.Name == ARROW_LEFT.Name && webhook.CurrentSwipeIndex > 0)
+                {   // left arrow
+                    webhook.CurrentSwipeIndex--;
+                    await SwipeMessageAsync(characterMessage, webhook, userReacted);
+                }
+                else if (reaction.Emote.Name == ARROW_RIGHT.Name)
+                {   // right arrow
+                    webhook.CurrentSwipeIndex++;
+                    await SwipeMessageAsync(characterMessage, webhook, userReacted);
+                }
             }
-
-            //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
-            //{
-            //    _ = TranslateMessageAsync(message, currentChannel.Data.TranslateLanguage);
-            //    return;
-            //}
-
-            bool userIsLastCaller = webhook.LastDiscordUserCallerId == userReacted.Id;
-            bool msgIsSwipable = characterMessage.Id == webhook.LastCharacterDiscordMsgId;
-            if (!(userIsLastCaller && msgIsSwipable)) return;
-
-            if (reaction.Emote.Name == ARROW_LEFT.Name && webhook.CurrentSwipeIndex > 0)
-            {   // left arrow
-                webhook.CurrentSwipeIndex--;
-                try { await SwipeMessageAsync(characterMessage, webhook, userReacted); }
-                catch(Exception e) { LogException(new[] {e}); }
-            }
-            else if (reaction.Emote.Name == ARROW_RIGHT.Name)
-            {   // right arrow
-                webhook.CurrentSwipeIndex++;
-                try { await SwipeMessageAsync(characterMessage, webhook, userReacted); }
-                catch (Exception e) { LogException(new[] { e }); }
-            }
+            catch (Exception e) { LogException(new[] { e }); }
         }
 
         private async Task HandleButtonAsync(SocketMessageComponent component)
         {
-            await component.DeferAsync();
-
-            var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
-            if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
-            if (searchQuery.AuthorId != component.User.Id) return;
-            if (await UserIsBanned(component.User, _db)) return;
-
-            int tail = searchQuery.SearchQueryData.Characters.Count - (searchQuery.CurrentPage - 1) * 10;
-            int maxRow = tail > 10 ? 10 : tail;
-
-            switch (component.Data.CustomId)
+            try
             {
-                case "up":
-                    if (searchQuery.CurrentRow == 1) searchQuery.CurrentRow = maxRow;
-                    else searchQuery.CurrentRow--;
-                    break;
-                case "down":
-                    if (searchQuery.CurrentRow > maxRow) searchQuery.CurrentRow = 1;
-                    else searchQuery.CurrentRow++;
-                    break;
-                case "left":
-                    searchQuery.CurrentRow = 1;
-                    if (searchQuery.CurrentPage == 1) searchQuery.CurrentPage = searchQuery.Pages;
-                    else searchQuery.CurrentPage--;
-                    break;
-                case "right":
-                    searchQuery.CurrentRow = 1;
-                    if (searchQuery.CurrentPage == searchQuery.Pages) searchQuery.CurrentPage = 1;
-                    else searchQuery.CurrentPage++;
-                    break;
-                case "select":
-                    try
-                    {
+                await component.DeferAsync();
+
+                var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
+                if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
+                if (searchQuery.AuthorId != component.User.Id) return;
+                if (await UserIsBanned(component.User, _db)) return;
+
+                int tail = searchQuery.SearchQueryData.Characters.Count - (searchQuery.CurrentPage - 1) * 10;
+                int maxRow = tail > 10 ? 10 : tail;
+
+                switch (component.Data.CustomId)
+                {
+                    case "up":
+                        if (searchQuery.CurrentRow == 1) searchQuery.CurrentRow = maxRow;
+                        else searchQuery.CurrentRow--;
+                        break;
+                    case "down":
+                        if (searchQuery.CurrentRow > maxRow) searchQuery.CurrentRow = 1;
+                        else searchQuery.CurrentRow++;
+                        break;
+                    case "left":
+                        searchQuery.CurrentRow = 1;
+                        if (searchQuery.CurrentPage == 1) searchQuery.CurrentPage = searchQuery.Pages;
+                        else searchQuery.CurrentPage--;
+                        break;
+                    case "right":
+                        searchQuery.CurrentRow = 1;
+                        if (searchQuery.CurrentPage == searchQuery.Pages) searchQuery.CurrentPage = 1;
+                        else searchQuery.CurrentPage++;
+                        break;
+                    case "select":
+
                         await component.Message.ModifyAsync(msg =>
                         {
                             msg.Embed = InlineEmbed(WAIT_MESSAGE, Color.Teal);
                             msg.Components = null;
                         });
 
-                        _integration.SearchQueries.Remove(searchQuery);
                         int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
                         string characterId = searchQuery.SearchQueryData.Characters[index].Id;
 
@@ -158,40 +154,41 @@ namespace CharacterEngineDiscord.Handlers
                         {
                             return;
                         }
-
+                        
                         if (character is null)
                         {
                             await component.Message.ModifyAsync(msg => msg.Embed = FailedToSetCharacterEmbed());
                             return;
                         }
 
-                        var context = new InteractionContext(_client, component);
+                        var context = new InteractionContext(_client, component, component.Channel);
 
-                        var webhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _db, _integration);
-                        if (webhook is null) return;
+                        var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _db, _integration);
+                        if (characterWebhook is null) return;
 
-                        var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.WebhookToken);
-                        _integration.WebhookClients.Add(webhook.Id, webhookClient);
+                        var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                        _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
 
-                        await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(webhook, character));
+                        await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
                         await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting}");
-                    }
-                    catch (Exception e) { LogException(new[] { e }); }
 
-                    return;
-                default:
-                    return;
+                        _integration.SearchQueries.Remove(searchQuery);
+                        return;
+                    default:
+                        return;
+                }
+
+                // Only if left/right/up/down is selected, either this line will never be reached
+                await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
             }
-
-            // Only if left/right/up/down is selected, either this line will never be reached
-            await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
+            catch (Exception e) { LogException(new[] { e }); }
         }
 
         private async Task SwipeMessageAsync(IUserMessage characterMessage, CharacterWebhook characterWebhook, SocketGuildUser caller)
         {
-            //Drop delay
-            if (_integration.RemoveEmojiRequestQueue.ContainsKey(characterMessage.Id))
-                _integration.RemoveEmojiRequestQueue[characterMessage.Id] = characterWebhook.Channel.Guild.BtnsRemoveDelay;
+            //Move it to the end of the queue
+            _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
+            _integration.RemoveEmojiRequestQueue.Add(characterMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
             if (webhookClient is null) return;

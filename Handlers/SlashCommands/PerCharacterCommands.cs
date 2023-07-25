@@ -1,26 +1,20 @@
-﻿using Discord.Interactions;
-using CharacterEngineDiscord.Models;
+﻿using Discord;
+using Discord.Webhook;
+using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
-using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
-using System.Runtime.CompilerServices;
-using Discord;
-using PuppeteerSharp;
-using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    /// <summary>
-    /// Commands that do not change any data
-    /// </summary>
-    public class OneShotCommands : InteractionModuleBase<InteractionContext>
+    [RequireContext(ContextType.Guild)]
+    public class PerCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
         private readonly StorageContext _db;
-        public OneShotCommands(IServiceProvider services)
+
+        public PerCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _db = services.GetRequiredService<StorageContext>();
@@ -36,14 +30,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("show-last-request-cost", "~")]
         public async Task ShowLastRequestCost(string webhookId)
         {
+            await DeferAsync();
+
             var characterWebhook = await _db.CharacterWebhooks.FindAsync(ulong.Parse(webhookId));
             if (characterWebhook == null)
             {
-                await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Orange));
+                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Orange));
                 return;
             }
 
-            await RespondAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} {characterWebhook.LastRequestTokensUsage.ToString() ?? "?"} tokens", Color.Green));
+            await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} {characterWebhook.LastRequestTokensUsage.ToString() ?? "?"} tokens", Color.Green));
         }
 
         [SlashCommand("show-messages-format", "Check character messages format")]
@@ -67,11 +63,29 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed);
         }
 
+        [SlashCommand("show-jailbreak-prompt", "Check character jailbreak prompt")]
+        public async Task ShowJailbreakPrompt(string webhookId)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await _db.CharacterWebhooks.FindAsync(ulong.Parse(webhookId));
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                return;
+            }
+
+            var embed = new EmbedBuilder().WithTitle($"**{characterWebhook.Character.Name}**")
+                                          .WithColor(Color.Gold)
+                                          .AddField("Prompt:", $"{characterWebhook.UniversalJailbreakPrompt}")
+                                          .Build();
+
+            await FollowupAsync(embed: embed);
+        }
 
         ////////////////////////////
         //// Main logic section ////
         ////////////////////////////
-
 
         private async Task ShowHistoryAsync(string webhookId)
         {

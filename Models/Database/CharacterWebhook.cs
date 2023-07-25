@@ -43,7 +43,6 @@ namespace CharacterEngineDiscord.Models.Database
         public required float? OpenAiPresencePenalty { get; set; }
         public required float? OpenAiTemperature { get; set; }
         public required int? OpenAiMaxTokens { get; set; }
-        public required int? OpenAiContextSize { get; set; }
 
         // Universal Tavern (except CharacterAI)
         public required string? UniversalJailbreakPrompt { get; set; }

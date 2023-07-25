@@ -47,13 +47,10 @@ namespace CharacterEngineDiscord.Migrations
                     Greeting = table.Column<string>(type: "TEXT", nullable: true),
                     AuthorName = table.Column<string>(type: "TEXT", nullable: true),
                     ImageGenEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Link = table.Column<string>(type: "TEXT", nullable: false),
                     AvatarUrl = table.Column<string>(type: "TEXT", nullable: true),
-                    Interactions = table.Column<ulong>(type: "INTEGER", nullable: false),
+                    Interactions = table.Column<ulong>(type: "INTEGER", nullable: true),
                     Stars = table.Column<ulong>(type: "INTEGER", nullable: true),
-                    Personality = table.Column<string>(type: "TEXT", nullable: true),
-                    Scenario = table.Column<string>(type: "TEXT", nullable: true),
-                    ExampleDialogs = table.Column<string>(type: "TEXT", nullable: true)
+                    Definition = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -117,7 +114,6 @@ namespace CharacterEngineDiscord.Migrations
                     OpenAiPresencePenalty = table.Column<float>(type: "REAL", nullable: true),
                     OpenAiTemperature = table.Column<float>(type: "REAL", nullable: true),
                     OpenAiMaxTokens = table.Column<int>(type: "INTEGER", nullable: true),
-                    OpenAiContextSize = table.Column<int>(type: "INTEGER", nullable: true),
                     UniversalJailbreakPrompt = table.Column<string>(type: "TEXT", nullable: true),
                     CharacterId = table.Column<string>(type: "TEXT", nullable: false),
                     ChannelId = table.Column<ulong>(type: "INTEGER", nullable: false),

@@ -1,32 +1,25 @@
-﻿using Discord;
-using Discord.Webhook;
-using Discord.Interactions;
+﻿using Discord.Interactions;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
+using Discord;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    public class PerChannelCommands : InteractionModuleBase<InteractionContext>
+    [RequireContext(ContextType.Guild)]
+    public class OtherPublicCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
         private readonly StorageContext _db;
-
-        public PerChannelCommands(IServiceProvider services)
+        public OtherPublicCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _db = services.GetRequiredService<StorageContext>();
         }
-
-        //[SlashCommand("spawn-custom-tavern-character", "Add a new character to this channel with full customization")]
-        //public async Task SpawnCustomTavernCharacter()
-        //{
-        //    try { }
-        //    catch (Exception e) { LogException(new[] { e }); }
-        //}
 
         [SlashCommand("show-characters", "Show all characters in this channel")]
         public async Task ShowCharacters()
@@ -34,6 +27,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             try { await ShowCharactersAsync(); }
             catch (Exception e) { LogException(new[] { e }); }
         }
+
 
         ////////////////////////////
         //// Main logic section ////
@@ -43,8 +37,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            ulong channelId = Context.Interaction.ChannelId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
-            var channel = await _db.Channels.FindAsync(channelId);
+            var channel = await _db.Channels.FindAsync(Context.Channel.Id);
             if (channel is null || channel.CharacterWebhooks.Count == 0)
             {
                 await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} No characters were found in this channel", Color.Orange));
@@ -56,7 +49,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             foreach (var characterWebhook in channel.CharacterWebhooks)
             {
                 var integrationType = characterWebhook.IntegrationType is IntegrationType.CharacterAI ? "c.ai" :
-                                      characterWebhook.IntegrationType is IntegrationType.OpenAI ? characterWebhook.OpenAiModel : "";
+                                      characterWebhook.IntegrationType is IntegrationType.OpenAI ? characterWebhook.OpenAiModel :
+                                      "empty";
+
                 result += $"{count++}. **{characterWebhook.Character.Name}** | *`{characterWebhook.CallPrefix}`* | `{characterWebhook.Id}` | `{integrationType}` \n";
             }
             var embed = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} {count} character(s) in this channel:")

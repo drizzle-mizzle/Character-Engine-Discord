@@ -1,10 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using Discord.Interactions;
-using CharacterAI;
-using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
-using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -30,7 +27,7 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleCommandAsync(SocketSlashCommand command)
         {
-            var context = new InteractionContext(_client, command);
+            var context = new InteractionContext(_client, command, command.Channel);
             var result = await _interactions.ExecuteCommandAsync(context, _services);
 
             if (!result.IsSuccess)

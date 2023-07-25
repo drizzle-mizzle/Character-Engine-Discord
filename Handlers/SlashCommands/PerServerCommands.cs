@@ -11,6 +11,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
+    [RequireManagerAccess]
     public class PerServerCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
@@ -22,20 +23,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db = services.GetRequiredService<StorageContext>();
         }
 
-        public enum OpenAiModel
-        {
-            [ChoiceDisplay("gpt-3.5-turbo")]
-            GPT_3_5_turbo,
-
-            [ChoiceDisplay("gpt-4")]
-            GPT_4
-        }
-
         [SlashCommand("clear-webhooks", "Remove all character-webhooks from this server")]
         public async Task ClearServerWebhooks()
         {
             var user = Context.User as SocketGuildUser;
-            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            if (user.HasManagerRole() || user.IsServerOwner() || user.IsHoster())
             {
                 try { await ClearServerWebhooksAsync(); }
                 catch (Exception e) { LogException(new[] { e }); }
@@ -48,7 +40,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task SetDefaultGuildCaiToken(string token, bool hasCaiPlusSubscription)
         {
             var user = Context.User as SocketGuildUser;
-            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            if (user.HasManagerRole() || user.IsServerOwner() || user.IsHoster())
             {
                 try { await SetDefaultGuildCaiTokenAsync(token, hasCaiPlusSubscription); }
                 catch (Exception e) { LogException(new[] { e }); }
@@ -61,7 +53,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task SetDefaultGuildOpenAiToken(string token, OpenAiModel gptModel)
         {
             var user = Context.User as SocketGuildUser;
-            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
+            if (user.HasManagerRole() || user.IsServerOwner() || user.IsHoster())
             {
                 try { await SetDefaultGuildOpenAiTokenAsync(token, gptModel); }
                 catch (Exception e) { LogException(new[] { e }); }
@@ -77,7 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SetDefaultGuildOpenAiTokenAsync(string token, OpenAiModel gptModel)
         {
-            var guild = await FindOrStartTrackingGuildAsync((ulong)Context.Interaction.GuildId!, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
             if (guild is null)
             {
                 await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Failed to update default CharacterAI user auth token.", Color.Red));
@@ -93,7 +85,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SetDefaultGuildCaiTokenAsync(string token, bool hasCaiPlusSubscription)
         {
-            var guild = await FindOrStartTrackingGuildAsync((ulong)Context.Interaction.GuildId!, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
             if (guild is null)
             {
                 await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Failed to update default CharacterAI user auth token.", Color.Red));

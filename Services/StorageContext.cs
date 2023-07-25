@@ -1,12 +1,7 @@
 ﻿using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Logging;
-using System.Diagnostics;
-using System.Xml;
 using static CharacterEngineDiscord.Services.CommonService;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -22,9 +17,11 @@ namespace CharacterEngineDiscord.Services
         internal DbSet<HuntedUser> HuntedUsers { get; set; }
         internal DbSet<OpenAiHistoryMessage> OpenAiHistoryMessages { get; set; }
 
-        public StorageContext() { }
+        public StorageContext()
+        {
 
-        
+        }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             // Needed for migration builds

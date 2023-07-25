@@ -6,26 +6,26 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Discord.WebSocket;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
+    [RequireManagerAccess]
     [Group("spawn", "Spawn new character")]
     public class SpawnCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
         private readonly StorageContext _db;
-
+        
         public SpawnCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _db = services.GetRequiredService<StorageContext>();
         }
 
-        public enum TavernApiType
+        public enum ApiType
         {
             OpenAI
         }
@@ -33,44 +33,39 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("cai-character", "Add new character from CharacterAI to this channel")]
         public async Task SpawnCaiCharacter([Summary(description: "When specify a character ID, set 'set-with-id' parameter to 'True'")] string searchQueryOrCharacterId, bool setWithId = false)
         {
-            var user = Context.User as SocketGuildUser;
-            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
-            {
-                try { await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId); }
-                catch (Exception e) { LogException(new[] { e }); }
-            }
-            else
-                await Context.SendNoPowerFileAsync();
+            try { await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId); }
+            catch (Exception e) { LogException(new[] { e }); }
         }
 
 
         const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
         const string tagsDesc = "Tags separated by ','";
-        [SlashCommand("tavern-character", "Add new character from CharacterHub to this channel")]
-        public async Task SpawnChubCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, TavernApiType apiType, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, bool setWithId = false)
+        [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
+        public async Task SpawnChubCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, ApiType apiType, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, bool setWithId = false)
         {
-            var user = Context.User as SocketGuildUser;
-            if (user.IsCharManager() || user.IsServerOwner() || user.IsHoster())
-            {
-                try { await SpawnChubCharacterAsync(searchQueryOrCharacterId, apiType, tags, allowNSFW, setWithId); }
-                catch (Exception e) { LogException(new[] { e }); }
-            }
-            else
-                await Context.SendNoPowerFileAsync();
+            
+            try { await SpawnChubCharacterAsync(searchQueryOrCharacterId, apiType, tags, allowNSFW, setWithId); }
+            catch (Exception e) { LogException(new[] { e }); }
+        }
+
+        [SlashCommand("custom-character", "Add new character to this channel with full customization")]
+        public async Task SpawnCustomTavernCharacter()
+        {
+            await RespondWithCustomCharModalasync();
         }
 
 
         ////////////////////////////
         //// Main logic section ////
         ////////////////////////////
-        
-        private async Task SpawnChubCharacterAsync(string searchQueryOrCharacterId, TavernApiType apiType, string? tags = null, bool allowNSFW = true, bool setWithId = false)
+
+        private async Task SpawnChubCharacterAsync(string searchQueryOrCharacterId, ApiType apiType, string? tags = null, bool allowNSFW = true, bool setWithId = false)
         {
-            var guild = await FindOrStartTrackingGuildAsync((ulong)Context.Interaction.GuildId!, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
             await DeferAsync();
             switch (apiType)
             {
-                case TavernApiType.OpenAI:
+                case ApiType.OpenAI:
                     string? token = guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
                     if (!string.IsNullOrWhiteSpace(token)) break;
 
@@ -80,7 +75,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             // It will be extended, don't laugh T_T
-            IntegrationType integrationType = apiType is TavernApiType.OpenAI ? IntegrationType.OpenAI : IntegrationType.OpenAI;
+            IntegrationType integrationType = apiType is ApiType.OpenAI ? IntegrationType.OpenAI : IntegrationType.OpenAI;
 
             if (setWithId)
             {
@@ -107,7 +102,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-
         private async Task SpawnCaiCharacterAsync([Summary(description: "When specify a character ID, set 'set-with-id' parameter to 'True'")] string searchQueryOrCharacterId, bool setWithId = false)
         {
             await DeferAsync();
@@ -118,7 +112,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var guild = await FindOrStartTrackingGuildAsync((ulong)Context.Interaction.GuildId!, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
             if (guild is null) return;
 
             var caiToken = guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
@@ -150,11 +144,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-
-        ////////////////////////////
-        //// Main logic section ////
-        ////////////////////////////
-
         private async Task FinishSpawningAsync(IntegrationType type, Models.Database.Character? character)
         {
             if (character is null)
@@ -163,11 +152,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            ulong channelId = Context.Interaction.ChannelId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
-            ulong guildId = Context.Interaction.GuildId ?? (await Context.Interaction.GetOriginalResponseAsync()).Channel.Id;
-            var channel = await FindOrStartTrackingChannelAsync(channelId, guildId, _db);
-
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
             var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _db, _integration);
+
             if (characterWebhook is null)
             {
                 await ModifyOriginalResponseAsync(msg => msg.Embed = InlineEmbed($"{WARN_SIGN_DISCORD} Something went wrong!", Color.Red));
@@ -177,7 +164,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
 
-            await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook, character));
+            await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
             await webhookClient.SendMessageAsync($"{Context.User.Mention} {character.Greeting}");
         }
 
@@ -192,6 +179,42 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             // Start tracking this one
             _integration.SearchQueries.Add(query);
+        }
+
+        private async Task RespondWithCustomCharModalasync()
+        {
+            var modal = new ModalBuilder().WithTitle($"Create a character")
+                                            .WithCustomId("spawn")
+                                            .AddTextInput($"Name", "name", TextInputStyle.Short, required: true)
+                                            .AddTextInput($"First message", "first-message", TextInputStyle.Paragraph, "*{{char}} joins server*\nHello everyone!", required: true)
+                                            .AddTextInput($"Definition-1", "definition-1", TextInputStyle.Paragraph, required: true, value:
+                                                        "((DELETE THIS SECTION))\n" +
+                                                        "  Discord doesn't allow to set\n" +
+                                                        "  more than 5 rows in one modal, so\n" +
+                                                        "  you'll have to write the whole\n" +
+                                                        "  character definition in these two.\n" +
+                                                        "  It's highly recommended to follow\n" +
+                                                        "  this exact pattern below and fill\n" +
+                                                        "  each line one by one.\n" +
+                                                        "  Remove or rename lines that are not\n" +
+                                                        "  needed. Custom Jailbreak prompt can\n" +
+                                                        "  be set with `update-character` command\n" +
+                                                        "  later. Default one can be seen be seen\n" +
+                                                        "  with `show-jailbreak-prompt` command." +
+                                                        "((DELETE THIS SECTION))\n\n" +
+                                                        "{{char}}'s personality: ALL BASIC INFO ABOUT CHARACTER, CONTINUE IN THE NEXT FIELD IF OUT OF SPACE.")
+                                            .AddTextInput($"Definition-2", "definition-2", TextInputStyle.Paragraph, required: false, value:
+                                                        "((DELETE THIS SECTION))\n" +
+                                                        "  This section will simply continue\n" +
+                                                        "  the previous one, as if these two were\n" +
+                                                        "  just one big text field.\n" +
+                                                        "((DELETE THIS SECTION))\n\n" +
+                                                        "Scenario of roleplay: {{char}} has joined Discord!\n\n" +
+                                                        "Example conversations between {{char}} and {{user}}:\n<START>\n{{user}}: Nullpo;\n{{char}}: Gah!\n<END>")
+                                            .AddTextInput($"Avatar url", "avatar-url", TextInputStyle.Short, "e.g. \"https://avatars.charhub.io/avatars/x-x-x/avatar.webp\"", required: false)
+                                            .Build();
+
+            await RespondWithModalAsync(modal);
         }
     }
 }

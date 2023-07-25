@@ -2,7 +2,6 @@
 using Discord.Webhook;
 using Discord.Commands;
 using Discord.WebSocket;
-using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
@@ -10,14 +9,6 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Net;
-using Newtonsoft.Json;
-using System.Dynamic;
-using Newtonsoft.Json.Linq;
-using System.Text;
-using CharacterEngineDiscord.Models.OpenAI;
-using System.Collections.Generic;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -63,6 +54,8 @@ namespace CharacterEngineDiscord.Handlers
                     await TryToCallCaiCharacterAsync(characterWebhook, userMessage);
                 else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                     await TryToCallOpenAiCharacterAsync(characterWebhook, userMessage);
+                else
+                    await userMessage.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Set backend API for this integration. Use `update-character` command.", Color.Orange));
             }
             catch (Exception e) { LogException(new[] {e}); }
             //bool hasReply = hasMention || message.ReferencedMessage is IUserMessage refm && refm.Author.Id == _client.CurrentUser.Id;

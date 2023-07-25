@@ -91,10 +91,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Description")
+                    b.Property<string>("Definition")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ExampleDialogs")
+                    b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Greeting")
@@ -103,21 +103,11 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<bool>("ImageGenEnabled")
                         .HasColumnType("INTEGER");
 
-                    b.Property<ulong>("Interactions")
+                    b.Property<ulong?>("Interactions")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Link")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Personality")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Scenario")
                         .HasColumnType("TEXT");
 
                     b.Property<ulong?>("Stars")
@@ -163,9 +153,6 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("MessagesFormat")
                         .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<int?>("OpenAiContextSize")
-                        .HasColumnType("INTEGER");
 
                     b.Property<float?>("OpenAiFreqPenalty")
                         .HasColumnType("REAL");
