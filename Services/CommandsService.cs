@@ -59,17 +59,28 @@ namespace CharacterEngineDiscord.Services
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}*") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string lastField = $"*\"{character.Title}\"*\n\n{character.Description}\n\n*Original link: {link}\n" +
+            string? title = (character.Title ?? "").Length > 300 ? (character.Title!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Title;
+            string? desc = (character.Description ?? "").Length > 400 ? (character.Description!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Description;
+            if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
+
+            string lastField = $"*\"{title}\"*" +
+                               $"{desc}" +
+                               $"*Original link: {link}\n" +
                                $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
-            return new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold)
-                                     .WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.")
-                                     .AddField("Usage example:", $"*`{characterWebhook.CallPrefix}hey!`*")
-                                     .AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.")
-                                     .AddField(characterWebhook.Character.Name, lastField)
-                                     .WithImageUrl(characterWebhook.Character.AvatarUrl)
-                                     .WithFooter($"Created by {character.AuthorName}")
-                                     .Build();
+            LogRed(lastField.Length);
+            LogRed(lastField);
+
+
+            var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
+
+            emb.WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.");
+            emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix}hey!`*");
+            emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.");
+            emb.AddField(characterWebhook.Character.Name, lastField);
+            emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
+            emb.WithFooter($"Created by {character.AuthorName}");
+            return emb.Build();
         }
 
         internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData, StorageContext db)

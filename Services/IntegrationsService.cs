@@ -183,18 +183,20 @@ namespace CharacterEngineDiscord.Services
 
         internal static async Task<ChubSearchResponse> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
         {
-            string uri = "https://api.chub.ai/search?" +
-                $"first={searchParams.Amount}" +
+            string uri = "https://v2.chub.ai/search?" +
+                $"&search={searchParams.Text}" +
+                $"&first={searchParams.Amount}" +
+                $"&topics={searchParams.Tags}" +
+                $"&excludetopics={searchParams.ExcludeTags}" +
                 $"&page={searchParams.Page}" +
-                $"&exclude_tags={searchParams.ExcludeTags}" +
-                $"&namespace=characters&search={searchParams.Text}" +
-                $"&nsfw={searchParams.AllowNSFW}" +
-                $"&nsfw_only={searchParams.OnlyNSFW}" +
                 $"&sort={searchParams.SortFieldValue}" +
-                $"&topics={searchParams.Tags}";
+                $"&nsfw={searchParams.AllowNSFW}";
+                
             var response = await client.GetAsync(uri);
-            
-            return new(response, searchParams.Text);
+            string originalQuery = $"{searchParams.Text ?? "no input"}";
+            originalQuery += string.IsNullOrWhiteSpace(searchParams.Tags) ? "" : $" (tags: {searchParams.Tags})";
+
+            return new(response, originalQuery);
         }
 
         internal static async Task<ChubCharacter> GetChubCharacterInfo(string characterId, HttpClient client)
@@ -285,7 +287,6 @@ namespace CharacterEngineDiscord.Services
 
                 if (caiHistoryId is not null)
                     await db.AddAsync(new CaiHistory() { Id = caiHistoryId, CharacterWebhookId = characterWebhook.Id, CreatedAt = DateTime.UtcNow, IsActive = true });
-                LogRed(3);
 
                 await db.SaveChangesAsync();
                 return characterWebhook;

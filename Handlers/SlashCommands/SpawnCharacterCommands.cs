@@ -41,10 +41,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
         const string tagsDesc = "Tags separated by ','";
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
-        public async Task SpawnChubCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, ApiType apiType, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, bool setWithId = false)
+        public async Task SpawnChubCharacter(ApiType apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
         {
             
-            try { await SpawnChubCharacterAsync(searchQueryOrCharacterId, apiType, tags, allowNSFW, setWithId); }
+            try { await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId); }
             catch (Exception e) { LogException(new[] { e }); }
         }
 
@@ -59,10 +59,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Main logic section ////
         ////////////////////////////
 
-        private async Task SpawnChubCharacterAsync(string searchQueryOrCharacterId, ApiType apiType, string? tags = null, bool allowNSFW = true, bool setWithId = false)
+        private async Task SpawnChubCharacterAsync(ApiType apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId)
         {
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
             await DeferAsync();
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
             switch (apiType)
             {
                 case ApiType.OpenAI:
@@ -81,7 +83,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: InlineEmbed(WAIT_MESSAGE, Color.Teal));
 
-                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId, _integration.HttpClient);
+                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.HttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
                 await FinishSpawningAsync(integrationType, character);
             }
@@ -91,10 +93,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
                 var response = await SearchChubCharactersAsync(new()
                 {
-                    Text = searchQueryOrCharacterId,
-                    Tags = string.Join(',', tags),
-                    AllowNSFW = allowNSFW,
-                    SortBy = SortField.MostPopular
+                    Text = searchQueryOrCharacterId ?? "",
+                    Amount = 300,
+                    Tags = tags ?? "",
+                    ExcludeTags = "",
+                    Page = 1,
+                    SortBy = sortBy,
+                    AllowNSFW = allowNSFW
                 }, _integration.HttpClient);
 
                 var searchQueryData = SearchQueryDataFromChubResponse(response);

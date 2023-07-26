@@ -28,9 +28,8 @@ namespace CharacterEngineDiscord.Services
             if (Environment.GetEnvironmentVariable("RUNNING") is not null)
             {
                 Console.BackgroundColor = ConsoleColor.DarkYellow;
-                Console.WriteLine(new string(' ', Console.WindowWidth));
+                Console.WriteLine(new string(' ', Console.WindowWidth - 1) + "\n");
                 Console.ResetColor();
-                Environment.SetEnvironmentVariable("RUNNING", null);
             }
 
             var connString = ConfigFile.DbConnString.Value.IsEmpty() ?
@@ -47,7 +46,7 @@ namespace CharacterEngineDiscord.Services
         protected internal static void SqlLog(string text)
         {
             Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.WriteLine(new string('~', Console.WindowWidth));
+            Console.WriteLine(new string('~', Console.WindowWidth - 1) + "\n");
             Console.ResetColor();
             LogYellow(text + "\n");
         }
