@@ -54,7 +54,7 @@ namespace CharacterEngineDiscord.Services
         {
             var character = characterWebhook.Character;
             var (link, stat) = characterWebhook.IntegrationType == IntegrationType.CharacterAI ?
-                ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}*") :
+                ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
             string? title = (character.Title ?? "").Length > 300 ? (character.Title!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Title;
