@@ -22,13 +22,13 @@ namespace CharacterEngineDiscord.Models.CharacterHub
             OriginalQuery = originalQuery;
             Characters = new();
             Code = (int)response.StatusCode;
-            string content = response.Content.ReadAsStringAsync().Result;
+            string responseContent = response.Content.ReadAsStringAsync().Result;
 
             if (response.IsSuccessStatusCode)
             {
                 try
                 {
-                    var responseParsed = JsonConvert.DeserializeObject<dynamic>(content)!.data;
+                    var responseParsed = JsonConvert.DeserializeObject<dynamic>(responseContent)!.data;
                     Amount = (int)responseParsed.count;
                     CurrentPage = (int)responseParsed.page;
                     Characters = new();
@@ -51,7 +51,7 @@ namespace CharacterEngineDiscord.Models.CharacterHub
             {
                 IsSuccessful = false;
                 IsFailure = true;
-                ErrorReason = response.ReasonPhrase ?? content;
+                ErrorReason = $"{response.ReasonPhrase}\n{responseContent}";
             }
         }
     }

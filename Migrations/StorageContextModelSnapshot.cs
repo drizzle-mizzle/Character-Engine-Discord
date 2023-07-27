@@ -73,6 +73,9 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<ulong>("GuildId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<float>("RandomReplyChance")
+                        .HasColumnType("REAL");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GuildId");
@@ -98,6 +101,7 @@ namespace CharacterEngineDiscord.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Greeting")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ImageGenEnabled")
@@ -172,6 +176,9 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("PersonalCaiUserAuthToken")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PersonalOpenAiApiEndpoint")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PersonalOpenAiApiToken")
                         .HasColumnType("TEXT");
 
@@ -213,6 +220,9 @@ namespace CharacterEngineDiscord.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("GuildCaiUserToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GuildOpenAiApiEndpoint")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildOpenAiApiToken")

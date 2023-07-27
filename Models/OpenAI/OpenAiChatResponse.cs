@@ -54,7 +54,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
             {
                 IsSuccessful = false;
                 IsFailure = true;
-                ErrorReason = response.ReasonPhrase ?? responseContent;
+                ErrorReason = $"{response.ReasonPhrase}\n{responseContent}";
             }
         }
     }

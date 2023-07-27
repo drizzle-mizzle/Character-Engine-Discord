@@ -16,7 +16,7 @@ namespace CharacterEngineDiscord.Services
         internal static bool IsHoster(this SocketGuildUser? user)
         {
             string? hosterId = ConfigFile.HosterDiscordID.Value;
-            LogRed($"User is null: {user is null} | HosterId: {hosterId} | UserId: {user?.Id}");
+
             try
             {
                 return hosterId is not null && user is not null && user.Id == ulong.Parse(hosterId);
@@ -68,18 +68,14 @@ namespace CharacterEngineDiscord.Services
                                $"*Original link: {link}\n" +
                                $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
-            LogRed(lastField.Length);
-            LogRed(lastField);
-
-
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
-
             emb.WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.");
             emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix}hey!`*");
             emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.");
             emb.AddField(characterWebhook.Character.Name, lastField);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
+
             return emb.Build();
         }
 
@@ -158,5 +154,9 @@ namespace CharacterEngineDiscord.Services
             GPT_4
         }
 
+        public enum ApiTypeForChub
+        {
+            OpenAI
+        }
     }
 }

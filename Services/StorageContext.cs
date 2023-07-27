@@ -1,7 +1,7 @@
-﻿using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.Database;
+﻿using CharacterEngineDiscord.Models.Database;
 using Microsoft.EntityFrameworkCore;
 using static CharacterEngineDiscord.Services.CommonService;
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -19,19 +19,17 @@ namespace CharacterEngineDiscord.Services
 
         public StorageContext()
         {
-
+            if (Environment.GetEnvironmentVariable("RUNNING") is not null) // Needed for migration builds, these have no Console
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.BackgroundColor = ConsoleColor.DarkRed;
+                Console.WriteLine(new string('~', Console.WindowWidth));
+                Console.ResetColor();
+            }
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            // Needed for migration builds
-            if (Environment.GetEnvironmentVariable("RUNNING") is not null)
-            {
-                Console.BackgroundColor = ConsoleColor.DarkYellow;
-                Console.WriteLine(new string(' ', Console.WindowWidth - 1) + "\n");
-                Console.ResetColor();
-            }
-
             var connString = ConfigFile.DbConnString.Value.IsEmpty() ?
                    $"Data Source={EXE_DIR}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
@@ -57,11 +55,12 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, BtnsRemoveDelay = 90 };
+                guild = new() { Id = guildId, BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null, GuildMessagesFormat = "{{msg}}" };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
             }
 
+            await db.Entry(guild).ReloadAsync();
             return guild;
         }
 
@@ -71,11 +70,12 @@ namespace CharacterEngineDiscord.Services
 
             if (channel is null)
             {
-                channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id };
+                channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
                 await db.SaveChangesAsync();
             }
 
+            await db.Entry(channel).ReloadAsync();
             return channel;
         }
 
@@ -89,6 +89,7 @@ namespace CharacterEngineDiscord.Services
                 await db.SaveChangesAsync();
             }
 
+            await db.Entry(character).ReloadAsync();
             return character;
         }
     }

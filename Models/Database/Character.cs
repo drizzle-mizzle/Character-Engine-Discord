@@ -9,7 +9,7 @@ namespace CharacterEngineDiscord.Models.Database
         public required string Name { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
-        public string? Greeting { get; set; }
+        public required string Greeting { get; set; }
         public string? AuthorName { get; set; }
         public required bool ImageGenEnabled { get; set; }
         public string? AvatarUrl { get; set; }

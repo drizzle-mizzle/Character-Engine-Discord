@@ -6,6 +6,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
+using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -14,11 +15,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class HelpCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
+        private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public HelpCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
+            _client = services.GetRequiredService<DiscordSocketClient>();
             _db = services.GetRequiredService<StorageContext>();
         }
 

@@ -25,6 +25,7 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField PuppeteerBrowserDir { get; } = new("puppeteer_browser_directory");
         public static ConfigField PuppeteerBrowserExe { get; } = new("puppeteer_browser_executable_path");
 
+        public static ConfigField DefaultOpenAiApiEndpoint { get; } = new("open_ai_default_api_endpoint");
         public static ConfigField DefaultOpenAiApiToken { get; } = new("open_ai_default_api_token");
         public static ConfigField DefaultOpenAiModel { get; } = new("open_ai_default_model");
 

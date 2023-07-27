@@ -1,13 +1,13 @@
 ﻿{
     "db_file_name": "database.sqlite3", // you can change it with the other one, but it must be located in /storage/ folder
     "db_connection_string": "", // if specified, will override the setting above; change only if you know what you're doing
-    "db_enable_logging": true,
+    "db_enable_logging": false,
     "no_permission_file": "nopower.gif", // just a gif or image that will be displayed when user without manager role tries to execute command; set with null if want to disable
 
     "discord_bot_token": "YOUR_BOT_TOKEN",
     "discord_bot_manager_role": "Manage Character", // the name of role that will be created on guild join; it will allow users to execute some commands
 
-    "hoster_discord_id": null, // your discord id; https://www.androidpolice.com/how-to-find-discord-id/
+    "hoster_discord_id": null, // your discord id, needed so you and only you could execute admin commands; https://www.androidpolice.com/how-to-find-discord-id/
     "discord_logs_channel_id": null, // channel where bot will send notifications and errors; it has to be allowed to send messages there
     "rate_limit": 10, // amount of interactions one user is allowed to do with the bot in one minute; better leave it as it is
     "max_characters_per_channel": 15, // can be only 15 or less, as Discord won't allow to create more than 15 webhooks in a single channel
@@ -21,6 +21,7 @@
     "puppeteer_browser_executable_path": null, // full path to the browser executable file, you better not touch it unless you REALLY need it
 
     // OpenAI integration
+    "open_ai_default_api_endpoint": "https://api.openai.com/v1/chat/completions", // will be used on each server by default if owner won't specify his personal one
     "open_ai_default_api_token": null, // will be used on each server by default if owner won't specify his personal one
     "open_ai_default_model": null // "gpt-3.5-turbo", "gpt-4"
 }

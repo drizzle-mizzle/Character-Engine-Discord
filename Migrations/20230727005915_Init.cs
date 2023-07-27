@@ -44,7 +44,7 @@ namespace CharacterEngineDiscord.Migrations
                     Name = table.Column<string>(type: "TEXT", nullable: false),
                     Title = table.Column<string>(type: "TEXT", nullable: true),
                     Description = table.Column<string>(type: "TEXT", nullable: true),
-                    Greeting = table.Column<string>(type: "TEXT", nullable: true),
+                    Greeting = table.Column<string>(type: "TEXT", nullable: false),
                     AuthorName = table.Column<string>(type: "TEXT", nullable: true),
                     ImageGenEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
                     AvatarUrl = table.Column<string>(type: "TEXT", nullable: true),
@@ -65,6 +65,7 @@ namespace CharacterEngineDiscord.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     GuildCaiUserToken = table.Column<string>(type: "TEXT", nullable: true),
                     GuildCaiPlusMode = table.Column<bool>(type: "INTEGER", nullable: true),
+                    GuildOpenAiApiEndpoint = table.Column<string>(type: "TEXT", nullable: true),
                     GuildOpenAiApiToken = table.Column<string>(type: "TEXT", nullable: true),
                     GuildOpenAiModel = table.Column<string>(type: "TEXT", nullable: true),
                     BtnsRemoveDelay = table.Column<int>(type: "INTEGER", nullable: false)
@@ -80,6 +81,7 @@ namespace CharacterEngineDiscord.Migrations
                 {
                     Id = table.Column<ulong>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
+                    RandomReplyChance = table.Column<float>(type: "REAL", nullable: false),
                     GuildId = table.Column<ulong>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -108,6 +110,7 @@ namespace CharacterEngineDiscord.Migrations
                     ReplyDelay = table.Column<int>(type: "INTEGER", nullable: false),
                     PersonalCaiUserAuthToken = table.Column<string>(type: "TEXT", nullable: true),
                     CaiActiveHistoryId = table.Column<string>(type: "TEXT", nullable: true),
+                    PersonalOpenAiApiEndpoint = table.Column<string>(type: "TEXT", nullable: true),
                     PersonalOpenAiApiToken = table.Column<string>(type: "TEXT", nullable: true),
                     OpenAiModel = table.Column<string>(type: "TEXT", nullable: true),
                     OpenAiFreqPenalty = table.Column<float>(type: "REAL", nullable: true),

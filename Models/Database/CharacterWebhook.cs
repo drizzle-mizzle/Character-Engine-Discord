@@ -37,6 +37,7 @@ namespace CharacterEngineDiscord.Models.Database
         public virtual List<CaiHistory> CaiHistories { get; set; } = new();
 
         // OpenAI ChatGPT
+        public string? PersonalOpenAiApiEndpoint { get; set; }
         public string? PersonalOpenAiApiToken { get; set; }
         public required string? OpenAiModel { get; set; }
         public required float? OpenAiFreqPenalty { get; set; }

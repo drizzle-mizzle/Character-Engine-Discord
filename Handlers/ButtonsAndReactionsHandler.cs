@@ -10,12 +10,13 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using Discord.Commands;
 
 namespace CharacterEngineDiscord.Handlers
 {
     internal class ButtonsAndReactionsHandler
     {
-        private readonly StorageContext _db;
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly IntegrationsService _integration;
@@ -23,7 +24,6 @@ namespace CharacterEngineDiscord.Handlers
         public ButtonsAndReactionsHandler(IServiceProvider services)
         {
             _services = services;
-            _db = _services.GetRequiredService<StorageContext>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
 
@@ -48,50 +48,53 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
-            try {
-                var user = reaction.User.Value;
-                if (user is null) return;
+            var user = reaction.User.Value;
+            if (user is null) return;
 
-                var userReacted = (SocketGuildUser)user;
-                if (userReacted.IsBot) return;
+            var userReacted = (SocketGuildUser)user;
+            if (userReacted.IsBot) return;
 
-                var characterMessage = await rawMessage.DownloadAsync();
-                if (!characterMessage.Author.IsWebhook) return;
+            var characterMessage = await rawMessage.DownloadAsync();
+            if (!characterMessage.Author.IsWebhook) return;
 
-                var channel = await _db.Channels.FindAsync(discordChannel.Id);
-                if (channel is null) return;
+            var db = _services.GetRequiredService<StorageContext>();
+            var channel = await db.Channels.FindAsync(discordChannel.Id);
+            if (channel is null) return;
 
-                var webhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
-                if (webhook is null) return;
+            await db.Entry(channel).ReloadAsync();
+            var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
+            if (characterWebhook is null) return;
 
-                if (reaction.Emote.Name == STOP_BTN.Name)
-                {
-                    webhook.SkipNextBotMessage = true;
-                    return;
-                }
-
-                //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
-                //{
-                //    _ = TranslateMessageAsync(message, currentChannel.Data.TranslateLanguage);
-                //    return;
-                //}
-
-                bool userIsLastCaller = webhook.LastDiscordUserCallerId == userReacted.Id;
-                bool msgIsSwipable = characterMessage.Id == webhook.LastCharacterDiscordMsgId;
-                if (!(userIsLastCaller && msgIsSwipable)) return;
-
-                if (reaction.Emote.Name == ARROW_LEFT.Name && webhook.CurrentSwipeIndex > 0)
-                {   // left arrow
-                    webhook.CurrentSwipeIndex--;
-                    await SwipeMessageAsync(characterMessage, webhook, userReacted);
-                }
-                else if (reaction.Emote.Name == ARROW_RIGHT.Name)
-                {   // right arrow
-                    webhook.CurrentSwipeIndex++;
-                    await SwipeMessageAsync(characterMessage, webhook, userReacted);
-                }
+            if (reaction.Emote.Name == STOP_BTN.Name)
+            {
+                characterWebhook.SkipNextBotMessage = true;
+                return;
             }
-            catch (Exception e) { LogException(new[] { e }); }
+
+            //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
+            //{
+            //    _ = TranslateMessageAsync(message, currentChannel.Data.TranslateLanguage);
+            //    return;
+            //}
+
+            bool userIsLastCaller = characterWebhook.LastDiscordUserCallerId == userReacted.Id;
+            bool msgIsSwipable = characterMessage.Id == characterWebhook.LastCharacterDiscordMsgId;
+            if (!(userIsLastCaller && msgIsSwipable)) return;
+
+            if (reaction.Emote.Name == ARROW_LEFT.Name && characterWebhook.CurrentSwipeIndex > 0)
+            {   // left arrow
+                if (await _integration.UserIsBanned(reaction, _client, db)) return;
+
+                characterWebhook.CurrentSwipeIndex--;
+                await SwipeMessageAsync(characterMessage, characterWebhook, userReacted);
+            }
+            else if (reaction.Emote.Name == ARROW_RIGHT.Name)
+            {   // right arrow
+                if (await _integration.UserIsBanned(reaction, _client, db)) return;
+
+                characterWebhook.CurrentSwipeIndex++;
+                await SwipeMessageAsync(characterMessage, characterWebhook, userReacted);
+            }
         }
 
         private async Task HandleButtonAsync(SocketMessageComponent component)
@@ -103,7 +106,9 @@ namespace CharacterEngineDiscord.Handlers
                 var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
                 if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
                 if (searchQuery.AuthorId != component.User.Id) return;
-                if (await UserIsBanned(component.User, _db)) return;
+
+                var db = _services.GetRequiredService<StorageContext>();
+                if (await UserIsBannedCheckOnly(component.User, db)) return;
 
                 int tail = searchQuery.SearchQueryData.Characters.Count - (searchQuery.CurrentPage - 1) * 10;
                 int maxRow = tail > 10 ? 10 : tail;
@@ -112,24 +117,19 @@ namespace CharacterEngineDiscord.Handlers
                 {
                     case "up":
                         if (searchQuery.CurrentRow == 1) searchQuery.CurrentRow = maxRow;
-                        else searchQuery.CurrentRow--;
-                        break;
+                        else searchQuery.CurrentRow--; break;
                     case "down":
                         if (searchQuery.CurrentRow > maxRow) searchQuery.CurrentRow = 1;
-                        else searchQuery.CurrentRow++;
-                        break;
+                        else searchQuery.CurrentRow++; break;
                     case "left":
                         searchQuery.CurrentRow = 1;
                         if (searchQuery.CurrentPage == 1) searchQuery.CurrentPage = searchQuery.Pages;
-                        else searchQuery.CurrentPage--;
-                        break;
+                        else searchQuery.CurrentPage--; break;
                     case "right":
                         searchQuery.CurrentRow = 1;
                         if (searchQuery.CurrentPage == searchQuery.Pages) searchQuery.CurrentPage = 1;
-                        else searchQuery.CurrentPage++;
-                        break;
+                        else searchQuery.CurrentPage++; break;
                     case "select":
-
                         await component.Message.ModifyAsync(msg =>
                         {
                             msg.Embed = InlineEmbed(WAIT_MESSAGE, Color.Teal);
@@ -163,7 +163,7 @@ namespace CharacterEngineDiscord.Handlers
 
                         var context = new InteractionContext(_client, component, component.Channel);
 
-                        var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _db, _integration);
+                        var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, db, _integration);
                         if (characterWebhook is null) return;
 
                         var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
@@ -193,6 +193,7 @@ namespace CharacterEngineDiscord.Handlers
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
             if (webhookClient is null) return;
 
+            Embed? quoteEmbed = characterMessage.Embeds?.FirstOrDefault() as Embed;
             // Check if fetching a new message, or just swiping among already available ones
             if (characterWebhook.AvailableCharacterResponses.Count < characterWebhook.CurrentSwipeIndex + 1) // fetch new
             {
@@ -210,8 +211,8 @@ namespace CharacterEngineDiscord.Handlers
                 {
                     var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook);
                     var openAiResponse = await CallChatOpenAiAsync(openAiParams, _integration.HttpClient);
-                    characterResponse = new(openAiResponse.Message!, openAiResponse.IsSuccessful, openAiResponse.MessageID, null);
                     characterWebhook.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
+                    characterResponse = new(openAiResponse.Message!, openAiResponse.IsSuccessful, openAiResponse.MessageID, null);
                 } else return;
                 
                 if (!characterResponse.IsSuccessful)
@@ -231,9 +232,12 @@ namespace CharacterEngineDiscord.Handlers
             var newCharacterMessage = characterWebhook.AvailableCharacterResponses.ElementAt(characterWebhook.CurrentSwipeIndex);
             characterWebhook.LastCharacterMsgUuId = newCharacterMessage.Key;
             
-            // Add image to message
+            // Add image or/and quote to the message
             var embeds = new List<Embed>();
             var imageUrl = newCharacterMessage.Value.Value;
+
+            if (quoteEmbed is not null)
+                embeds.Add(quoteEmbed);
 
             if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
@@ -256,7 +260,9 @@ namespace CharacterEngineDiscord.Handlers
             {
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
                 characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = newCharacterMessage.Value.Key, CharacterWebhookId = characterWebhook.Id });
-                await _db.SaveChangesAsync();
+
+                var db = _services.GetRequiredService<StorageContext>();
+                await db.SaveChangesAsync();
             }
             //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
             //if (tm is not null) tm.IsTranslated = false;
@@ -264,11 +270,6 @@ namespace CharacterEngineDiscord.Handlers
 
         private static async Task<CharacterResponse> SwipeCaiCharaterResponseAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
         {
-            if (client is null)
-            {
-                return new($"{WARN_SIGN_DISCORD} CharacterAI integration is disabled", false);
-            }
-
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             if (string.IsNullOrWhiteSpace(caiToken))
             {
@@ -276,7 +277,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
-            var response = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, parentMsgUuId: characterWebhook.LastUserMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var response = await client!.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, parentMsgUuId: characterWebhook.LastUserMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
             var text = response.IsSuccessful ? response.Response!.Text : response.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD);
 
             return new(text, response.IsSuccessful, response.Response?.UuId, response.Response?.ImageRelPath);
@@ -289,9 +290,11 @@ namespace CharacterEngineDiscord.Handlers
         {
             if (_integration.CaiClient is null) return null;
 
-            var channel = await _db.Channels.FindAsync(channelId);
+            var db = _services.GetRequiredService<StorageContext>();
+            var channel = await db.Channels.FindAsync(channelId);
             if (channel is null) return null;
 
+            await db.Entry(channel).ReloadAsync();
             var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             if (string.IsNullOrWhiteSpace(caiToken)) return null;

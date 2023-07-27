@@ -4,6 +4,7 @@ using Discord.Interactions;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
+using CharacterEngineDiscord.Services;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -12,10 +13,12 @@ namespace CharacterEngineDiscord.Handlers
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly InteractionService _interactions;
+        //private readonly IntegrationsService _integration;
 
         public SlashCommandsHandler(IServiceProvider services)
         {
             _services = services;
+            //_integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _client.SlashCommandExecuted += (command) =>
@@ -27,6 +30,9 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleCommandAsync(SocketSlashCommand command)
         {
+            var db = _services.GetRequiredService<StorageContext>();
+            if (await UserIsBannedCheckOnly(command.User, db)) return;
+
             var context = new InteractionContext(_client, command, command.Channel);
             var result = await _interactions.ExecuteCommandAsync(context, _services);
 

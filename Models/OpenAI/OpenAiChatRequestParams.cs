@@ -5,6 +5,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
 {
     public class OpenAiChatRequestParams
     {
+        public required string ApiEndpoint { get; set; }
         public required string ApiToken { get; set; }
         public required string Model { get; set; }
         public float FreqPenalty { get; set; }

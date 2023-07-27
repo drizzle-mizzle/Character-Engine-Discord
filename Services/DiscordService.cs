@@ -14,7 +14,6 @@ namespace CharacterEngineDiscord.Services
     internal class DiscordService
     {
         private ServiceProvider _services = null!;
-        private StorageContext _db = null!;
         private DiscordSocketClient _client = null!;
         private IntegrationsService _integration = null!;
         private InteractionService _interactions = null!;
@@ -25,9 +24,7 @@ namespace CharacterEngineDiscord.Services
             Environment.SetEnvironmentVariable("DISCORD_TOKEN", null);
 
             _services = CreateServices();
-            _services.GetRequiredService<TextMessagesHandler>();
 
-            _db = _services.GetRequiredService<StorageContext>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
@@ -52,15 +49,20 @@ namespace CharacterEngineDiscord.Services
             {
                 LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
 
-                bool guildIsBlocked = await _db.BlockedGuilds.FindAsync(guild.Id) is not null;
+                var db = _services.GetRequiredService<StorageContext>();
+                bool guildIsBlocked = await db.BlockedGuilds.FindAsync(guild.Id) is not null;
                 if (guildIsBlocked)
                 {
                     await guild.LeaveAsync();
+                    return;
                 }
-                else if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
+
+                if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
                 {
                     var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
                 }
+
+                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
             });
 
             _client.LeftGuild += (guild) => Task.Run(() =>

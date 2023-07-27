@@ -5,6 +5,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
+using PuppeteerSharp;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -14,12 +15,37 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class AdminCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
+        private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public AdminCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
+            _client = services.GetRequiredService<DiscordSocketClient>();
             _db = services.GetRequiredService<StorageContext>();
+        }
+
+        [SlashCommand("list-servers", "-")]
+        public async Task ListServers(int page = 1)
+        {
+            var embed = new EmbedBuilder().WithColor(Color.Green);
+
+            int start = (page - 1) * 10;
+            int end = start + 9;
+            if ((start + end + 1) > _client.Guilds.Count)
+                end = _client.Guilds.Count - start - 1;
+
+            foreach (var guild in _client.Guilds)
+            {
+                string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
+                             $"Owner: {guild.Owner.Username}{(guild.Owner.DisplayName is string dn ? $" ({dn})" : "")}\n" +
+                             $"Members: {guild.MemberCount}";
+                embed.AddField(guild.Name, val);
+            }
+            double pages = Math.Ceiling(_client.Guilds.Count / 10d);
+            embed.WithTitle($"Page {page}/{pages}\nServers: {_client.Guilds.Count}");
+
+            await RespondAsync(embed: embed.Build());
         }
 
         [SlashCommand("block-server", "-")]
@@ -43,6 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             _db.BlockedGuilds.Remove(blockedGuild);
             await _db.SaveChangesAsync();
+
             await FollowupAsync(embed: SuccessEmbed());
         }
 
@@ -60,6 +87,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await _db.BlockedUsers.AddAsync(new() { Id = userId });
             await _db.SaveChangesAsync();
+
             await FollowupAsync(embed: SuccessEmbed());
         }
 
@@ -78,6 +106,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             _db.BlockedUsers.Remove(blockedUser);
             await _db.SaveChangesAsync();
+
             await FollowupAsync(embed: SuccessEmbed());
         }
 
@@ -96,7 +125,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             foreach (var channelId in channelIds)
             {
-                var sgc = (await Context.Client.GetChannelAsync(channelId)) as IMessageChannel;
+                var sgc = (await _client.GetChannelAsync(channelId)) as IMessageChannel;
                 if (sgc is not null) channels.Add(sgc);
             }
 
@@ -106,22 +135,41 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("shutdown", "Shutdown")]
-        public async Task ShutdownAsync()
+        [SlashCommand("leave-all-servers", "-")]
+        public async Task LeaveAllGuilds()
         {
-            var user = Context.User as SocketGuildUser;
-            if (user.IsHoster())
+            await DeferAsync();
+
+            foreach (var guild in _client.Guilds)
             {
-                await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Shutting down...", Color.Orange));
-                try { _integration?.CaiClient?.KillBrowser(); }
-                catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
-                Environment.Exit(0);
+                if (guild.Id == Context.Guild.Id) continue;
+                await guild.LeaveAsync();
             }
-            else
-                await Context.SendNoPowerFileAsync();
+
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
 
+        [SlashCommand("shutdown", "Shutdown")]
+        public async Task ShutdownAsync()
+        {
+            await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Shutting down...", Color.Orange));
+            try { _integration?.CaiClient?.KillBrowser(); }
+            catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
+            Environment.Exit(0);   
+        }
+
+        [SlashCommand("set-game", "Set game status")]
+        public async Task UpdateGame(string? activity = null, string? streamUrl = null, ActivityType type = ActivityType.Playing)
+            => await _client.SetGameAsync(activity, streamUrl, type);
+
+        [SlashCommand("set-status", "Set status")]
+        public async Task UpdateStatus(UserStatus status)
+            => await _client.SetStatusAsync(status);
+
+        [SlashCommand("ping", "ping")]
+        public async Task Ping()
+            => await RespondAsync(embed: InlineEmbed($":ping_pong: Pong! - {_client.Latency} ms", Color.Red));
         ////////////////////
         //// Long stuff ////
         ////////////////////
@@ -147,12 +195,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await _db.BlockedGuilds.AddAsync(new() { Id = guildId });
             _db.Guilds.Remove(guild); // Remove from db
-
             await _db.SaveChangesAsync();
+
             await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} Server was removed from the database", Color.Red));
 
             // Leave
-            var discordGuild = await Context.Client.GetGuildAsync(guildId);
+            var discordGuild = _client.GetGuild(guildId);
 
             if (discordGuild is null)
             {

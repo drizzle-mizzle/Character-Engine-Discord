@@ -9,12 +9,12 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using Discord.Interactions;
 
 namespace CharacterEngineDiscord.Handlers
 {
     internal class TextMessagesHandler
     {
-        private readonly StorageContext _db;
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly IntegrationsService _integration;
@@ -22,9 +22,9 @@ namespace CharacterEngineDiscord.Handlers
         public TextMessagesHandler(IServiceProvider services)
         {
             _services = services;
-            _db = _services.GetRequiredService<StorageContext>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
+
             _client.MessageReceived += (message) =>
             {
                 Task.Run(async () => await HandleMessageAsync(message));
@@ -42,11 +42,13 @@ namespace CharacterEngineDiscord.Handlers
             if (context.Guild is null) return;
 
             // Get stored channel and its' characters
-            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, _db);
-            if (channel.CharacterWebhooks.Count == 0) return;
+            var db = _services.GetRequiredService<StorageContext>();
+            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
 
-            var characterWebhook = await DetermineCalledCharacterWebhook(userMessage, channel, _db);
+            var characterWebhook = await DetermineCalledCharacterWebhook(userMessage, channel, db);
             if (characterWebhook is null) return;
+
+            if (await _integration.UserIsBanned(context, db)) return;
 
             try
             {
@@ -59,13 +61,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             catch (Exception e) { LogException(new[] {e}); }
             //bool hasReply = hasMention || message.ReferencedMessage is IUserMessage refm && refm.Author.Id == _client.CurrentUser.Id;
-
-            //bool cnn = currentChannel is not null;
-            bool randomReply = false; //cnn && currentChannel!.Data.ReplyChance > (@Random.Next(99) + 0.001 + @Random.NextDouble()); // min: 0 + 0.001 + 0 = 0.001; max: 98 + 0.001 + 1 = 99.001
-            bool userIsHunted = false; //cnn && currentChannel!.Data.HuntedUsers.ContainsKey(authorId) && currentChannel.Data.HuntedUsers[authorId] >= @Random.Next(100) + 1;
         }
-
-        
 
         private async Task TryToCallCaiCharacterAsync(CharacterWebhook characterWebhook, SocketUserMessage userMessage)
         {
@@ -82,6 +78,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+
             if (string.IsNullOrWhiteSpace(caiToken))
             {
                 await userMessage.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", Color.Red));
@@ -90,17 +87,20 @@ namespace CharacterEngineDiscord.Handlers
 
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var characterResponse = await _integration.CaiClient.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, text, primaryMsgUuId: characterWebhook.LastCharacterMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
+
             if (!characterResponse.IsSuccessful)
             {
                 await userMessage.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Failed to fetch a character response", Color.Red));
                 return;
             }
 
-            characterWebhook.AvailableCharacterResponses.Add(characterResponse.Response!.UuId, new(characterResponse.Response.Text, characterResponse.Response.ImageRelPath));
+            // Remember as "first swiped"            
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastUserMsgUuId = characterResponse.LastUserMsgUuId;
-            characterWebhook.LastCharacterMsgUuId = characterResponse.Response.UuId;
+            characterWebhook.LastCharacterMsgUuId = characterResponse.Response!.UuId;
             characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
+            characterWebhook.AvailableCharacterResponses.Clear();
+            characterWebhook.AvailableCharacterResponses.Add(characterResponse.Response.UuId, new(characterResponse.Response.Text, characterResponse.Response.ImageRelPath));
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
 
             if (webhookClient is null)
@@ -109,13 +109,20 @@ namespace CharacterEngineDiscord.Handlers
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            List<Embed>? reference = null;
-            if (characterWebhook.ReferencesEnabled && userMessage.ReferencedMessage is not null)
-            {
-                reference = new() { new EmbedBuilder().WithFooter($"> {userMessage.Content}").Build() };
-            }
+            List<Embed>? embeds = new();
 
-            var messageId = await webhookClient.SendMessageAsync($"{userMessage.Author.Mention} {characterResponse.Response.Text}", embeds: reference);
+            if (characterWebhook.ReferencesEnabled)
+                embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content}").Build());
+
+            var imageUrl = characterResponse.Response.ImageRelPath;
+            if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
+                embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
+
+            string characterMessage = $"{userMessage.Author.Mention} {characterResponse.Response.Text}";
+            if (characterMessage.Length > 2000)
+                characterMessage = characterMessage[0..1994] + "[...]";
+
+            var messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
             characterWebhook.LastCharacterDiscordMsgId = messageId;
 
             await AddArrowButtonsAsync(messageId, userMessage.Channel, _integration, characterWebhook.Channel.Guild.BtnsRemoveDelay);
@@ -130,6 +137,7 @@ namespace CharacterEngineDiscord.Handlers
                                                   .Replace("{{msg}}", $"{text}");
 
             string? openAiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
+            
             if (string.IsNullOrWhiteSpace(openAiToken))
             {
                 await userMessage.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!", Color.Red));
@@ -137,8 +145,8 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = characterWebhook.Id }); // remember user message (will be included in payload)
-            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook);
-            var characterResponse = await CallChatOpenAiAsync(openAiParams, _integration.HttpClient);
+            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook, openAiToken);
+            var characterResponse = await CallChatOpenAiAsync(openAiRequestParams, _integration.HttpClient);
 
             if (characterResponse.IsFailure)
             {
@@ -158,9 +166,11 @@ namespace CharacterEngineDiscord.Handlers
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastCharacterMsgUuId = characterResponse.MessageID;
             characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
+            characterWebhook.AvailableCharacterResponses.Clear();
             characterWebhook.AvailableCharacterResponses.Add(characterResponse.MessageID!, new(characterResponse.Message!, null));
 
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
+           
             if (webhookClient is null)
             {
                 webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
@@ -171,37 +181,64 @@ namespace CharacterEngineDiscord.Handlers
             string characterMessage = characterResponse.Message!.Replace("{{char}}", $"**{characterWebhook.Character.Name}**")
                                                                 .Replace("{{user}}", $"**{user.Nickname ?? user.GlobalName ?? user.Username}**");
             characterMessage = $"{userMessage.Author.Mention} {characterMessage}";
+            if (characterMessage.Length > 2000)
+                characterMessage = characterMessage[0..1994] + "[...]";
 
             List<Embed>? reference = null;
-            if (characterWebhook.ReferencesEnabled && userMessage.ReferencedMessage is not null)
+            
+            if (characterWebhook.ReferencesEnabled)
             {
                 int l = userMessage.Content.Length > 30 ? 30 : userMessage.Content.Length;
                 reference = new() { new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 30 ? "...":"")}").Build() };
             }
 
-            var messageId = await webhookClient.SendMessageAsync(text: characterMessage, embeds: reference);
+            var messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: reference);
             characterWebhook.LastCharacterDiscordMsgId = messageId;
 
-            await _db.SaveChangesAsync();
+            var db = _services.GetRequiredService<StorageContext>();
+            await db.SaveChangesAsync();
+
             await AddArrowButtonsAsync(messageId, userMessage.Channel, _integration, characterWebhook.Channel.Guild.BtnsRemoveDelay);
         }
 
+        private static Random @Random = new();
         private static async Task<Models.Database.CharacterWebhook?> DetermineCalledCharacterWebhook(SocketUserMessage userMessage, Models.Database.Channel channel, StorageContext db)
         {
+            if (channel.CharacterWebhooks.Count == 0) return null;
             var text = userMessage.Content.Trim();
 
             var rm = userMessage.ReferencedMessage;
             var withRefMessage = rm is not null && rm.Author.IsWebhook;
 
-            ulong? id;
-            if (withRefMessage)
-                id = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id)?.Id;
-            else
-                id = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix))?.Id;
+            CharacterWebhook? characterWebhook = null;
 
-            if (id is not null) return await db.CharacterWebhooks.FindAsync(id);
+            if (withRefMessage) // if called by reply
+                characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id);
+            else // or if called by prefix
+                characterWebhook = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix));
 
-            return null;
+            if (characterWebhook is null) // if still null, check if "called" by hunted user
+            {
+                var chance = @Random.Next(99) + 0.001 + @Random.NextDouble();
+                var randomChWebhooks = channel.CharacterWebhooks.Where(w => w.HuntedUsers.FirstOrDefault(h => h.Id == userMessage.Author.Id && h.Chance > chance) is not null).ToList();
+
+                if (randomChWebhooks is not null && randomChWebhooks.Count > 0)
+                    characterWebhook = randomChWebhooks[@Random.Next(randomChWebhooks.Count)];
+            }
+
+            if (characterWebhook is null) // if still null, check if "called" by random
+            {
+                var chance = @Random.Next(99) + 0.001 + @Random.NextDouble();
+                bool respondOnRandom = channel.RandomReplyChance > chance;
+                
+                if (respondOnRandom)
+                    characterWebhook = channel.CharacterWebhooks[@Random.Next(channel.CharacterWebhooks.Count)];
+            }
+
+            if (characterWebhook is not null)
+                await db.Entry(characterWebhook).ReloadAsync();
+
+            return characterWebhook;
         }
 
         private static async Task AddArrowButtonsAsync(ulong messageId, ISocketMessageChannel channel, IntegrationsService _integration, int lifespan)

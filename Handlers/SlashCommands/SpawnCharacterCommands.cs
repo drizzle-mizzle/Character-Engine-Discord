@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
+using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -17,17 +18,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class SpawnCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
+        private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
         
         public SpawnCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
+            _client = services.GetRequiredService<DiscordSocketClient>();
             _db = services.GetRequiredService<StorageContext>();
-        }
-
-        public enum ApiType
-        {
-            OpenAI
         }
 
         [SlashCommand("cai-character", "Add new character from CharacterAI to this channel")]
@@ -37,13 +35,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             catch (Exception e) { LogException(new[] { e }); }
         }
 
-
         const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
         const string tagsDesc = "Tags separated by ','";
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
-        public async Task SpawnChubCharacter(ApiType apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
+        public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
         {
-            
             try { await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId); }
             catch (Exception e) { LogException(new[] { e }); }
         }
@@ -59,7 +55,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Main logic section ////
         ////////////////////////////
 
-        private async Task SpawnChubCharacterAsync(ApiType apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId)
+        private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId)
         {
             await DeferAsync();
 
@@ -67,7 +63,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             switch (apiType)
             {
-                case ApiType.OpenAI:
+                case ApiTypeForChub.OpenAI:
                     string? token = guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
                     if (!string.IsNullOrWhiteSpace(token)) break;
 
@@ -77,7 +73,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             // It will be extended, don't laugh T_T
-            IntegrationType integrationType = apiType is ApiType.OpenAI ? IntegrationType.OpenAI : IntegrationType.OpenAI;
+            IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI : IntegrationType.OpenAI;
 
             if (setWithId)
             {
@@ -121,6 +117,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (guild is null) return;
 
             var caiToken = guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+
             if (string.IsNullOrWhiteSpace(caiToken))
             {
                 await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", Color.Red));
