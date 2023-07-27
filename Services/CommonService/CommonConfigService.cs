@@ -10,9 +10,9 @@ namespace CharacterEngineDiscord.Services
             try
             {
 
-                using StreamReader sr = File.Exists($"{EXE_DIR}env.config.json") ?
-                                                new($"{EXE_DIR}env.config.json") :
-                                                new($"{EXE_DIR}config.json");
+                using StreamReader sr = File.Exists($"{EXE_DIR}{SC}env.config.json") ?
+                                                new($"{EXE_DIR}{SC}env.config.json") :
+                                                new($"{EXE_DIR}{SC}config.json");
 
                 string content = sr.ReadToEnd();
                 var file = (JObject)JsonConvert.DeserializeObject(content)!;

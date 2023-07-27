@@ -43,7 +43,7 @@ namespace CharacterEngineDiscord.Services
                 var filename = ConfigFile.NoPermissionFile.Value;
                 if (filename is null) return;
 
-                var stream = File.OpenRead($"{EXE_DIR}storage{SC}{filename}");
+                var stream = File.OpenRead($"{EXE_DIR}{SC}storage{SC}{filename}");
                 await context.Interaction.FollowupWithFileAsync(stream, filename);
             }
             catch (Exception e)

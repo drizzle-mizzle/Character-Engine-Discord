@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Services
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             var connString = ConfigFile.DbConnString.Value.IsEmpty() ?
-                   $"Data Source={EXE_DIR}storage{SC}{ConfigFile.DbFileName.Value}" :
+                   $"Data Source={EXE_DIR}{SC}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
             optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);

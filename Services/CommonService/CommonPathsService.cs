@@ -1,10 +1,11 @@
 ﻿using CharacterEngineDiscord.Models;
+using System.Security.Policy;
 
 namespace CharacterEngineDiscord.Services
 {
     internal static partial class CommonService
     {
         internal static string SC = $"{Path.DirectorySeparatorChar}";
-        internal static string EXE_DIR = AppDomain.CurrentDomain.BaseDirectory;
+        internal static string EXE_DIR = Environment.CurrentDirectory;
     }
 }
