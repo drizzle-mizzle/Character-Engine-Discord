@@ -171,7 +171,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
 
             string fullDesc = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
-                              $"Webhook ID: *`{characterWebhook.Id}`*\n" +
+                              $"Webhook ID: *`{characterWebhook.Id}`*\n\n" +
                               $"*\"{title}\"*" +
                               $"{desc}" +
                               $"*Original link: {link}\n" +
