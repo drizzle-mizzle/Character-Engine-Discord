@@ -222,6 +222,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("GuildCaiUserToken")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("GuildMessagesFormat")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("GuildOpenAiApiEndpoint")
                         .HasColumnType("TEXT");
 

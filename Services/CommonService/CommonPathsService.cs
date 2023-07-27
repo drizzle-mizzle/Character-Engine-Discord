@@ -6,6 +6,5 @@ namespace CharacterEngineDiscord.Services
     {
         internal static string SC = $"{Path.DirectorySeparatorChar}";
         internal static string EXE_DIR = AppDomain.CurrentDomain.BaseDirectory;
-        internal static string CONFIG_PATH = $"{EXE_DIR}config.json";
     }
 }

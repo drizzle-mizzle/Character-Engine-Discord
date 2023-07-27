@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    [Migration("20230727005915_Init")]
+    [Migration("20230727021443_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -223,6 +223,10 @@ namespace CharacterEngineDiscord.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("GuildCaiUserToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GuildMessagesFormat")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildOpenAiApiEndpoint")

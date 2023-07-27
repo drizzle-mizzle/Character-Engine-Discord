@@ -63,6 +63,7 @@ namespace CharacterEngineDiscord.Migrations
                 {
                     Id = table.Column<ulong>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
+                    GuildMessagesFormat = table.Column<string>(type: "TEXT", nullable: false),
                     GuildCaiUserToken = table.Column<string>(type: "TEXT", nullable: true),
                     GuildCaiPlusMode = table.Column<bool>(type: "INTEGER", nullable: true),
                     GuildOpenAiApiEndpoint = table.Column<string>(type: "TEXT", nullable: true),

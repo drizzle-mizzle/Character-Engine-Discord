@@ -9,7 +9,11 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-                using StreamReader sr = new(CONFIG_PATH);
+
+                using StreamReader sr = File.Exists($"{EXE_DIR}env.config.json") ?
+                                                new($"{EXE_DIR}env.config.json") :
+                                                new($"{EXE_DIR}config.json");
+
                 string content = sr.ReadToEnd();
                 var file = (JObject)JsonConvert.DeserializeObject(content)!;
 
@@ -23,26 +27,6 @@ namespace CharacterEngineDiscord.Services
 
                 throw;
             }
-        }
-
-        internal static void SetEnvs()
-        {
-            Environment.SetEnvironmentVariable("RUNNING", "!", EnvironmentVariableTarget.Process);
-
-            string path = $"{EXE_DIR}env.json";
-            if (!File.Exists(path)) return;
-
-            try
-            {
-                using StreamReader sr = new(path);
-                var content = sr.ReadToEnd();
-                var env = JsonConvert.DeserializeObject(content) as JObject;
-
-                string? envDiscordToken = env?["DISCORD_TOKEN"]?.Value<string?>();
-
-                Environment.SetEnvironmentVariable("DISCORD_TOKEN", envDiscordToken, EnvironmentVariableTarget.Process);
-            }
-            catch { }
         }
     }
 }

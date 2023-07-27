@@ -20,9 +20,6 @@ namespace CharacterEngineDiscord.Services
 
         internal async Task SetupDiscordClient()
         {
-            string? envToken = Environment.GetEnvironmentVariable("DISCORD_TOKEN");
-            Environment.SetEnvironmentVariable("DISCORD_TOKEN", null);
-
             _services = CreateServices();
 
             _client = _services.GetRequiredService<DiscordSocketClient>();
@@ -35,7 +32,6 @@ namespace CharacterEngineDiscord.Services
             _services.GetRequiredService<TextMessagesHandler>();
             _services.GetRequiredService<ModalsHandler>();
 
-
             await _services.GetRequiredService<StorageContext>().Database.MigrateAsync();
 
             _client.Ready += () =>
@@ -47,17 +43,17 @@ namespace CharacterEngineDiscord.Services
 
             _client.JoinedGuild += (guild) => Task.Run(async () =>
             {
-                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner.Username} | Members: {guild.MemberCount}\n");
+                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner?.GlobalName ?? guild.Owner?.Username} | Members: {guild.MemberCount}\n");
 
                 var db = _services.GetRequiredService<StorageContext>();
-                bool guildIsBlocked = await db.BlockedGuilds.FindAsync(guild.Id) is not null;
+                bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
                 if (guildIsBlocked)
                 {
                     await guild.LeaveAsync();
                     return;
                 }
 
-                if (!guild.Roles.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!))
+                if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
                 {
                     var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
                 }
@@ -70,7 +66,7 @@ namespace CharacterEngineDiscord.Services
                 LogRed($"Left guild: {guild?.Name} | Owner: {guild?.Owner?.Username} | Members: {guild?.MemberCount}\n");
             });
 
-            await _client.LoginAsync(TokenType.Bot, envToken ?? ConfigFile.DiscordBotToken.Value);
+            await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
 
             await Task.Delay(-1);
