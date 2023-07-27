@@ -6,8 +6,6 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
-using CharacterEngineDiscord.Models.CharacterHub;
-using System.Runtime.ConstrainedExecution;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -79,21 +77,21 @@ namespace CharacterEngineDiscord.Services
             return emb.Build();
         }
 
-        internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData, StorageContext db)
+        internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData)
         {
             if (!searchQueryData.IsSuccessful)
             {
-                await context.Interaction.ModifyOriginalResponseAsync(msg => msg.Embed = InlineEmbed($"{WARN_SIGN_DISCORD} Failed to find a character: `{searchQueryData.ErrorReason}`", Color.Red));
+                await context.Interaction.ModifyOriginalResponseAsync(msg => msg.Embed = $"{WARN_SIGN_DISCORD} Failed to find a character: `{searchQueryData.ErrorReason}`".ToInlineEmbed(Color.Red));
                 return null;
             }
 
             if (searchQueryData.IsEmpty)
             {
-                await context.Interaction.ModifyOriginalResponseAsync(msg => msg.Embed = InlineEmbed($"{WARN_SIGN_DISCORD} No characters were found", Color.Orange));
+                await context.Interaction.ModifyOriginalResponseAsync(msg => msg.Embed = $"{WARN_SIGN_DISCORD} No characters were found".ToInlineEmbed(Color.Orange));
                 return null;
             }
 
-            await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
+            await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id);
 
             int pages = (int)Math.Ceiling(searchQueryData.Characters.Count / 10.0f);
             var query = new SearchQuery(context.Channel.Id, context.User.Id, searchQueryData, pages);

@@ -18,14 +18,12 @@ namespace CharacterEngineDiscord.Handlers
     {
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
-        private readonly InteractionService _interactions;
         private readonly IntegrationsService _integration;
 
         public ModalsHandler(IServiceProvider services)
         {
             _services = services;
             _integration = _services.GetRequiredService<IntegrationsService>();
-            _interactions = _services.GetRequiredService<InteractionService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
 
             _client.ModalSubmitted += (modal) =>
@@ -37,8 +35,7 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleModalAsync(SocketModal modal)
         {
-            var db = _services.GetRequiredService<StorageContext>();
-            if (await UserIsBannedCheckOnly(modal.User, db)) return;
+            if (await UserIsBannedCheckOnly(modal.User)) return;
 
             await modal.DeferAsync();
             var modalId = modal.Data.CustomId;
@@ -48,7 +45,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 try
                 {
-                    await UpdateCharacterAsync(modal, db);
+                    await UpdateCharacterAsync(modal);
                 }
                 catch (Exception e)
                 {
@@ -59,7 +56,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 try
                 {
-                    await SpawnCustomCharacterAsync(modal, db);
+                    await SpawnCustomCharacterAsync(modal);
                 }
                 catch (Exception e)
                 {
@@ -68,18 +65,18 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task UpdateCharacterAsync(SocketModal modal, StorageContext db)
+        private static async Task UpdateCharacterAsync(SocketModal modal)
         {
+            var db = new StorageContext();
+
             ulong webhookId = ulong.Parse(modal.Data.CustomId.Split('~').Last());
             var characterWebhook = await db.CharacterWebhooks.FindAsync(webhookId);
 
             if (characterWebhook is null)
             {
-                await modal.FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Orange));
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Orange));
                 return;
             }
-
-            await db.Entry(characterWebhook).ReloadAsync();
 
             string? newJailbreakPrompt = modal.Data.Components.FirstOrDefault(c => c.CustomId == "new-prompt")?.Value;
             if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
@@ -90,12 +87,12 @@ namespace CharacterEngineDiscord.Handlers
             await modal.FollowupAsync(embed: SuccessEmbed());
         }
 
-        private async Task SpawnCustomCharacterAsync(SocketModal modal, StorageContext db)
+        private async Task SpawnCustomCharacterAsync(SocketModal modal)
         {
-            var channel = await FindOrStartTrackingChannelAsync(modal.Channel.Id, (ulong)modal.GuildId!, db);
+            var channel = await FindOrStartTrackingChannelAsync(modal.Channel.Id, (ulong)modal.GuildId!);
             if (channel is null)
             {
-                await modal.FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Channel not found", Color.Orange));
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Channel not found".ToInlineEmbed(Color.Orange));
                 return;
             }
 
@@ -119,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
             };
 
             var context = new InteractionContext(_client, modal, modal.Channel);
-            var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, db, _integration);
+            var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration);
             if (characterWebhook is null) return;
             
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);

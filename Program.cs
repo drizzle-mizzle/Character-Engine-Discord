@@ -10,8 +10,6 @@ namespace CharacterEngineDiscord
 
         private async Task MainAsync()
         {
-            Environment.SetEnvironmentVariable("RUNNING", "!", EnvironmentVariableTarget.Process);
-
             Log("Working directory: ");
             LogYellow(EXE_DIR + '\n');
 

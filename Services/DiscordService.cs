@@ -32,7 +32,7 @@ namespace CharacterEngineDiscord.Services
             _services.GetRequiredService<TextMessagesHandler>();
             _services.GetRequiredService<ModalsHandler>();
 
-            await _services.GetRequiredService<StorageContext>().Database.MigrateAsync();
+            await new StorageContext().Database.MigrateAsync();
 
             _client.Ready += () =>
             {
@@ -41,30 +41,41 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
-            _client.JoinedGuild += (guild) => Task.Run(async () =>
+            _client.JoinedGuild += (guild) =>
             {
-                LogYellow($"Joined guild: {guild.Name} | Owner: {guild.Owner?.GlobalName ?? guild.Owner?.Username} | Members: {guild.MemberCount}\n");
-
-                var db = _services.GetRequiredService<StorageContext>();
-                bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
-                if (guildIsBlocked)
+                Task.Run(async () =>
                 {
-                    await guild.LeaveAsync();
-                    return;
-                }
+                    var guildOwner = await _client.GetUserAsync(guild.OwnerId);
 
-                if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
-                {
-                    var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
-                }
+                    LogYellow($"Joined guild: {guild.Name} | Members: {guild.MemberCount}\n" +
+                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
+                              $"Members: {guild.MemberCount}\n" +
+                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}");
 
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
-            });
+                    var db = new StorageContext();
+                    bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
+                    if (guildIsBlocked)
+                    {
+                        await guild.LeaveAsync();
+                        return;
+                    }
 
-            _client.LeftGuild += (guild) => Task.Run(() =>
+                    if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
+                    {
+                        var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
+                    }
+
+                    await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+                });
+
+                return Task.CompletedTask;
+            };
+
+            _client.LeftGuild += (guild) =>
             {
                 LogRed($"Left guild: {guild?.Name} | Owner: {guild?.Owner?.Username} | Members: {guild?.MemberCount}\n");
-            });
+                return Task.CompletedTask;
+            };
 
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
@@ -83,7 +94,6 @@ namespace CharacterEngineDiscord.Services
                 .AddSingleton<ButtonsAndReactionsHandler>()
                 .AddSingleton<ModalsHandler>()
                 .AddSingleton<IntegrationsService>()
-                .AddScoped<StorageContext>()
                 .AddSingleton(new InteractionService(discordClient.Rest));
 
             return services.BuildServiceProvider();

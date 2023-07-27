@@ -22,30 +22,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = services.GetRequiredService<StorageContext>();
+            _db = new StorageContext();
         }
 
         [SlashCommand("list-servers", "-")]
         public async Task ListServers(int page = 1)
         {
-            var embed = new EmbedBuilder().WithColor(Color.Green);
-
-            int start = (page - 1) * 10;
-            int end = start + 9;
-            if ((start + end + 1) > _client.Guilds.Count)
-                end = _client.Guilds.Count - start - 1;
-
-            foreach (var guild in _client.Guilds)
+            try { await ListServersAsync(page); }
+            catch (Exception e)
             {
-                string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
-                             $"Owner: {guild.Owner.Username}{(guild.Owner.DisplayName is string dn ? $" ({dn})" : "")}\n" +
-                             $"Members: {guild.MemberCount}";
-                embed.AddField(guild.Name, val);
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
             }
-            double pages = Math.Ceiling(_client.Guilds.Count / 10d);
-            embed.WithTitle($"Page {page}/{pages}\nServers: {_client.Guilds.Count}");
-
-            await RespondAsync(embed: embed.Build());
         }
 
         [SlashCommand("block-server", "-")]
@@ -59,11 +47,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId));
+            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
 
             if (blockedGuild is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Server not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -78,10 +66,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            ulong userId = ulong.Parse(sUserId);
+            ulong userId = ulong.Parse(sUserId.Trim());
             if ((await _db.BlockedUsers.FindAsync(userId)) is not null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} User is already blocked", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -96,11 +84,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            ulong userId = ulong.Parse(sUserId);
+            ulong userId = ulong.Parse(sUserId.Trim());
             var blockedUser = await _db.BlockedUsers.FindAsync(userId);
             if (blockedUser is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} User not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -130,7 +118,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             foreach (var channel in channels)
-                await channel.SendMessageAsync(embed: embed.Build());
+                try { await channel.SendMessageAsync(embed: embed.Build()); } catch { }
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
@@ -153,7 +141,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("shutdown", "Shutdown")]
         public async Task ShutdownAsync()
         {
-            await RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Shutting down...", Color.Orange));
+            await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange));
             try { _integration?.CaiClient?.KillBrowser(); }
             catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
             Environment.Exit(0);   
@@ -169,27 +157,54 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         [SlashCommand("ping", "ping")]
         public async Task Ping()
-            => await RespondAsync(embed: InlineEmbed($":ping_pong: Pong! - {_client.Latency} ms", Color.Red));
+            => await RespondAsync(embed: $":ping_pong: Pong! - {_client.Latency} ms".ToInlineEmbed(Color.Red));
+
+
         ////////////////////
         //// Long stuff ////
         ////////////////////
 
+        private async Task ListServersAsync(int page)
+        {
+            await DeferAsync();
+
+            var embed = new EmbedBuilder().WithColor(Color.Green);
+
+            int start = (page - 1) * 10;
+            int end = start + 9;
+            if ((start + end + 1) > _client.Guilds.Count)
+                end = _client.Guilds.Count - start - 1;
+
+            foreach (var guild in _client.Guilds)
+            {
+                var guildOwner = await _client.GetUserAsync(guild.OwnerId);
+                string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
+                             $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
+                             $"Members: {guild.MemberCount}";
+                embed.AddField(guild.Name, val);
+            }
+            double pages = Math.Ceiling(_client.Guilds.Count / 10d);
+            embed.WithTitle($"Servers: {_client.Guilds.Count}");
+            embed.WithFooter($"Page {page}/{pages}");
+
+            await FollowupAsync(embed: embed.Build());
+        }
         private async Task BlockGuildAsync(string serverId)
         {
             await DeferAsync();
 
-            ulong guildId = ulong.Parse(serverId);
+            ulong guildId = ulong.Parse(serverId.Trim());
             var guild = await _db.Guilds.FindAsync(guildId);
 
             if (guild is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Server not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
             if ((await _db.BlockedGuilds.FindAsync(guild.Id)) is not null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Server is aready blocked", Color.Orange));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server is aready blocked".ToInlineEmbed(Color.Orange));
                 return;
             }
 
@@ -197,19 +212,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db.Guilds.Remove(guild); // Remove from db
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} Server was removed from the database", Color.Red));
+            await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Server was removed from the database".ToInlineEmbed(Color.Red));
 
             // Leave
             var discordGuild = _client.GetGuild(guildId);
 
             if (discordGuild is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Failed to leave the server", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to leave the server".ToInlineEmbed(Color.Red));
                 return;
             }
 
             await discordGuild.LeaveAsync();
-            await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} Server \"{discordGuild.Name}\" is leaved", Color.Red));
+            await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Server \"{discordGuild.Name}\" is leaved".ToInlineEmbed(Color.Red));
         }
     }
 }

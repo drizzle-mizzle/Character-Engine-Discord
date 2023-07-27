@@ -69,6 +69,8 @@ namespace CharacterEngineDiscord.Services
 
                 Log("CharacterAI client - "); LogGreen("Running\n\n");
             }
+
+            Environment.SetEnvironmentVariable("READY", "1", EnvironmentVariableTarget.Process);
         }
 
         /// <summary>
@@ -202,12 +204,12 @@ namespace CharacterEngineDiscord.Services
             string uri = $"https://v2.chub.ai/api/characters/{characterId}?full=true";
             var response = await client.GetAsync(uri);
             var content = await response.Content.ReadAsStringAsync();
-            var node = JsonConvert.DeserializeObject<dynamic>(content)!.node;
+            var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
 
             return new(node, true);
         }
 
-        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, StorageContext db, IntegrationsService integration)
+        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration)
         {
             // Create basic call prefix from two first letters in the character name
             string callPrefix = $"..{unsavedCharacter.Name![..2].ToLower()} "; // => "..ch " (with spacebar)
@@ -220,12 +222,11 @@ namespace CharacterEngineDiscord.Services
             var image = await TryDownloadImgAsync(unsavedCharacter.AvatarUrl, integration.HttpClient);
             var channelWebhook = await discordChannel.CreateWebhookAsync(unsavedCharacter.Name, image);
             if (channelWebhook is null) return null;
-            
+
+            var db = new StorageContext();
             try
             {
-                var guild = await FindOrStartTrackingGuildAsync(context.Guild.Id, db);
-                var channel = guild.Channels.Find(c => c.Id == context.Channel.Id);
-                channel ??= await FindOrStartTrackingChannelAsync(context.Channel.Id, guild.Id, db);
+                var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
 
                 string? caiHistoryId, openAiModel, openAiEndpoint, jailbreakPrompt;
                 caiHistoryId = openAiModel = openAiEndpoint = jailbreakPrompt = null;
@@ -239,18 +240,18 @@ namespace CharacterEngineDiscord.Services
                 {
                     if (integration.CaiClient is null) return null;
 
-                    var caiToken = guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+                    var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
                     if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
-                    var plusMode = guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
+                    var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
 
                     caiHistoryId = await integration.CaiClient.CreateNewChatAsync(unsavedCharacter.Id, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (caiHistoryId is null) return null;
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
-                    openAiModel = guild.GuildOpenAiModel ?? ConfigFile.DefaultOpenAiModel.Value;
-                    openAiEndpoint = guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value;
+                    openAiModel = channel.Guild.GuildOpenAiModel ?? ConfigFile.DefaultOpenAiModel.Value;
+                    openAiEndpoint = channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value;
                     openAiFreqPenalty = 0.9f;
                     openAiPresPenalty = 0.9f;
                     openAiTemperature = 1.05f;
@@ -270,7 +271,7 @@ namespace CharacterEngineDiscord.Services
                     CallPrefix = callPrefix,
                     ReferencesEnabled = true,
                     IntegrationType = type,
-                    MessagesFormat = guild.GuildMessagesFormat,
+                    MessagesFormat = channel.Guild.GuildMessagesFormat,
                     ReplyChance = 0,
                     ReplyDelay = 3,
                     CaiActiveHistoryId = caiHistoryId,
@@ -338,7 +339,7 @@ namespace CharacterEngineDiscord.Services
                 Tgt = caiCharacter.Tgt!,
                 Name = caiCharacter.Name!,
                 Title = caiCharacter.Title,
-                Greeting = caiCharacter.Greeting,
+                Greeting = caiCharacter.Greeting!,
                 Description = caiCharacter.Description,
                 AuthorName = caiCharacter.Author,
                 AvatarUrl = caiCharacter.AvatarUrlFull ?? caiCharacter.AvatarUrlMini,
@@ -353,27 +354,36 @@ namespace CharacterEngineDiscord.Services
         {
             if (chubCharacter is null) return null;
 
-            return new()
+            try
             {
-                Id = chubCharacter.FullPath,
-                Tgt = null,
-                Name = chubCharacter.Name,
-                Title = chubCharacter.TagLine,
-                Greeting = chubCharacter.FirstMessage,
-                Description = chubCharacter.Description,
-                AuthorName = chubCharacter.AuthorName,
-                AvatarUrl = $"https://avatars.charhub.io/avatars/{chubCharacter.FullPath}/avatar.webp",
-                ImageGenEnabled = false,
-                Interactions = chubCharacter.ChatsCount,
-                Stars = chubCharacter.StarCount,
-                Definition = $"{{{{char}}}}'s personality: {chubCharacter.Personality}  " +
-                             $"Scenario of roleplay: {chubCharacter.Scenario}  " +
-                             $"Example conversations between {{{{char}}}} and {{{{user}}}}: {chubCharacter.ExampleDialogs}  "
-            };
+                return new()
+                {
+                    Id = chubCharacter.FullPath,
+                    Tgt = null,
+                    Name = chubCharacter.Name,
+                    Title = chubCharacter.TagLine,
+                    Greeting = chubCharacter.FirstMessage,
+                    Description = chubCharacter.Description,
+                    AuthorName = chubCharacter.AuthorName,
+                    AvatarUrl = $"https://avatars.charhub.io/avatars/{chubCharacter.FullPath}/avatar.webp",
+                    ImageGenEnabled = false,
+                    Interactions = chubCharacter.ChatsCount,
+                    Stars = chubCharacter.StarCount,
+                    Definition = $"{{{{char}}}}'s personality: {chubCharacter.Personality}  " +
+                                 $"Scenario of roleplay: {chubCharacter.Scenario}  " +
+                                 $"Example conversations between {{{{char}}}} and {{{{user}}}}: {chubCharacter.ExampleDialogs}  "
+                };
+            }
+            catch
+            {
+                return null;
+            }
         }
 
-        internal async Task<bool> UserIsBanned(SocketCommandContext context, StorageContext db)
+        internal async Task<bool> UserIsBanned(SocketCommandContext context)
         {
+            var db = new StorageContext();
+
             ulong currUserId = context.Message.Author.Id;
             var blockedUser = await db.BlockedUsers.FindAsync(currUserId);
             if (blockedUser is not null) return true;
@@ -394,7 +404,7 @@ namespace CharacterEngineDiscord.Services
             int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
             if (_watchDog[currUserId].Value == rateLimit - 1)
-                await context.Message.ReplyAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.", Color.Orange));
+                await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
                 await db.BlockedUsers.AddAsync(new() { Id = currUserId });
@@ -404,8 +414,7 @@ namespace CharacterEngineDiscord.Services
                 try {
                     var logChannel = await context.Client.GetChannelAsync(ulong.Parse(ConfigFile.DiscordLogsChannelID.Value!)) as SocketTextChannel;
                     if (logChannel is not null)
-                        await logChannel.SendMessageAsync(embed: InlineEmbed($":eyes: Server: **{context.Guild.Name} ({context.Guild.Id})**\n" +
-                                                                             $" User **{context.Message.Author.Username} ({context.Message.Author.Id})** hit rate limit and was blocked", Color.LightOrange));
+                        await logChannel.SendMessageAsync(embed: $":eyes: Server: **{context.Guild.Name} ({context.Guild.Id})**\nUser **{context.Message.Author.Username} ({context.Message.Author.Id})** hit rate limit and was blocked".ToInlineEmbed(Color.LightOrange));
                 } catch { }
 
                 return true;
@@ -414,8 +423,10 @@ namespace CharacterEngineDiscord.Services
             return false;
         }
 
-        internal async Task<bool> UserIsBanned(SocketReaction reaction, DiscordSocketClient client, StorageContext db)
+        internal async Task<bool> UserIsBanned(SocketReaction reaction, DiscordSocketClient client)
         {
+            var db = new StorageContext();
+
             ulong currUserId = reaction.User.Value.Id;
             var blockedUser = await db.BlockedUsers.FindAsync(currUserId);
             if (blockedUser is not null) return true;
@@ -436,7 +447,7 @@ namespace CharacterEngineDiscord.Services
             int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
             if (_watchDog[currUserId].Value == rateLimit - 1)
-                await reaction.Channel.SendMessageAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.", Color.Orange));
+                await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
                 await db.BlockedUsers.AddAsync(new() { Id = currUserId });
@@ -450,7 +461,7 @@ namespace CharacterEngineDiscord.Services
                     {
                         string text = $":eyes: Server: **{currentChannel.Guild.Name} ({currentChannel.Guild.Id})**\n" +
                                       $" User **{reaction.User.Value.Username} ({reaction.User.Value.Id})** hit rate limit and was blocked";
-                        await logChannel.SendMessageAsync(embed: InlineEmbed(text, Color.LightOrange));
+                        await logChannel.SendMessageAsync(embed: text.ToInlineEmbed(Color.LightOrange));
                     }
                 } catch { }
 
@@ -460,19 +471,16 @@ namespace CharacterEngineDiscord.Services
             return false;
         }
 
-        internal static async Task<bool> UserIsBannedCheckOnly(IUser user, StorageContext db)
-            => (await db.BlockedUsers.FindAsync(user.Id)) is not null;
+        internal static async Task<bool> UserIsBannedCheckOnly(IUser user)
+            => (await new StorageContext().BlockedUsers.FindAsync(user.Id)) is not null;
 
 
         // Shortcuts
 
-        internal static Embed InlineEmbed(string text, Color color)
-            => new EmbedBuilder().WithDescription($"**{text}**").WithColor(color).Build();
-
         internal static Embed FailedToSetCharacterEmbed()
-            => InlineEmbed($"{WARN_SIGN_DISCORD} Failed to set a character", Color.Red);
+            => $"{WARN_SIGN_DISCORD} Failed to set a character".ToInlineEmbed(Color.Red);
 
         internal static Embed SuccessEmbed()
-            => InlineEmbed($"{OK_SIGN_DISCORD} Success", Color.Green);
+            => $"{OK_SIGN_DISCORD} Success".ToInlineEmbed(Color.Green);
     }
 }

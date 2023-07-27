@@ -19,20 +19,22 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     {
         private readonly IntegrationsService _integration;
         private readonly DiscordSocketClient _client;
-        private readonly StorageContext _db;
         
         public SpawnCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = services.GetRequiredService<StorageContext>();
         }
 
         [SlashCommand("cai-character", "Add new character from CharacterAI to this channel")]
         public async Task SpawnCaiCharacter([Summary(description: "When specify a character ID, set 'set-with-id' parameter to 'True'")] string searchQueryOrCharacterId, bool setWithId = false)
         {
             try { await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId); }
-            catch (Exception e) { LogException(new[] { e }); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed( Color.Red));
+                LogException(new[] { e });
+            }
         }
 
         const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
@@ -41,7 +43,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
         {
             try { await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId); }
-            catch (Exception e) { LogException(new[] { e }); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed( Color.Red));
+                LogException(new[] { e });
+            }
         }
 
         [SlashCommand("custom-character", "Add new character to this channel with full customization")]
@@ -59,15 +65,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
 
             switch (apiType)
             {
                 case ApiTypeForChub.OpenAI:
-                    string? token = guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
+                    string? token = channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
                     if (!string.IsNullOrWhiteSpace(token)) break;
 
-                    await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!", Color.Red));
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed( Color.Red));
                     return;
                 default: return;
             }
@@ -77,7 +83,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await FollowupAsync(embed: InlineEmbed(WAIT_MESSAGE, Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
 
                 var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.HttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
@@ -85,7 +91,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: InlineEmbed(WAIT_MESSAGE, Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
 
                 var response = await SearchChubCharactersAsync(new()
                 {
@@ -109,26 +115,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (_integration.CaiClient is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} CharacterAI integration is disabled", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-            if (guild is null) return;
-
-            var caiToken = guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed( Color.Red));
                 return;
             }
 
-            var plusMode = guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
+            var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
 
             if (setWithId)
             {
-                await FollowupAsync(embed: InlineEmbed(WAIT_MESSAGE, Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
 
                 var caiCharacter = await _integration.CaiClient.GetInfoAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var character = CharacterFromCaiCharacterInfo(caiCharacter);
@@ -137,7 +141,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: InlineEmbed(WAIT_MESSAGE, Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
 
                 var response = await _integration.CaiClient.SearchAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var searchQueryData = SearchQueryDataFromCaiResponse(response);
@@ -154,12 +158,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _db, _integration);
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration);
 
             if (characterWebhook is null)
             {
-                await ModifyOriginalResponseAsync(msg => msg.Embed = InlineEmbed($"{WARN_SIGN_DISCORD} Something went wrong!", Color.Red));
+                await ModifyOriginalResponseAsync(msg => msg.Embed = $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -172,7 +176,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task FinishSearchAsync(SearchQueryData searchQueryData)
         {
-            var query = await BuildAndSendSelectionMenuAsync(Context, searchQueryData, _db);
+            var query = await BuildAndSendSelectionMenuAsync(Context, searchQueryData);
             if (query is null) return;
 
             // Stop tracking last query in this channel

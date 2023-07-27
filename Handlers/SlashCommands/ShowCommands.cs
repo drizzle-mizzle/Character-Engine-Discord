@@ -17,20 +17,22 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     {
         private readonly IntegrationsService _integration;
         private readonly DiscordSocketClient _client;
-        private readonly StorageContext _db;
 
         public ShowCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = services.GetRequiredService<StorageContext>();
         }
 
         [SlashCommand("characters", "Show all characters in this channel")]
-        public async Task ShowCharacters()
+        public async Task ShowCharacters(int page = 1)
         {
-            try { await ShowCharactersAsync(); }
-            catch (Exception e) { LogException(new[] { e }); }
+            try { await ShowCharactersAsync(page); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
         }
 
         [SlashCommand("cai-history-id", "Show c.ai history ID")]
@@ -38,29 +40,33 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
             if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Can't show history id for non-CharacterAI integration!", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't show history id for non-CharacterAI integration!".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} Current history ID: `{characterWebhook.CaiActiveHistoryId}`", Color.Green));
+            await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Current history ID: `{characterWebhook.CaiActiveHistoryId}`".ToInlineEmbed(Color.Green));
         }
 
         [SlashCommand("history", "Show last 15 messages with a character. Works only with OpenAI.")]
         public async Task ShowHistory(string webhookId)
         {
             try { await ShowHistoryAsync(webhookId); }
-            catch (Exception e) { LogException(new[] { e }); }
+                        catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
         }
 
         [SlashCommand("last-request-cost", "~")]
@@ -68,16 +74,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Orange));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Orange));
                 return;
             }
 
-            await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} {characterWebhook.LastRequestTokensUsage.ToString() ?? "?"} tokens", Color.Green));
+            await FollowupAsync(embed: $"{OK_SIGN_DISCORD} {characterWebhook.LastRequestTokensUsage.ToString() ?? "?"} tokens".ToInlineEmbed(Color.Green));
         }
 
         [SlashCommand("messages-format", "Check character messages format")]
@@ -85,12 +91,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -108,12 +114,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -134,24 +140,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Orange));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Orange));
                 return;
             }
 
             if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Can't show history for CharacterAI integration!", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't show history for CharacterAI integration!".ToInlineEmbed(Color.Red));
                 return;
             }
 
             if (characterWebhook.OpenAiHistoryMessages.Count == 0)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} No messages found", Color.Orange));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} No messages found".ToInlineEmbed(Color.Orange));
                 return;
             }
 
@@ -170,33 +176,41 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed.WithDescription(desc).Build());
         }
 
-        private async Task ShowCharactersAsync()
+        private async Task ShowCharactersAsync(int page)
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
             if (channel is null || channel.CharacterWebhooks.Count == 0)
             {
-                await FollowupAsync(embed: InlineEmbed($"{OK_SIGN_DISCORD} No characters were found in this channel", Color.Orange));
+                await FollowupAsync(embed: $"{OK_SIGN_DISCORD} No characters were found in this channel".ToInlineEmbed(Color.Orange));
                 return;
             }
 
+            var embed = new EmbedBuilder().WithColor(Color.Purple);
+            int start = (page - 1) * 5;
+            int end = start + 4;
+
+            if ((start + end + 1) > channel.CharacterWebhooks.Count)
+                end = channel.CharacterWebhooks.Count - start - 1;
+
             int count = 0;
-            string result = "";
-            foreach (var characterWebhook in channel.CharacterWebhooks)
+            foreach (var cw in channel.CharacterWebhooks)
             {
-                var integrationType = characterWebhook.IntegrationType is IntegrationType.CharacterAI ? "c.ai" :
-                                      characterWebhook.IntegrationType is IntegrationType.OpenAI ? characterWebhook.OpenAiModel :
-                                      "empty";
+                string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ? $"**[character.ai](https://beta.character.ai/chat?char={cw.Character.Id})**" :
+                                         cw.IntegrationType is IntegrationType.OpenAI ? $"`{cw.OpenAiModel}` **[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})**" : "empty";
+                string val = $"Call prefix: *`{cw.CallPrefix}`*\n" +
+                             $"Integration Type: {integrationType}\n" +
+                             $"Webhook ID: *`{cw.Id}`*";
 
-                result += $"{count++}. **{characterWebhook.Character.Name}** | *`{characterWebhook.CallPrefix}`* | `{characterWebhook.Id}` | `{integrationType}` \n";
+                embed.AddField($"{++count}. {cw.Character.Name}", val);
             }
-            var embed = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} {count} character(s) in this channel:")
-                                          .WithDescription(result)
-                                          .WithColor(Color.Green)
-                                          .Build();
 
-            await FollowupAsync(embed: embed);
+            double pages = Math.Ceiling(_client.Guilds.Count / 5d);
+            embed.WithTitle($"Characters found in this channel: {channel.CharacterWebhooks.Count}");
+            embed.WithFooter($"Page {page}/{pages}");
+
+            await FollowupAsync(embed: embed.Build());
         }
 
     }

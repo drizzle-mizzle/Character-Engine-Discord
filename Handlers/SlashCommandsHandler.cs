@@ -30,8 +30,7 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleCommandAsync(SocketSlashCommand command)
         {
-            var db = _services.GetRequiredService<StorageContext>();
-            if (await UserIsBannedCheckOnly(command.User, db)) return;
+            if (await UserIsBannedCheckOnly(command.User)) return;
 
             var context = new InteractionContext(_client, command, command.Channel);
             var result = await _interactions.ExecuteCommandAsync(context, _services);
@@ -39,7 +38,7 @@ namespace CharacterEngineDiscord.Handlers
             if (!result.IsSuccess)
             {
                 LogException(new object?[] { result.ErrorReason, result.Error });
-                await command.RespondAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`", Color.Red));
+                await command.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red));
             }
         }
     }

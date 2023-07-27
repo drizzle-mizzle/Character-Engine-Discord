@@ -19,13 +19,7 @@ namespace CharacterEngineDiscord.Services
 
         public StorageContext()
         {
-            if (Environment.GetEnvironmentVariable("RUNNING") is not null) // Needed for migration builds, these have no Console
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.BackgroundColor = ConsoleColor.DarkRed;
-                Console.WriteLine(new string('~', Console.WindowWidth));
-                Console.ResetColor();
-            }
+
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -36,21 +30,37 @@ namespace CharacterEngineDiscord.Services
 
             optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
 
-            if (ConfigFile.DbLogEnabled.Value.ToBool())
-                optionsBuilder.LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });
+            if (Environment.GetEnvironmentVariable("READY") is not null)
+            { 
+                if (ConfigFile.DbLogEnabled.Value.ToBool())
+                    optionsBuilder.LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name })
+                                  .EnableSensitiveDataLogging(true)
+                                  .EnableDetailedErrors(true);
+            }
         }
 
 
         protected internal static void SqlLog(string text)
         {
-            Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.WriteLine(new string('~', Console.WindowWidth - 1) + "\n");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine(new string('~', Console.WindowWidth));
+
+            if (text.Contains("INSERT"))
+                Console.ForegroundColor = ConsoleColor.Green;
+            else if (text.Contains("DELETE"))
+                Console.ForegroundColor = ConsoleColor.DarkRed;
+            else if (text.Contains("UPDATE"))
+                Console.ForegroundColor = ConsoleColor.Magenta;
+            else if (text.Contains("SELECT"))
+                Console.ForegroundColor = ConsoleColor.Yellow;
+
+            Console.WriteLine(text);
             Console.ResetColor();
-            LogYellow(text + "\n");
         }
 
-        protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext db)
+        protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
         {
+            db ??= new StorageContext();
             var guild = await db.Guilds.FindAsync(guildId);
 
             if (guild is null)
@@ -58,14 +68,15 @@ namespace CharacterEngineDiscord.Services
                 guild = new() { Id = guildId, BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null, GuildMessagesFormat = "{{msg}}" };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
+                return await FindOrStartTrackingGuildAsync(guildId, db);
             }
 
-            await db.Entry(guild).ReloadAsync();
             return guild;
         }
 
-        protected internal static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext db)
+        protected internal static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
         {
+            db ??= new StorageContext();
             var channel = await db.Channels.FindAsync(channelId);
 
             if (channel is null)
@@ -73,23 +84,24 @@ namespace CharacterEngineDiscord.Services
                 channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
                 await db.SaveChangesAsync();
+                return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
             }
 
-            await db.Entry(channel).ReloadAsync();
             return channel;
         }
 
-        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext db)
+        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext? db = null)
         {
+            db ??= new StorageContext();
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
 
             if (character is null)
             {
                 character = db.Characters.Add(notSavedCharacter).Entity;
                 await db.SaveChangesAsync();
+                return await FindOrStartTrackingCharacterAsync(character, db);
             }
 
-            await db.Entry(character).ReloadAsync();
             return character;
         }
     }

@@ -57,11 +57,11 @@ namespace CharacterEngineDiscord.Handlers
             var characterMessage = await rawMessage.DownloadAsync();
             if (!characterMessage.Author.IsWebhook) return;
 
-            var db = _services.GetRequiredService<StorageContext>();
+            var db = new StorageContext();
             var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
-            await db.Entry(channel).ReloadAsync();
+            
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
             if (characterWebhook is null) return;
 
@@ -83,17 +83,17 @@ namespace CharacterEngineDiscord.Handlers
 
             if (reaction.Emote.Name == ARROW_LEFT.Name && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
-                if (await _integration.UserIsBanned(reaction, _client, db)) return;
+                if (await _integration.UserIsBanned(reaction, _client)) return;
 
                 characterWebhook.CurrentSwipeIndex--;
-                await SwipeMessageAsync(characterMessage, characterWebhook, userReacted);
+                await SwipeMessageAsync(characterMessage, characterWebhook.Id, userReacted);
             }
             else if (reaction.Emote.Name == ARROW_RIGHT.Name)
             {   // right arrow
-                if (await _integration.UserIsBanned(reaction, _client, db)) return;
+                if (await _integration.UserIsBanned(reaction, _client)) return;
 
                 characterWebhook.CurrentSwipeIndex++;
-                await SwipeMessageAsync(characterMessage, characterWebhook, userReacted);
+                await SwipeMessageAsync(characterMessage, characterWebhook.Id, userReacted);
             }
         }
 
@@ -106,9 +106,7 @@ namespace CharacterEngineDiscord.Handlers
                 var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
                 if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
                 if (searchQuery.AuthorId != component.User.Id) return;
-
-                var db = _services.GetRequiredService<StorageContext>();
-                if (await UserIsBannedCheckOnly(component.User, db)) return;
+                if (await UserIsBannedCheckOnly(component.User)) return;
 
                 int tail = searchQuery.SearchQueryData.Characters.Count - (searchQuery.CurrentPage - 1) * 10;
                 int maxRow = tail > 10 ? 10 : tail;
@@ -132,7 +130,7 @@ namespace CharacterEngineDiscord.Handlers
                     case "select":
                         await component.Message.ModifyAsync(msg =>
                         {
-                            msg.Embed = InlineEmbed(WAIT_MESSAGE, Color.Teal);
+                            msg.Embed = WAIT_MESSAGE.ToInlineEmbed(Color.Teal);
                             msg.Components = null;
                         });
 
@@ -163,7 +161,7 @@ namespace CharacterEngineDiscord.Handlers
 
                         var context = new InteractionContext(_client, component, component.Channel);
 
-                        var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, db, _integration);
+                        var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration);
                         if (characterWebhook is null) return;
 
                         var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
@@ -184,8 +182,12 @@ namespace CharacterEngineDiscord.Handlers
             catch (Exception e) { LogException(new[] { e }); }
         }
 
-        private async Task SwipeMessageAsync(IUserMessage characterMessage, CharacterWebhook characterWebhook, SocketGuildUser caller)
+        private async Task SwipeMessageAsync(IUserMessage characterMessage, ulong characterWebhookId, SocketGuildUser caller)
         {
+            var db = new StorageContext();
+            var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
+            if (characterWebhook is null) return;
+
             //Move it to the end of the queue
             _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
             _integration.RemoveEmojiRequestQueue.Add(characterMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
@@ -200,7 +202,7 @@ namespace CharacterEngineDiscord.Handlers
                 await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
                 {
                     msg.Content = null;
-                    msg.Embeds = new List<Embed> { InlineEmbed(WAIT_MESSAGE, Color.Teal) };
+                    msg.Embeds = new List<Embed> { WAIT_MESSAGE.ToInlineEmbed(Color.Teal) };
                     msg.AllowedMentions = AllowedMentions.None;
                 });
 
@@ -219,7 +221,7 @@ namespace CharacterEngineDiscord.Handlers
                 {
                     await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
                     {
-                        msg.Embeds = new List<Embed> { InlineEmbed(characterResponse.Text, Color.Red) };
+                        msg.Embeds = new List<Embed> { characterResponse.Text.ToInlineEmbed(Color.Red) };
                         msg.AllowedMentions = AllowedMentions.All;
                     });
                     return;
@@ -261,7 +263,6 @@ namespace CharacterEngineDiscord.Handlers
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
                 characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = newCharacterMessage.Value.Key, CharacterWebhookId = characterWebhook.Id });
 
-                var db = _services.GetRequiredService<StorageContext>();
                 await db.SaveChangesAsync();
             }
             //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
@@ -290,11 +291,10 @@ namespace CharacterEngineDiscord.Handlers
         {
             if (_integration.CaiClient is null) return null;
 
-            var db = _services.GetRequiredService<StorageContext>();
+            var db = new StorageContext();
             var channel = await db.Channels.FindAsync(channelId);
             if (channel is null) return null;
 
-            await db.Entry(channel).ReloadAsync();
             var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             if (string.IsNullOrWhiteSpace(caiToken)) return null;

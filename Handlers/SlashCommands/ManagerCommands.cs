@@ -8,6 +8,8 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Models.Database;
+using Discord.Webhook;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -22,17 +24,43 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             _integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = services.GetRequiredService<StorageContext>();
+            _db = new StorageContext();
         }
 
-        [SlashCommand("clear-webhooks", "Remove all character-webhooks from this server")]
+        [SlashCommand("delete-webhook", "Remove character-webhook from channel")]
+        public async Task DeleteWebhook(string webhookId)
+        {
+            try { await DeleteWebhookAsync(webhookId); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
+        }
+
+        [SlashCommand("clear-server-webhooks", "Remove all character-webhooks from this server")]
         public async Task ClearServerWebhooks()
         {
-            try { await ClearServerWebhooksAsync(); }
-            catch (Exception e) { LogException(new[] { e }); }
+            try { await ClearWebhooksAsync(all: true); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
         }
 
-        [SlashCommand("set-random-reply-chance", "Set random replies chance")]
+        [SlashCommand("clear-channel-webhooks", "Remove all character-webhooks from this channel")]
+        public async Task ClearChannelWebhooks()
+        {
+            try { await ClearWebhooksAsync(false); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
+        }
+
+        [SlashCommand("set-random-reply-chance", "Set random replies chance for this channel")]
         public async Task SetRandomReplyChance(float chance)
         {
             await DeferAsync();
@@ -44,33 +72,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("hunt-user", "Make character respond on messages of certain user")]
-        public async Task HuntUser(string webhookId, IUser user, float chanceOfResponse = 100)
+        [SlashCommand("hunt-user", "Make character respond on messages of certain user (or bot)")]
+        public async Task HuntUser(string webhookId, IUser? userEntity = null, string? userId = null, float chanceOfResponse = 100)
         {
-            try
+            try { await HuntUserAsync(webhookId, userEntity, userId, chanceOfResponse); }
+            catch (Exception e)
             {
-                await DeferAsync();
-
-                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-                var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
-
-                if (characterWebhook is null)
-                {
-                    await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
-                    return;
-                }
-
-                if (characterWebhook.HuntedUsers.FirstOrDefault(h => h.Id == user.Id) is not null)
-                {
-                    await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} User is already hunted", Color.Orange));
-                    return;
-                }
-
-                _db.HuntedUsers.Add(new() { Id = user.Id, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
-                await _db.SaveChangesAsync();
-
-                await FollowupAsync(embed: InlineEmbed($":ghost: Hunting {user.Mention}", Color.LighterGrey));
-            }catch (Exception e) { LogException(new[] { e }); }
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
         }
 
         [SlashCommand("stop-hunt-user", "Stop hunting user")]
@@ -79,25 +89,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
             var huntedUser = characterWebhook.HuntedUsers.FirstOrDefault(h => h.Id == user.Id);
             if (huntedUser is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} User is not hunted", Color.Orange));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is not hunted".ToInlineEmbed(Color.Orange));
                 return;
             }
 
             characterWebhook.HuntedUsers.Remove(huntedUser);
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: InlineEmbed($":ghost: {user.Mention} is not hunted anymore", Color.LighterGrey));
+            await FollowupAsync(embed: $":ghost: {user.Mention} is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
         }
 
         [SlashCommand("reset-character", "Forget all history and start chat from the beginning")]
@@ -106,11 +116,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
             
@@ -144,7 +154,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (!newFormat.Contains("{{msg}}"))
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Can't set format without a **`{{{{msg}}}}`** placeholder!", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't set format without a **`{{{{msg}}}}`** placeholder!".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -190,14 +200,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-server-openai-api-token", "Set default OpenAI api token for this server")]
-        public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? gptReverseProxyEndpoint)
+        public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? reverseProxyEndpoint = null)
         {
             await DeferAsync(ephemeral: true);
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
-            if (gptReverseProxyEndpoint is not null)
-                guild.GuildOpenAiApiEndpoint = gptReverseProxyEndpoint;
+            if (reverseProxyEndpoint is not null)
+                guild.GuildOpenAiApiEndpoint = reverseProxyEndpoint;
 
             guild.GuildOpenAiApiToken = token;
             guild.GuildOpenAiModel = gptModel is OpenAiModel.GPT_3_5_turbo ? "gpt-3.5-turbo" : gptModel is OpenAiModel.GPT_4 ? "gpt-4" : null;
@@ -211,24 +221,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId));
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var channelWebhook);
+            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var webhookClient);
 
-            if (channelWebhook is null)
+            if (webhookClient is null)
             {
-                await FollowupAsync(embed: InlineEmbed($"{WARN_SIGN_DISCORD} Webhook not found", Color.Red));
-                return;
+                webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            await channelWebhook.SendMessageAsync(text);
+            await webhookClient.SendMessageAsync(text);
             await FollowupAsync(embed: SuccessEmbed());
         }
 
@@ -237,15 +247,51 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Main logic section ////
         ////////////////////////////
 
-        private async Task ClearServerWebhooksAsync()
+        private async Task DeleteWebhookAsync(string webhookId)
         {
             await DeferAsync();
 
-            var discordWebhooks = await Context.Guild.GetWebhooksAsync();
-            var trackedWebhooks = (from guild in (from guilds in _db.Guilds where guilds.Id == Context.Guild.Id select guilds)
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var discordWebhook = await ((SocketTextChannel)Context.Channel).GetWebhookAsync(characterWebhook.Id);
+            await discordWebhook.DeleteAsync();
+
+            _db.CharacterWebhooks.Remove(characterWebhook);
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        private async Task ClearWebhooksAsync(bool all)
+        {
+            await DeferAsync();
+
+            IReadOnlyCollection<IWebhook> discordWebhooks;
+            List<CharacterWebhook> trackedWebhooks;
+
+            if (all)
+            {
+                discordWebhooks = await Context.Guild.GetWebhooksAsync();
+                trackedWebhooks = (from guild in (from guilds in _db.Guilds where guilds.Id == Context.Guild.Id select guilds)
                                    join channel in _db.Channels on guild.Id equals channel.Guild.Id
                                    join webhook in _db.CharacterWebhooks on channel.Id equals webhook.Channel.Id
                                    select webhook).ToList();
+            }
+            else
+            { 
+                discordWebhooks = await ((SocketTextChannel)Context.Channel).GetWebhooksAsync();
+                trackedWebhooks = (from channel in (from channels in _db.Channels where channels.Id == Context.Channel.Id select channels)
+                                   join webhook in _db.CharacterWebhooks on channel.Id equals webhook.Channel.Id
+                                   select webhook).ToList();
+            }
+
             var trackedWebhookIds = trackedWebhooks.Select(w => w.Id).ToList();
 
             foreach (var tw in trackedWebhooks)
@@ -258,5 +304,41 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
             await FollowupAsync(embed: SuccessEmbed());
         }
+
+        private async Task HuntUserAsync(string webhookId, IUser? user, string? userId, float chanceOfResponse)
+        {
+            await DeferAsync();
+
+            if (user is null && string.IsNullOrWhiteSpace(userId))
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Specify user or user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            ulong userToHuntId = user?.Id ?? ulong.Parse(userId!.Trim());
+            if (characterWebhook.HuntedUsers.Any(h => h.Id == userToHuntId))
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already hunted".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
+            _db.HuntedUsers.Add(new() { Id = userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
+            await _db.SaveChangesAsync();
+
+            var guildUser = await Context.Guild.GetUserAsync(userToHuntId);
+            string? username = guildUser is null ? userToHuntId.ToString() : guildUser?.Mention ?? guildUser?.Username;
+
+            await FollowupAsync(embed: $":ghost: Hunting {username}".ToInlineEmbed(Color.LighterGrey));
+        }
+
     }
 }
