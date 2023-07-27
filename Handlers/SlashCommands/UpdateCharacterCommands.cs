@@ -26,12 +26,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("call-prefix", "Change character call prefix")]
-        public async Task CallPrefix(string webhookId, string newCallPrefix, [Summary(description: "Add a following spacebar for the prefix, e.g. `..prefix `")] bool addFollowingSpacebar)
+        public async Task CallPrefix(string webhookIdOrPrefix, string newCallPrefix, [Summary(description: "Add a following spacebar for the prefix, e.g. `..prefix `")] bool addFollowingSpacebar)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -46,12 +46,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("cai-history-id", "Change c.ai history ID")]
-        public async Task CaiHistory(string webhookId, string newHistoryId)
+        public async Task CaiHistory(string webhookIdOrPrefix, string newHistoryId)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -76,9 +76,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("api", "Change API backend")]
-        public async Task ApiBackend(string webhookId, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
+        public async Task ApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
         {
-            try { await UpdateApiAsync(webhookId, apiType, openAiModel, personalApiToken, personalApiEndpoint); }
+            try { await UpdateApiAsync(webhookIdOrPrefix, apiType, openAiModel, personalApiToken, personalApiEndpoint); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
@@ -87,12 +87,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("quotes", "Enable/disable qoutes")]
-        public async Task Quotes(string webhookId, bool enable)
+        public async Task Quotes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -106,12 +106,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("max-tokens", "Change amount of tokens for ChatGPT responses")]
-        public async Task MaxTokens(string webhookId, int tokens)
+        public async Task MaxTokens(string webhookIdOrPrefix, int tokens)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -131,9 +131,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("messages-format", "Change character messages format")]
-        public async Task MessagesFormat(string webhookId, string newFormat)
+        public async Task MessagesFormat(string webhookIdOrPrefix, string newFormat)
         {
-            try { await UpdateMessagesFormatAsync(webhookId, newFormat); }
+            try { await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
@@ -152,16 +152,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
 
-        ////////////////////
-        //// Long stuff ////
+          ////////////////////
+         //// Long stuff ////
         ////////////////////
 
-        private async Task UpdateApiAsync(string webhookId, ApiTypeForChub apiType, OpenAiModel? openAiModel, string? personalApiToken, string? personalApiEndpont)
+        private async Task UpdateApiAsync(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel, string? personalApiToken, string? personalApiEndpont)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -191,12 +191,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
 
-        private async Task UpdateMessagesFormatAsync(string webhookId, string newFormat)
+        private async Task UpdateMessagesFormatAsync(string webhookIdOrPrefix, string newFormat)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {

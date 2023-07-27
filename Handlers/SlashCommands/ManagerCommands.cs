@@ -73,9 +73,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("hunt-user", "Make character respond on messages of certain user (or bot)")]
-        public async Task HuntUser(string webhookId, IUser? userEntity = null, string? userId = null, float chanceOfResponse = 100)
+        public async Task HuntUser(string webhookIdOrPrefix, IUser? user = null, string? userId = null, float chanceOfResponse = 100)
         {
-            try { await HuntUserAsync(webhookId, userEntity, userId, chanceOfResponse); }
+            try { await HuntUserAsync(webhookIdOrPrefix, user, userId, chanceOfResponse); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
@@ -84,39 +84,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("stop-hunt-user", "Stop hunting user")]
-        public async Task UnhuntUser(string webhookId, IUser user)
+        public async Task UnhuntUser(string webhookIdOrPrefix, IUser? user = null, string? userId = null)
         {
-            await DeferAsync();
-
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
-
-            if (characterWebhook is null)
+            try { await UnhuntUserAsync(webhookIdOrPrefix, user, userId); }
+            catch (Exception e)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
-                return;
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
             }
-
-            var huntedUser = characterWebhook.HuntedUsers.FirstOrDefault(h => h.Id == user.Id);
-            if (huntedUser is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is not hunted".ToInlineEmbed(Color.Orange));
-                return;
-            }
-
-            characterWebhook.HuntedUsers.Remove(huntedUser);
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: $":ghost: {user.Mention} is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
         }
 
+
         [SlashCommand("reset-character", "Forget all history and start chat from the beginning")]
-        public async Task ResetCharacter(string webhookId)
+        public async Task ResetCharacter(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -217,12 +202,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("say", "Make character say something")]
-        public async Task SayAsync(string webhookId, string text)
+        public async Task SayAsync(string webhookIdOrPrefix, string text)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -247,12 +232,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Main logic section ////
         ////////////////////////////
 
-        private async Task DeleteWebhookAsync(string webhookId)
+        private async Task DeleteWebhookAsync(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -305,7 +290,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        private async Task HuntUserAsync(string webhookId, IUser? user, string? userId, float chanceOfResponse)
+        private async Task HuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userId, float chanceOfResponse)
         {
             await DeferAsync();
 
@@ -316,7 +301,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -334,10 +319,36 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db.HuntedUsers.Add(new() { Id = userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
             await _db.SaveChangesAsync();
 
-            var guildUser = await Context.Guild.GetUserAsync(userToHuntId);
-            string? username = guildUser is null ? userToHuntId.ToString() : guildUser?.Mention ?? guildUser?.Username;
+            string? username = user is null ? userToHuntId.ToString() : user.Mention;
+            await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** hunting {username}".ToInlineEmbed(Color.LighterGrey));
+        }
 
-            await FollowupAsync(embed: $":ghost: Hunting {username}".ToInlineEmbed(Color.LighterGrey));
+        private async Task UnhuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userId)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            ulong huntedUserId = user?.Id ?? ulong.Parse(userId!.Trim());
+            var huntedUser = characterWebhook.HuntedUsers.FirstOrDefault(h => h.Id == huntedUserId);
+            if (huntedUser is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is not hunted".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
+            characterWebhook.HuntedUsers.Remove(huntedUser);
+            await _db.SaveChangesAsync();
+
+            string username = user is null ? huntedUserId.ToString() : user.Mention;
+            await FollowupAsync(embed: $":ghost: {username} is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
         }
 
     }

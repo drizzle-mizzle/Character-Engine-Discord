@@ -35,13 +35,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
+        [SlashCommand("info", "Show info about character")]
+        public async Task ShowInfo(string webhookIdOrPrefix)
+        {
+            try { await ShowInfoAsync(webhookIdOrPrefix); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
+            }
+        }
+
+
         [SlashCommand("cai-history-id", "Show c.ai history ID")]
-        public async Task CaiHistory(string webhookId)
+        public async Task CaiHistory(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -59,10 +71,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("history", "Show last 15 messages with a character. Works only with OpenAI.")]
-        public async Task ShowHistory(string webhookId)
+        public async Task ShowHistory(string webhookIdOrPrefix)
         {
-            try { await ShowHistoryAsync(webhookId); }
-                        catch (Exception e)
+            try { await ShowHistoryAsync(webhookIdOrPrefix); }
+            catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
                 LogException(new[] { e });
@@ -70,12 +82,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("last-request-cost", "~")]
-        public async Task ShowLastRequestCost(string webhookId)
+        public async Task ShowLastRequestCost(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -87,12 +99,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("messages-format", "Check character messages format")]
-        public async Task ShowMessagesFormat(string webhookId)
+        public async Task ShowMessagesFormat(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -110,12 +122,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("jailbreak-prompt", "Check character jailbreak prompt")]
-        public async Task ShowJailbreakPrompt(string webhookId)
+        public async Task ShowJailbreakPrompt(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {
@@ -132,16 +144,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
 
-        ////////////////////////////
-        //// Main logic section ////
-        ////////////////////////////
+          ////////////////////
+         //// Long stuff ////
+        ////////////////////
 
-        private async Task ShowHistoryAsync(string webhookId)
+        private async Task ShowInfoAsync(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookId.Trim()));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
+            await FollowupAsync(embed: SpawnCharacterEmbed(characterWebhook));
+        }
+
+        private async Task ShowHistoryAsync(string webhookIdOrPrefix)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()) || c.CallPrefix == webhookIdOrPrefix);
 
             if (characterWebhook is null)
             {

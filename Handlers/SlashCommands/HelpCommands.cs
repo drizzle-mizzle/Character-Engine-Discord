@@ -24,7 +24,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
                                           .AddField("How to use", "1. Use one of `/spawn` commands to create a character.\n" +
-                                                                  "2. Modify it with one of the `/update-character` commands using a given `webhook ID`.\n" +
+                                                                  "2. Modify it with one of the `/update-character` commands using a given prefix or webhook ID.\n" +
                                                                   "3. Call character by mentioning his prefix or with reply on one if his messages.\n" +
                                                                   "4. If you want to start the chat with a character from the beginning, use `/reset-character` commands.")
                                           .AddField("API", "By default, bot will use its owner's credentials for accessing all needed servcies like **CharacterAI** or **OpenAI**\n" +

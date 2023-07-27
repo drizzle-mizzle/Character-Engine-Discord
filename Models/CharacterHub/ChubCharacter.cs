@@ -30,15 +30,13 @@ namespace CharacterEngineDiscord.Models.CharacterHub
         public string Tags { get; }
 
         public string? Personality { get; }
-        public string FirstMessage { get; }
+        public string? FirstMessage { get; }
         public string? Scenario { get; }
         public string? ExampleDialogs { get; }
 
 
-        public ChubCharacter(dynamic? node, bool full)
+        public ChubCharacter(dynamic node, bool full)
         {
-            if (node is null) return;
-            
             var desc = (string)node.description;
             var tagline = (string)node.tagline;
             CharacterID = (ulong)node.id;

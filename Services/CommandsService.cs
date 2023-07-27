@@ -69,7 +69,7 @@ namespace CharacterEngineDiscord.Services
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
             emb.WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.");
             emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix}hey!`*");
-            emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it to modify this integration with *`/update-character`* command.");
+            emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it or the prefix to modify this integration with *`/update-character`* commands.");
             emb.AddField(characterWebhook.Character.Name, lastField);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");

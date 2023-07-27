@@ -199,14 +199,21 @@ namespace CharacterEngineDiscord.Services
             return new(response, originalQuery);
         }
 
-        internal static async Task<ChubCharacter> GetChubCharacterInfo(string characterId, HttpClient client)
+        internal static async Task<ChubCharacter?> GetChubCharacterInfo(string characterId, HttpClient client)
         {
             string uri = $"https://v2.chub.ai/api/characters/{characterId}?full=true";
             var response = await client.GetAsync(uri);
             var content = await response.Content.ReadAsStringAsync();
             var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
 
-            return new(node, true);
+            try
+            {
+                return new(node, true);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration)
@@ -362,7 +369,7 @@ namespace CharacterEngineDiscord.Services
                     Tgt = null,
                     Name = chubCharacter.Name,
                     Title = chubCharacter.TagLine,
-                    Greeting = chubCharacter.FirstMessage,
+                    Greeting = chubCharacter.FirstMessage ?? "",
                     Description = chubCharacter.Description,
                     AuthorName = chubCharacter.AuthorName,
                     AvatarUrl = $"https://avatars.charhub.io/avatars/{chubCharacter.FullPath}/avatar.webp",
