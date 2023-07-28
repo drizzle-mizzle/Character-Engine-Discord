@@ -86,7 +86,26 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        [SlashCommand("quotes", "Enable/disable qoutes")]
+        [SlashCommand("delay", "Set response delay")]
+        public async Task Delay(string webhookIdOrPrefix, int seconds)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.ResponseDelay = seconds;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("quotes", "Enable/disable quotes")]
         public async Task Quotes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();

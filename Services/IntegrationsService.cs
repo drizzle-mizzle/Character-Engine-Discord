@@ -281,6 +281,7 @@ namespace CharacterEngineDiscord.Services
                     WebhookToken = channelWebhook.Token,
                     CallPrefix = callPrefix,
                     ReferencesEnabled = false,
+                    ResponseDelay = 1,
                     IntegrationType = type,
                     MessagesFormat = channel.Guild.GuildMessagesFormat,
                     ReplyChance = 0,

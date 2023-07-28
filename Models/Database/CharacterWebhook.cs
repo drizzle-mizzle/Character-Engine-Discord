@@ -22,6 +22,7 @@ namespace CharacterEngineDiscord.Models.Database
         /// </summary>
         public required string CallPrefix { get; set; }
         public required bool ReferencesEnabled { get; set; }
+        public required int ResponseDelay { get; set; }
         public required IntegrationType IntegrationType { get; set; }
 
         /// <summary>

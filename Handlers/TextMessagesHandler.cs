@@ -53,6 +53,15 @@ namespace CharacterEngineDiscord.Handlers
 
                 foreach (var characterWebhook in characterWebhooks)
                 {
+                    int delay = characterWebhook.ResponseDelay;
+
+                    if ((userMessage.Author.IsWebhook || userMessage.Author.IsBot) && delay < 5)
+                    {
+                        delay = 5;
+                    }
+
+                    await Task.Delay(delay * 1000);
+
                     if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                         await TryToCallCaiCharacterAsync(characterWebhook.Id, userMessage);
                     else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
@@ -105,7 +114,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (!characterResponse.IsSuccessful)
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch a character response".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{characterResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -133,7 +142,7 @@ namespace CharacterEngineDiscord.Handlers
             if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
-            string characterMessage = $"{(userMessage.Author.IsWebhook ? userMessage.Author.Username : userMessage.Author.Mention)} {characterResponse.Response.Text}";
+            string characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**," : userMessage.Author.Mention)} {characterResponse.Response.Text}";
             if (characterMessage.Length > 2000)
                 characterMessage = characterMessage[0..1994] + "[...]";
 
@@ -210,7 +219,7 @@ namespace CharacterEngineDiscord.Handlers
             // Reformatting
             string characterMessage = characterResponse.Message!.Replace("{{char}}", $"**{characterWebhook.Character.Name}**")
                                                                 .Replace("{{user}}", $"**{userName}**");
-            characterMessage = $"{(userMessage.Author.IsWebhook ? userMessage.Author.Username : userMessage.Author.Mention)} {characterMessage}";
+            characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**," : userMessage.Author.Mention)} {characterMessage}";
             if (characterMessage.Length > 2000)
                 characterMessage = characterMessage[0..1994] + "[...]";
 
