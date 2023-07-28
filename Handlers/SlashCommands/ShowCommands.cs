@@ -99,26 +99,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("messages-format", "Check character messages format")]
-        public async Task ShowMessagesFormat(string webhookIdOrPrefix)
+        public async Task ShowMessagesFormat(string? webhookIdOrPrefix = null)
         {
-            await DeferAsync();
-
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
-
-            if (characterWebhook is null)
+            try { await ShowMessagesFormatAsync(webhookIdOrPrefix); }
+            catch (Exception e)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
-                return;
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
+                LogException(new[] { e });
             }
-
-            var embed = new EmbedBuilder().WithTitle($"**{characterWebhook.Character.Name}**")
-                                          .WithColor(Color.Gold)
-                                          .AddField("Format:", $"`{characterWebhook.MessagesFormat}`")
-                                          .AddField("[Example]", $"User message: *`Hello!`*\nResult (what character will see): *`{characterWebhook.MessagesFormat.Replace("{{msg}}", "Hello!")}`*")
-                                          .Build();
-
-            await FollowupAsync(embed: embed);
         }
 
         [SlashCommand("jailbreak-prompt", "Check character jailbreak prompt")]
@@ -226,6 +214,43 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed.WithDescription(desc).Build());
         }
 
+        private async Task ShowMessagesFormatAsync(string? webhookIdOrPrefix)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+
+            string title;
+            string format;
+
+            if (webhookIdOrPrefix is null)
+            {
+                title = "Current server";
+                format = channel.Guild.GuildMessagesFormat;
+            }
+            else
+            {
+                var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+
+                if (characterWebhook is null)
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                    return;
+                }
+
+                title = characterWebhook.Character.Name;
+                format = characterWebhook.MessagesFormat;
+            }
+
+            var embed = new EmbedBuilder().WithTitle($"{title}")
+                                          .WithColor(Color.Gold)
+                                          .AddField("Format:", $"`{format}`")
+                                          .AddField("[Example]", $"User message: *`Hello!`*\nResult (what character will see): *`{format.Replace("{{msg}}", "Hello!")}`*")
+                                          .Build();
+
+            await FollowupAsync(embed: embed);
+        }
+
         private async Task ShowCharactersAsync(int page)
         {
             await DeferAsync();
@@ -239,14 +264,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var embed = new EmbedBuilder().WithColor(Color.Purple);
             int start = (page - 1) * 5;
-            int end = start + 4;
-
-            if ((start + end + 1) > channel.CharacterWebhooks.Count)
-                end = channel.CharacterWebhooks.Count - start - 1;
+            int end = (channel.CharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (channel.CharacterWebhooks.Count - start - 1);
 
             int count = 0;
-            foreach (var cw in channel.CharacterWebhooks)
+            for (int i = start; i <= end; i++)
             {
+                var cw = channel.CharacterWebhooks.ElementAt(i);
                 string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ? $"**[character.ai](https://beta.character.ai/chat?char={cw.Character.Id})**" :
                                          cw.IntegrationType is IntegrationType.OpenAI ? $"`{cw.OpenAiModel}` **[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})**" : "empty";
                 string val = $"Call prefix: *`{cw.CallPrefix}`*\n" +
@@ -256,7 +279,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 embed.AddField($"{++count}. {cw.Character.Name}", val);
             }
 
-            double pages = Math.Ceiling(_client.Guilds.Count / 5d);
+            double pages = Math.Ceiling(channel.CharacterWebhooks.Count / 5d);
             embed.WithTitle($"Characters found in this channel: {channel.CharacterWebhooks.Count}");
             embed.WithFooter($"Page {page}/{pages}");
 

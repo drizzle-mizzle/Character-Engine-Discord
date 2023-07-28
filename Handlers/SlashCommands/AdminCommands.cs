@@ -171,12 +171,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var embed = new EmbedBuilder().WithColor(Color.Green);
 
             int start = (page - 1) * 10;
-            int end = start + 9;
-            if ((start + end + 1) > _client.Guilds.Count)
-                end = _client.Guilds.Count - start - 1;
+            int end = (_client.Guilds.Count - start) > 10 ? (start + 9) : start + (_client.Guilds.Count - start - 1);
 
-            foreach (var guild in _client.Guilds)
+            for (int i = start; i <= end; i++)
             {
+                var guild = _client.Guilds.ElementAt(i);
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
                 string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +

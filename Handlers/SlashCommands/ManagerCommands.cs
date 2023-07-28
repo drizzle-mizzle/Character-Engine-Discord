@@ -28,9 +28,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("delete-webhook", "Remove character-webhook from channel")]
-        public async Task DeleteWebhook(string webhookId)
+        public async Task DeleteWebhook(string webhookIdOrPrefix)
         {
-            try { await DeleteWebhookAsync(webhookId); }
+            try { await DeleteWebhookAsync(webhookIdOrPrefix); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
@@ -157,7 +157,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed);
         }
 
-        [SlashCommand("set-swipes-remove-delay", "Set time after that swipe reaction buttons will fade away")]
+        [SlashCommand("set-swipes-remove-delay", "Set time after that swipe reaction buttons will fade away on this server")]
         public async Task SetSwipeRemoveDelay(int seconds)
         {
             await DeferAsync(ephemeral: true);
@@ -228,9 +228,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
 
-        ////////////////////////////
-        //// Main logic section ////
-        ////////////////////////////
+          ////////////////////
+         //// Long stuff ////
+        ////////////////////
 
         private async Task DeleteWebhookAsync(string webhookIdOrPrefix)
         {

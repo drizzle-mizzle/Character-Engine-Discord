@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
 using System.Data.Entity.ModelConfiguration.Conventions;
+using Microsoft.Extensions.Primitives;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -46,6 +47,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 // Get stored channel and its' characters
                 var characterWebhooks = await DetermineCalledCharacterWebhook(userMessage, context.Channel.Id);
+
                 if (characterWebhooks.Count == 0) return;
                 if (await _integration.UserIsBanned(context)) return;
 
@@ -56,7 +58,7 @@ namespace CharacterEngineDiscord.Handlers
                     else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                         await TryToCallOpenAiCharacterAsync(characterWebhook.Id, userMessage);
                     else
-                        await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Set backend API for this integration. Use `update-character` command.".ToInlineEmbed(Color.Orange));
+                        await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `update-character` command.".ToInlineEmbed(Color.Orange));
                 }
             }
             catch (Exception e) { LogException(new[] {e}); }
@@ -69,9 +71,19 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook is null) return;
 
             string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
-            if (userMessage.Author is not SocketGuildUser user) return;
+            string userName;
 
-            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{user.Nickname ?? user.DisplayName ?? user.Username}")
+            if (userMessage.Author is SocketGuildUser guildUser)
+            {
+                userName = guildUser.Nickname ?? guildUser.DisplayName ?? guildUser.Username;
+            }
+            else if (userMessage.Author.IsWebhook)
+            {
+                userName = userMessage.Author.Username;
+            }
+            else return;
+
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}")
                                                   .Replace("{{msg}}", $"{text}");
 
             if (_integration.CaiClient is null)
@@ -84,7 +96,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -93,7 +105,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (!characterResponse.IsSuccessful)
             {
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch a character response".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch a character response".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -121,14 +133,14 @@ namespace CharacterEngineDiscord.Handlers
             if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
-            string characterMessage = $"{userMessage.Author.Mention} {characterResponse.Response.Text}";
+            string characterMessage = $"{(userMessage.Author.IsWebhook ? userMessage.Author.Username : userMessage.Author.Mention)} {characterResponse.Response.Text}";
             if (characterMessage.Length > 2000)
                 characterMessage = characterMessage[0..1994] + "[...]";
 
             var messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
             characterWebhook.LastCharacterDiscordMsgId = messageId;
 
-            await AddArrowButtonsAsync(messageId, userMessage.Channel, _integration, characterWebhook.Channel.Guild.BtnsRemoveDelay);
+            await AddArrowButtonsAsync(messageId, userMessage.Channel, characterWebhook.Channel.Guild.BtnsRemoveDelay);
         }
 
         private async Task TryToCallOpenAiCharacterAsync(ulong characterWebhookId, SocketUserMessage userMessage)
@@ -138,16 +150,27 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook is null) return;
 
             string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
-            if (userMessage.Author is not SocketGuildUser user) return;
+            string userName;
 
-            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{user.Nickname ?? user.DisplayName ?? user.Username}")
+            if (userMessage.Author is SocketGuildUser guildUser)
+            {
+                userName = guildUser.Nickname ?? guildUser.DisplayName ?? guildUser.Username;
+            }
+            else if (userMessage.Author.IsWebhook)
+            {
+                userName = userMessage.Author.Username;
+            }
+            else return;
+
+
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}")
                                                   .Replace("{{msg}}", $"{text}");
 
             string? openAiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
             
             if (string.IsNullOrWhiteSpace(openAiToken))
             {
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -157,7 +180,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (characterResponse.IsFailure)
             {
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{characterResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{characterResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -186,8 +209,8 @@ namespace CharacterEngineDiscord.Handlers
 
             // Reformatting
             string characterMessage = characterResponse.Message!.Replace("{{char}}", $"**{characterWebhook.Character.Name}**")
-                                                                .Replace("{{user}}", $"**{user.Nickname ?? user.GlobalName ?? user.Username}**");
-            characterMessage = $"{userMessage.Author.Mention} {characterMessage}";
+                                                                .Replace("{{user}}", $"**{userName}**");
+            characterMessage = $"{(userMessage.Author.IsWebhook ? userMessage.Author.Username : userMessage.Author.Mention)} {characterMessage}";
             if (characterMessage.Length > 2000)
                 characterMessage = characterMessage[0..1994] + "[...]";
 
@@ -204,7 +227,7 @@ namespace CharacterEngineDiscord.Handlers
             
             await db.SaveChangesAsync();
 
-            await AddArrowButtonsAsync(messageId, userMessage.Channel, _integration, characterWebhook.Channel.Guild.BtnsRemoveDelay);
+            await AddArrowButtonsAsync(messageId, userMessage.Channel, characterWebhook.Channel.Guild.BtnsRemoveDelay);
         }
 
         private static readonly Random @Random = new();
@@ -255,13 +278,13 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task AddArrowButtonsAsync(ulong messageId, ISocketMessageChannel channel, IntegrationsService _integration, int lifespan)
+        private async Task AddArrowButtonsAsync(ulong messageId, ISocketMessageChannel channel, int lifespan)
         {
             var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
 
-            _ = Task.Run(() => _integration.RemoveButtonsAsync(message, delay: lifespan));
+            _ = Task.Run(async () => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: lifespan));
         }
     }
 }

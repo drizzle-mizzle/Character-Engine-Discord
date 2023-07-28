@@ -25,7 +25,7 @@ namespace CharacterEngineDiscord.Models.Database
         public required IntegrationType IntegrationType { get; set; }
 
         /// <summary>
-        /// String where "{{msg}}" will be replaced with user message before it will be sent to a character
+        /// String with "{{msg}}" will be replaced with user message before it will be sent to a character
         /// </summary>
         public required string MessagesFormat { get; set; }
         public required float ReplyChance { get; set; }

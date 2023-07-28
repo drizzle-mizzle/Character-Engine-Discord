@@ -44,7 +44,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var embed = new EmbedBuilder().WithTitle("Messages format")
                                             .WithColor(Color.Gold)
                                             .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
-                                            .AddField("Commands", "`show-messages-format` - Check the current format of messages\n`update-character messages-format` - Change the format of messages")
+                                            .AddField("Commands", "`show messages-format` - Check the current format of messages for this server or cetrtain character\n" +
+                                                      "`update-character messages-format` - Change the format of messages for certain character\n" +
+                                                      "`/set-default-messages-format` - Change the format of messages for all new characters in this server")
                                             .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
                                                     "**`{{msg}}`** - **required** placeholder that contains the message itself;\n" +
                                                     "**`{{user}}`** - User's Discord name *(server nickname > display name > username)*\n")
