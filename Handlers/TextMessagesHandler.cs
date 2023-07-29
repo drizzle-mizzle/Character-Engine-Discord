@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using Discord.Interactions;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -17,23 +18,34 @@ namespace CharacterEngineDiscord.Handlers
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly IntegrationsService _integration;
+        private readonly InteractionService _interactions;
 
         public TextMessagesHandler(IServiceProvider services)
         {
             _services = services;
             _integration = _services.GetRequiredService<IntegrationsService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
+            _interactions = _services.GetRequiredService<InteractionService>();
 
             _client.MessageReceived += (message) =>
             {
-                Task.Run(async () => {
-                    try { await HandleMessageAsync(message); }
-                    catch (Exception e) { LogException(new[] { e }); }
+                Task.Run(async () => { try {
+                    if (message.Content == "##sync")
+                        await TryToCreateSlashCommandsAsync(message);
+                    else
+                        await HandleMessageAsync(message);
+                    } catch (Exception e) { LogException(new[] { e }); }
                 });
                 return Task.CompletedTask;
             };
+        }
 
-
+        private async Task TryToCreateSlashCommandsAsync(SocketMessage message)
+        {
+            var userMessage = message as SocketUserMessage;
+            var context = new SocketCommandContext(_client, userMessage);
+            await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id, deleteMissing: true);
+            await userMessage.ReplyAsync(embed: SuccessEmbed());
         }
 
         internal async Task HandleMessageAsync(SocketMessage sm)

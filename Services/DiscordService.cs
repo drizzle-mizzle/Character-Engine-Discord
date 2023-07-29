@@ -37,44 +37,25 @@ namespace CharacterEngineDiscord.Services
 
             _client.Ready += () =>
             {
-                Task.Run(async () => await CreateSlashCommandsAsync());
+                Task.Run(async () =>
+                {
+                    await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+                    await CreateSlashCommandsAsync();
+                });
                 Task.Run(async () => await SetupIntegrationAsync());
+
                 return Task.CompletedTask;
             };
 
             _client.JoinedGuild += (guild) =>
             {
-                Task.Run(async () =>
-                {
-                    var guildOwner = await _client.GetUserAsync(guild.OwnerId);
-
-                    LogYellow($"Joined guild: {guild.Name} | Members: {guild.MemberCount}\n" +
-                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
-                              $"Members: {guild.MemberCount}\n" +
-                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}");
-
-                    var db = new StorageContext();
-                    bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
-                    if (guildIsBlocked)
-                    {
-                        await guild.LeaveAsync();
-                        return;
-                    }
-
-                    if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
-                    {
-                        var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
-                    }
-
-                    await _interactions.RegisterCommandsToGuildAsync(guild.Id);
-                });
-
+                Task.Run(async () => await OnGuildJoinAsync(guild));
                 return Task.CompletedTask;
             };
 
             _client.LeftGuild += (guild) =>
             {
-                LogRed($"Left guild: {guild?.Name} | Owner: {guild?.Owner?.Username} | Members: {guild?.MemberCount}\n");
+                LogRed($"Left guild: {guild.Name} | Members: {guild?.MemberCount}\n");
                 return Task.CompletedTask;
             };
 
@@ -82,6 +63,38 @@ namespace CharacterEngineDiscord.Services
             await _client.StartAsync();
 
             await Task.Delay(-1);
+        }
+
+        private async Task OnGuildJoinAsync(SocketGuild guild)
+        {
+            try
+            {
+                var db = new StorageContext();
+                bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
+                if (guildIsBlocked)
+                {
+                    await guild.LeaveAsync();
+                    return;
+                }
+
+                await _interactions.RegisterCommandsToGuildAsync(guild.Id, deleteMissing: true);
+
+                if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
+                {
+                    var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
+                }
+
+                var guildOwner = await _client.GetUserAsync(guild.OwnerId);
+
+                LogYellow($"Joined guild: {guild.Name} | Members: {guild.MemberCount}\n" +
+                          $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
+                          $"Members: {guild.MemberCount}\n" +
+                          $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}");
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+            }
         }
 
         internal static ServiceProvider CreateServices()
@@ -109,10 +122,7 @@ namespace CharacterEngineDiscord.Services
 
         private async Task CreateSlashCommandsAsync()
         {
-            try
-            {
-                await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
-
+            try { 
                 foreach (var guild in _client.Guilds)
                     await _interactions.RegisterCommandsToGuildAsync(guild.Id);
             }

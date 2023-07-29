@@ -155,7 +155,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
 
-
             await FollowupAsync(embed: emb.Build());
         }
 
@@ -265,9 +264,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             int end = (channel.CharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (channel.CharacterWebhooks.Count - start - 1);
 
             int count = 0;
+            var characterWebhooks = Enumerable.Reverse(channel.CharacterWebhooks);
             for (int i = start; i <= end; i++)
             {
-                var cw = channel.CharacterWebhooks.ElementAt(i);
+                var cw = characterWebhooks.ElementAt(i);
                 string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ? $"**[character.ai](https://beta.character.ai/chat?char={cw.Character.Id})**" :
                                          cw.IntegrationType is IntegrationType.OpenAI ? $"`{cw.OpenAiModel}` **[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})**" : "empty";
                 string val = $"Call prefix: *`{cw.CallPrefix}`*\n" +

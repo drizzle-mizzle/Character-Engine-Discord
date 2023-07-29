@@ -6,6 +6,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 using PuppeteerSharp;
+using System.Collections;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -168,9 +169,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             int start = (page - 1) * 10;
             int end = (_client.Guilds.Count - start) > 10 ? (start + 9) : start + (_client.Guilds.Count - start - 1);
 
+            var guilds = _client.Guilds.OrderBy(g => g.MemberCount).Reverse();
+
             for (int i = start; i <= end; i++)
             {
-                var guild = _client.Guilds.ElementAt(i);
+                var guild = guilds.ElementAt(i);
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
                 string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
