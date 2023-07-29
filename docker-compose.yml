@@ -1,0 +1,5 @@
+﻿services:
+  character-engine-discord:
+    container_name: character-ai-discord-bot
+    restart: always
+    build: .

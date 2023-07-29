@@ -28,7 +28,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("list-servers", "-")]
         public async Task ListServers(int page = 1)
         {
-            throw new("Wtf");
             await ListServersAsync(page);
         }
 
