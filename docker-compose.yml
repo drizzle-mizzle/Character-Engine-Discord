@@ -1,4 +1,6 @@
-﻿services:
+﻿version: "3"
+
+services:
   character-engine-discord:
     build:
         context: ./
