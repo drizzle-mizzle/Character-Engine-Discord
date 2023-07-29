@@ -10,13 +10,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     [Group("help", "Help commands")]
     public class HelpCommands : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
+        //private readonly IntegrationsService _integration;
+        //private readonly DiscordSocketClient _client;
 
         public HelpCommands(IServiceProvider services)
         {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
+            //_integration = services.GetRequiredService<IntegrationsService>();
+            //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
         [SlashCommand("how-to-use", "All basic info about bot")]
@@ -44,15 +44,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var embed = new EmbedBuilder().WithTitle("Messages format")
                                             .WithColor(Color.Gold)
                                             .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
-                                            .AddField("Commands", "`show messages-format` - Check the current format of messages for this server or cetrtain character\n" +
-                                                      "`update-character messages-format` - Change the format of messages for certain character\n" +
-                                                      "`/set-default-messages-format` - Change the format of messages for all new characters in this server")
+                                            .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
+                                                                  "`/update-character messages-format` - Change the format of messages for certain character\n" +
+                                                                  "`/set-default-messages-format` - Change the format of messages for all new characters on this server")
                                             .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
-                                                    "**`{{msg}}`** - **required** placeholder that contains the message itself;\n" +
-                                                    "**`{{user}}`** - User's Discord name *(server nickname > display name > username)*\n")
-                                            .AddField("Example", "Format: *`[System note: User \"{{user}}\" said:]  \"{{msg}}\"`*\n" +
-                                                                "Inputs:\n- user with name **`Average AI Enjoyer`**;\n- message with text *`Do you love donuts?`*\n" +
-                                                                "Result (what character will see):\n*`[System note: User \"Average AI Enjoyer\" said:]  \"Do you love donuts?\"`*");
+                                                                      "**`{{msg}}`** - **Required** placeholder that contains the message itself.\n" +
+                                                                      "**`{{user}}`** - Placeholder that contains the user's Discord name *(server nickname > display name > username)*.\n" +
+                                                                      "**`{{ref_msg_begin}}`**, **`{{ref_msg_text}}`**, **`{{ref_msg_end}}`** - combined placeholder that contains the referenced message (one that user was replying to). *Begin* and *end* parts are needed because user message can have no referenced message, and then placeholder will be removed.\n")
+                                            .AddField("Example", "Format:\n*`{{ref_msg_begin}}[System note: In response to '{{ref_msg_text}}']{{ref_msg_end}}\\n[System note: Name of the user is '{{user}}']\\n{{msg}}`*\n" +
+                                                                 "Inputs:\n- referenced message with text *`Hello`*;\n- user with name *`Average AI Enjoyer`*;\n- message with text *`Do you love donuts?`*\n" +
+                                                                 "Result (what character will see):\n*`[System note: In response to 'Hello']\n[System note: Name of the user is 'Average AI Enjoyer']\nDo you love donuts?`*\n" +
+                                                                 "Example above is used by default, but you are free to play with it the way you want, or you can simply disable it by setting the default message format with `{{msg}}`.");
             await RespondAsync(embed: embed.Build());
         }
     }

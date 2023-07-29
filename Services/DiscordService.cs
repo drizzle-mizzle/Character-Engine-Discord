@@ -27,7 +27,8 @@ namespace CharacterEngineDiscord.Services
             _interactions = _services.GetRequiredService<InteractionService>();
 
             // Initialize handlers
-            _services.GetRequiredService<ButtonsAndReactionsHandler>();
+            _services.GetRequiredService<ReactionsHandler>();
+            _services.GetRequiredService<ButtonsHandler>();
             _services.GetRequiredService<SlashCommandsHandler>();
             _services.GetRequiredService<TextMessagesHandler>();
             _services.GetRequiredService<ModalsHandler>();
@@ -91,7 +92,8 @@ namespace CharacterEngineDiscord.Services
                 .AddSingleton(discordClient)
                 .AddSingleton<SlashCommandsHandler>()
                 .AddSingleton<TextMessagesHandler>()
-                .AddSingleton<ButtonsAndReactionsHandler>()
+                .AddSingleton<ReactionsHandler>()
+                .AddSingleton<ButtonsHandler>()
                 .AddSingleton<ModalsHandler>()
                 .AddSingleton<IntegrationsService>()
                 .AddSingleton(new InteractionService(discordClient.Rest));

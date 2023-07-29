@@ -6,10 +6,11 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
+using System.Text.RegularExpressions;
 
 namespace CharacterEngineDiscord.Services
 {
-    public static class CommandsService
+    public static partial class CommandsService
     {
         internal static bool IsHoster(this SocketGuildUser? user)
         {
@@ -26,7 +27,9 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        
+        internal static string RemoveFirstMentionPrefx(this string text)
+            => MentionRegex().Replace(text, "", 1).Trim();
+
         internal static bool IsServerOwner(this SocketGuildUser? user)
             => user is not null && user.Id == user.Guild.OwnerId;
 
@@ -57,8 +60,8 @@ namespace CharacterEngineDiscord.Services
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string? title = (character.Title ?? "").Length > 300 ? (character.Title!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Title;
-            string? desc = (character.Description ?? "").Length > 400 ? (character.Description!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Description;
+            string? title = (character.Title ?? "").Length > 300 ? character.Title!.Replace("\n\n", "\n")[0..300] + "[...]" : character.Title;
+            string? desc = (character.Description ?? "").Length > 400 ? character.Description!.Replace("\n\n", "\n")[0..300] + "[...]" : character.Description;
             if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
 
             string lastField = $"*\"{title}\"*" +
@@ -156,5 +159,8 @@ namespace CharacterEngineDiscord.Services
         {
             OpenAI
         }
+
+        [GeneratedRegex("\\<(.*?)\\>")]
+        private static partial Regex MentionRegex();
     }
 }

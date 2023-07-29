@@ -5,7 +5,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
     public class OpenAiChatResponse : IOpenAiResponse
     {
         public string? Message { get; }
-        public string? MessageID { get; }
+        public string? MessageId { get; }
         public int? Usage { get; }
         public int Code { get; }
         public bool IsSuccessful { get; }
@@ -37,7 +37,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
                     }
 
                     Message = characterMessage;
-                    MessageID = characterMessageID;
+                    MessageId = characterMessageID;
                     Usage = usage;
 
                     IsSuccessful = true;

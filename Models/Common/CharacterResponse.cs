@@ -2,17 +2,11 @@
 {
     public class CharacterResponse
     {
-        public string Text { get; }
-        public string? ImageRelPath { get; }
-        public bool IsSuccessful { get; }
-        public string? CharacterMessageId { get; }
-
-        public CharacterResponse(string text, bool isSuccessful, string? uuid = null, string? imageRelPath = null)
-        {
-            Text = text;
-            IsSuccessful = isSuccessful;
-            CharacterMessageId = uuid;
-            ImageRelPath = imageRelPath;
-        }
+        public required string Text { get; set; }
+        public required string? CharacterMessageUuid { get; set; }
+        public required string? UserMessageId { get; set; }
+        public required string? ImageRelPath { get; set; }
+        public required bool IsSuccessful { get; set; }
+        public bool IsFailure { get => !IsSuccessful; }
     }
 }

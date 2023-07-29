@@ -28,12 +28,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("list-servers", "-")]
         public async Task ListServers(int page = 1)
         {
-            try { await ListServersAsync(page); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            throw new("Wtf");
+            await ListServersAsync(page);
         }
 
         [SlashCommand("block-server", "-")]
@@ -137,14 +133,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-
         [SlashCommand("shutdown", "Shutdown")]
         public async Task ShutdownAsync()
         {
             await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange));
+
             try { _integration?.CaiClient?.KillBrowser(); }
             catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
-            Environment.Exit(0);   
+            finally { Environment.Exit(0); }
         }
 
         [SlashCommand("set-game", "Set game status")]

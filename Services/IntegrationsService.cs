@@ -19,24 +19,29 @@ namespace CharacterEngineDiscord.Services
 {
     public class IntegrationsService
     {
-        internal HttpClient HttpClient { get; set; } = new();
-        internal CharacterAIClient? CaiClient { get; set; }
-        internal List<SearchQuery> SearchQueries { get; set; } = new();
-
-        /// <summary>
-        /// Webhook ID : WebhookClient
-        /// </summary>
-        internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; set; } = new();
-
-        /// <summary>
-        /// Message ID : Delay
-        /// </summary>
-        internal Dictionary<ulong, int> RemoveEmojiRequestQueue { get; set; } = new();
-
         /// <summary>
         /// (User ID : [current minute : interactions count])
         /// </summary>
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
+
+        internal HttpClient HttpClient { get; } = new();
+        internal CharacterAIClient? CaiClient { get; set; }
+        internal List<SearchQuery> SearchQueries { get; } = new();
+
+        /// <summary>
+        /// Webhook ID : WebhookClient
+        /// </summary>
+        internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; } = new();
+
+        /// <summary>
+        /// Message ID : Delay
+        /// </summary>
+        internal Dictionary<ulong, int> RemoveEmojiRequestQueue { get; } = new();
+
+        /// <summary>
+        /// Stored swiped messages (Webhook ID : AvailableCharacterResponse)
+        /// </summary>
+        internal Dictionary<ulong, List<AvailableCharacterResponse>> AvailableCharacterResponses = new();
 
         /// <summary>
         /// For internal use only
@@ -140,7 +145,7 @@ namespace CharacterEngineDiscord.Services
                 Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
                 FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.85f,
                 PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.85f,
-                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 130,
+                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 160,
                 Model = characterWebhook.OpenAiModel!,
                 Messages = messages
             };

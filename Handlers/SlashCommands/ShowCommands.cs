@@ -8,6 +8,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord;
 using Discord.WebSocket;
+using CharacterEngineDiscord.Models.Database;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -15,35 +16,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     [Group("show", "Show-commands")]
     public class ShowCommands : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
+        //private readonly IntegrationsService _integration;
+        //private readonly DiscordSocketClient _client;
 
         public ShowCommands(IServiceProvider services)
         {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
+            //_integration = services.GetRequiredService<IntegrationsService>();
+            //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
         [SlashCommand("characters", "Show all characters in this channel")]
         public async Task ShowCharacters(int page = 1)
         {
-            try { await ShowCharactersAsync(page); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await ShowCharactersAsync(page);
         }
 
         [SlashCommand("info", "Show info about character")]
         public async Task ShowInfo(string webhookIdOrPrefix)
         {
-            try { await ShowInfoAsync(webhookIdOrPrefix); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await ShowInfoAsync(webhookIdOrPrefix);
         }
 
 
@@ -53,7 +44,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -73,12 +65,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("history", "Show last 15 messages with a character. Works only with OpenAI.")]
         public async Task ShowHistory(string webhookIdOrPrefix)
         {
-            try { await ShowHistoryAsync(webhookIdOrPrefix); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await ShowHistoryAsync(webhookIdOrPrefix);
         }
 
         [SlashCommand("last-request-cost", "~")]
@@ -87,7 +74,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -101,12 +89,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("messages-format", "Check character messages format")]
         public async Task ShowMessagesFormat(string? webhookIdOrPrefix = null)
         {
-            try { await ShowMessagesFormatAsync(webhookIdOrPrefix); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await ShowMessagesFormatAsync(webhookIdOrPrefix);
         }
 
         [SlashCommand("jailbreak-prompt", "Check character jailbreak prompt")]
@@ -115,7 +98,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -141,7 +125,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -179,7 +164,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -230,7 +216,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+                var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+                characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
                 if (characterWebhook is null)
                 {
@@ -242,13 +229,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 format = characterWebhook.MessagesFormat;
             }
 
+           
+
+            string text = format.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
+
+            if (text.Contains("{{ref_msg_text}}"))
+            {
+                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+            }
+
             var embed = new EmbedBuilder().WithTitle($"{title}")
                                           .WithColor(Color.Gold)
                                           .AddField("Format:", $"`{format}`")
-                                          .AddField("[Example]", $"User message: *`Hello!`*\nResult (what character will see): *`{format.Replace("{{msg}}", "Hello!")}`*")
-                                          .Build();
+                                          .AddField("Example", $"Referenced message: *`Hola`*\n" +
+                                                               $"User nickname: `Average AI Enjoyer`\n" +
+                                                               $"User message: *`Hello!`*\n" +
+                                                               $"Result (what character will see):\n*`{text}`*");
 
-            await FollowupAsync(embed: embed);
+            await FollowupAsync(embed: embed.Build());
         }
 
         private async Task ShowCharactersAsync(int page)

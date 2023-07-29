@@ -65,7 +65,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, GuildMessagesFormat = "[System note: Name of the user: \"{{user}}\"] {{msg}}", BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null };
+                guild = new() { Id = guildId, GuildMessagesFormat = "{{ref_msg_begin}}[System note: In response to '{{ref_msg_text}}']{{ref_msg_end}}\n[System note: Name of the user is '{{user}}']\n{{msg}}", BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
                 return await FindOrStartTrackingGuildAsync(guildId, db);

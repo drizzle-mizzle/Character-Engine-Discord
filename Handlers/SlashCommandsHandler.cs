@@ -5,6 +5,10 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Services;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using Microsoft.EntityFrameworkCore;
+using Discord.Commands;
+using Polly;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -23,7 +27,25 @@ namespace CharacterEngineDiscord.Handlers
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _client.SlashCommandExecuted += (command) =>
             {
-                Task.Run(async () => await HandleCommandAsync(command));
+                Task.Run(async () =>
+                {
+                    try { await HandleCommandAsync(command); }
+                    catch (Exception e) { LogException(new[] { e }); }
+                });
+                return Task.CompletedTask;
+            };
+
+            _interactions.InteractionExecuted += (info, context, result) =>
+            {
+                Task.Run(async () =>
+                {
+                    if (!result.IsSuccess)
+                    {
+                        LogException(new object?[] { result.ErrorReason, result.Error });
+                        try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
+                        catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
+                    }
+                });
                 return Task.CompletedTask;
             };
         }
@@ -33,13 +55,7 @@ namespace CharacterEngineDiscord.Handlers
             if (await UserIsBannedCheckOnly(command.User)) return;
 
             var context = new InteractionContext(_client, command, command.Channel);
-            var result = await _interactions.ExecuteCommandAsync(context, _services);
-
-            if (!result.IsSuccess)
-            {
-                LogException(new object?[] { result.ErrorReason, result.Error });
-                await command.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red));
-            }
+            await _interactions.ExecuteCommandAsync(context, _services);
         }
     }
 }

@@ -1,12 +1,10 @@
 ﻿using CharacterEngineDiscord.Services;
 using Discord;
 using Discord.Interactions;
-using Microsoft.Extensions.DependencyInjection;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -14,14 +12,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     [Group("update-character", "Change character settings")]
     public class UpdateCharacterCommands : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
+        //private readonly IntegrationsService _integration;
+        //private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public UpdateCharacterCommands(IServiceProvider services)
         {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
+            //_integration = services.GetRequiredService<IntegrationsService>();
+            //_client = services.GetRequiredService<DiscordSocketClient>();
             _db = new StorageContext();
         }
 
@@ -31,7 +29,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -51,7 +50,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -78,12 +78,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("api", "Change API backend")]
         public async Task ApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
         {
-            try { await UpdateApiAsync(webhookIdOrPrefix, apiType, openAiModel, personalApiToken, personalApiEndpoint); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await UpdateApiAsync(webhookIdOrPrefix, apiType, openAiModel, personalApiToken, personalApiEndpoint);
         }
 
         [SlashCommand("delay", "Set response delay")]
@@ -92,7 +87,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -111,7 +108,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -130,7 +129,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -149,7 +150,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -168,24 +171,100 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("temperature", "Set responses temperature")]
+        public async Task Temperature(string webhookIdOrPrefix, float temperature)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.OpenAiTemperature = temperature;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("presence-penalty", "Set responses presence penalty")]
+        public async Task PresPenalty(string webhookIdOrPrefix, float presencePenalty)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.OpenAiPresencePenalty = presencePenalty;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("frequency-penalty", "Set responses frequency penalty")]
+        public async Task FreqPenalty(string webhookIdOrPrefix, float frequencyPenalty)
+        {
+            await DeferAsync();
+
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.OpenAiFreqPenalty = frequencyPenalty;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
         [SlashCommand("messages-format", "Change character messages format")]
         public async Task MessagesFormat(string webhookIdOrPrefix, string newFormat)
         {
-            try { await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red));
-                LogException(new[] { e });
-            }
+            await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
         }
 
         [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
         public async Task JailbreakPrompt(string webhookId)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
-                                          .WithCustomId($"upd~{webhookId}")
-                                          .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
-                                          .Build();
+                                               .WithCustomId($"upd~{webhookId}")
+                                               .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
+                                               .Build();
             await RespondWithModalAsync(modal);
         }
 
@@ -199,7 +278,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+
             if (characterWebhook is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
@@ -234,7 +315,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix || c.Id == ulong.Parse(webhookIdOrPrefix));
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
 
             if (characterWebhook is null)
             {
@@ -255,7 +337,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("New format:", $"`{newFormat}`")
                                           .AddField("[Example]", $"User message: *`Hello!`*\n" +
                                                                  $"User nickname: `Average AI Enjoyer`\n" +
-                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer")}`*")
+                                                                 $"Referenced message: *`Hola`*\n" +
+                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola")}`*")
                                           .WithColor(Color.Green)
                                           .Build();
 

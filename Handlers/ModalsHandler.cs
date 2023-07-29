@@ -11,6 +11,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord.Webhook;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using System.Threading.Channels;
+using System.ComponentModel;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -28,7 +29,10 @@ namespace CharacterEngineDiscord.Handlers
 
             _client.ModalSubmitted += (modal) =>
             {
-                Task.Run(async () => await HandleModalAsync(modal));
+                Task.Run(async () => {
+                    try { await HandleModalAsync(modal); }
+                    catch (Exception e) { LogException(new[] { e }); }
+                });
                 return Task.CompletedTask;
             };
         }
@@ -43,25 +47,11 @@ namespace CharacterEngineDiscord.Handlers
             // Update call prefix command
             if (modalId.StartsWith("upd"))
             {
-                try
-                {
-                    await UpdateCharacterAsync(modal);
-                }
-                catch (Exception e)
-                {
-                    LogException(new[] { e });
-                }
+                await UpdateCharacterAsync(modal);
             } // Spawn custom character command
             else if (modalId == "spawn")
             {
-                try
-                {
-                    await SpawnCustomCharacterAsync(modal);
-                }
-                catch (Exception e)
-                {
-                    LogException(new[] { e });
-                }
+                await SpawnCustomCharacterAsync(modal);
             }
         }
 

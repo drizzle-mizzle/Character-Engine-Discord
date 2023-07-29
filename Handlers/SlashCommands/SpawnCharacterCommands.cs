@@ -18,23 +18,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class SpawnCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
+        //private readonly DiscordSocketClient _client;
         
         public SpawnCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
+            //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
         [SlashCommand("cai-character", "Add new character from CharacterAI to this channel")]
         public async Task SpawnCaiCharacter([Summary(description: "When specify a character ID, set 'set-with-id' parameter to 'True'")] string searchQueryOrCharacterId, bool setWithId = false)
         {
-            try { await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed( Color.Red));
-                LogException(new[] { e });
-            }
+            await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId);
         }
 
         const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
@@ -42,12 +37,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
         public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
         {
-            try { await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed( Color.Red));
-                LogException(new[] { e });
-            }
+            await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId);
         }
 
         [SlashCommand("custom-character", "Add new character to this channel with full customization")]
