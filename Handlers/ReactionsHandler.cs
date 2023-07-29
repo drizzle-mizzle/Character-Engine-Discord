@@ -152,11 +152,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var newCharacterMessage = _integration.AvailableCharacterResponses[characterWebhookId].ElementAt(characterWebhook.CurrentSwipeIndex);
-
-
-            LogRed($"was: {characterWebhook.LastCharacterMsgUuId}");
             characterWebhook.LastCharacterMsgUuId = newCharacterMessage.MessageUuId;
-            LogRed($"now: {characterWebhook.LastCharacterMsgUuId}");
 
             // Add image or/and quote to the message
             var embeds = new List<Embed>();
@@ -234,8 +230,6 @@ namespace CharacterEngineDiscord.Handlers
 
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var caiResponse = await client!.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.CaiActiveHistoryId!, parentMsgUuId: characterWebhook.LastUserMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
-
-            LogRed($"new primaryMsgUuId: {caiResponse.Response.UuId}");
 
             if (!caiResponse.IsSuccessful)
             {
