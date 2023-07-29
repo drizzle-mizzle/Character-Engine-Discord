@@ -108,7 +108,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (refCount == 3)
             {
-                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}", "").Replace("{{ref_msg_end}}", "");
+                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
             }
 
             var embed = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Green)
