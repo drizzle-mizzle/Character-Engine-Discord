@@ -5,7 +5,7 @@ COPY *.csproj .
 RUN dotnet restore ./Character-Engine-Discord.csproj
 
 COPY . .
-RUN dotnet publish -c Release -o out --self-contained true
+RUN dotnet publish ./Character-Engine-Discord.csproj -c Release -o out --self-contained true
 
 FROM mcr.microsoft.com/dotnet/runtime:7.0-bullseye-slim AS runtime
 WORKDIR /app
