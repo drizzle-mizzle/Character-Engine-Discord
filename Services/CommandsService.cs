@@ -146,6 +146,24 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
+        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string text)
+        {
+            if (ConfigFile.DiscordLogsChannelID.Value.IsEmpty()) return;
+
+            try
+            {
+                ulong channelId = ulong.Parse(ConfigFile.DiscordLogsChannelID.Value!);
+                var channel = await client.GetChannelAsync(channelId) as SocketTextChannel;
+                if (channel is null) return;
+
+                await channel.SendMessageAsync(embed: text.ToInlineEmbed(Color.Orange));
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+            }
+        }
+
         public enum OpenAiModel
         {
             [ChoiceDisplay("gpt-3.5-turbo")]

@@ -5,6 +5,7 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Handlers;
 using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
+using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
@@ -86,10 +87,13 @@ namespace CharacterEngineDiscord.Services
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
 
-                LogYellow($"Joined guild: {guild.Name} | Members: {guild.MemberCount}\n" +
-                          $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
-                          $"Members: {guild.MemberCount}\n" +
-                          $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}");
+                string log = $"Joined guild: {guild.Name}" +
+                             $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
+                             $"Members: {guild.MemberCount}\n" +
+                             $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
+                LogGreen(log);
+
+                await TryToReportInLogsChannel(_client, log);
             }
             catch (Exception e)
             {
@@ -100,15 +104,14 @@ namespace CharacterEngineDiscord.Services
         internal static ServiceProvider CreateServices()
         {
             var discordClient = CreateDiscordClient();
-
             var services = new ServiceCollection()
-                .AddSingleton(discordClient)
-                .AddSingleton<SlashCommandsHandler>()
-                .AddSingleton<TextMessagesHandler>()
-                .AddSingleton<ReactionsHandler>()
-                .AddSingleton<ButtonsHandler>()
-                .AddSingleton<ModalsHandler>()
-                .AddSingleton<IntegrationsService>()
+            .AddSingleton(discordClient)
+            .AddSingleton<SlashCommandsHandler>()
+            .AddSingleton<TextMessagesHandler>()
+            .AddSingleton<ReactionsHandler>()
+            .AddSingleton<ButtonsHandler>()
+            .AddSingleton<ModalsHandler>()
+            .AddSingleton<IntegrationsService>()
                 .AddSingleton(new InteractionService(discordClient.Rest));
 
             return services.BuildServiceProvider();
