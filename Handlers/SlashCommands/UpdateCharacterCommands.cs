@@ -283,9 +283,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task JailbreakPrompt(string webhookId)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
-                                               .WithCustomId($"upd~{webhookId}")
-                                               .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
-                                               .Build();
+                                          .WithCustomId($"upd~{webhookId}")
+                                          .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
+                                          .Build();
             await RespondWithModalAsync(modal);
         }
 

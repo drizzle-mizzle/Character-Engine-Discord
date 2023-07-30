@@ -87,13 +87,13 @@ namespace CharacterEngineDiscord.Services
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
 
-                string log = $"Joined guild: {guild.Name}" +
+                string log = $"Sever name: {guild.Name}\n" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                              $"Members: {guild.MemberCount}\n" +
                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
                 LogGreen(log);
 
-                await TryToReportInLogsChannel(_client, log);
+                await TryToReportInLogsChannel(_client, title: "New server", desc: log);
             }
             catch (Exception e)
             {

@@ -146,7 +146,7 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
-        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string text)
+        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string desc)
         {
             if (ConfigFile.DiscordLogsChannelID.Value.IsEmpty()) return;
 
@@ -155,7 +155,8 @@ namespace CharacterEngineDiscord.Services
                 ulong channelId = ulong.Parse(ConfigFile.DiscordLogsChannelID.Value!);
                 if (await client.GetChannelAsync(channelId) is not SocketTextChannel channel) return;
 
-                await channel.SendMessageAsync(embed: text.ToInlineEmbed(Color.Orange));
+                var embed = new EmbedBuilder().WithTitle(title).WithDescription(desc).WithColor(Color.LightOrange).Build();
+                await channel.SendMessageAsync(embed: embed);
             }
             catch (Exception e)
             {

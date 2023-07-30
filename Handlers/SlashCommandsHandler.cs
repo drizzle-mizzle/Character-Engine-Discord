@@ -3,12 +3,9 @@ using Discord.WebSocket;
 using Discord.Interactions;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Services;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-using Microsoft.EntityFrameworkCore;
-using Discord.Commands;
-using Polly;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -30,7 +27,11 @@ namespace CharacterEngineDiscord.Handlers
                 Task.Run(async () =>
                 {
                     try { await HandleCommandAsync(command); }
-                    catch (Exception e) { LogException(new[] { e }); }
+                    catch (Exception e)
+                    {
+                        LogException(new[] { e });
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString}`");
+                    }
                 });
                 return Task.CompletedTask;
             };

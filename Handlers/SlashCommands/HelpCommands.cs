@@ -7,7 +7,6 @@ using Discord.WebSocket;
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireContext(ContextType.Guild)]
-    [Group("help", "Help commands")]
     public class HelpCommands : InteractionModuleBase<InteractionContext>
     {
         //private readonly IntegrationsService _integration;
@@ -19,11 +18,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
-        [SlashCommand("how-to-use", "All basic info about bot")]
+        [SlashCommand("help-how-to-use", "All basic info about bot")]
         public async Task BaicsHelp()
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
-                                          .AddField("How to use", "1. Use one of `/spawn` commands to create a character.\n" +
+                                          .AddField("How to use", "1. Use one of the `/spawn` commands to create a character.\n" +
                                                                   "2. Modify it with one of the `/update-character` commands using a given prefix or webhook ID.\n" +
                                                                   "3. Call character by mentioning his prefix or with reply on one if his messages.\n" +
                                                                   "4. If you want to start the chat with a character from the beginning, use `/reset-character` commands.")
@@ -33,12 +32,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("Links", "To get additional info about each command and its subtleties, read:\n" +
                                                              "- [wiki/Commands](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Commands)\n" +
                                                              "- [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides)\n" +
-                                                             "Also, it's really recommended to look into `/help messages-format`");
+                                                             "Also, it's really recommended to look into `/help-messages-format`");
                                           
             await RespondAsync(embed: embed.Build());
         }
 
-        [SlashCommand("messages-format", "Info about messages format")]
+        [SlashCommand("help-messages-format", "Info about messages format")]
         public async Task MessagesFormatHelp()
         {
             var embed = new EmbedBuilder().WithTitle("Messages format")

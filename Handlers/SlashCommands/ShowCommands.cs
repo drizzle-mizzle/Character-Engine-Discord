@@ -7,8 +7,6 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord;
-using Discord.WebSocket;
-using CharacterEngineDiscord.Models.Database;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {

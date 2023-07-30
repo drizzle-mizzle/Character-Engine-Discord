@@ -6,6 +6,7 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
@@ -29,12 +30,19 @@ namespace CharacterEngineDiscord.Handlers
 
             _client.MessageReceived += (message) =>
             {
-                Task.Run(async () => { try {
-                    if (message.Content == "##sync")
-                        await TryToCreateSlashCommandsAsync(message);
-                    else
-                        await HandleMessageAsync(message);
-                    } catch (Exception e) { LogException(new[] { e }); }
+                Task.Run(async () => {
+                    try
+                    {
+                        if (message.Content == "##sync")
+                            await TryToCreateSlashCommandsAsync(message);
+                        else
+                            await HandleMessageAsync(message);
+                    }
+                    catch (Exception e)
+                    {
+                        LogException(new[] { e });
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString}`");
+                    }
                 });
                 return Task.CompletedTask;
             };

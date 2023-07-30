@@ -31,7 +31,10 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleModalAsync(modal); }
-                    catch (Exception e) { LogException(new[] { e }); }
+                    catch (Exception e) {
+                        LogException(new[] { e });
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString}`");
+                    }
                 });
                 return Task.CompletedTask;
             };

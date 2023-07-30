@@ -6,9 +6,9 @@ using CharacterEngineDiscord.Services;
 using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -28,7 +28,10 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleReactionAsync(msg, chanel, reaction); }
-                    catch (Exception e) { LogException(new[] { e }); }
+                    catch (Exception e) {
+                        LogException(new[] { e });
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString}`");
+                    }
                 });
                 return Task.CompletedTask;
             };
