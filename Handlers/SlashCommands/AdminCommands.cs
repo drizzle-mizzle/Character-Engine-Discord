@@ -10,7 +10,6 @@ using System.Collections;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    [DefaultMemberPermissions(GuildPermission.Administrator)]
     [RequireAdminAccess]
     [Group("admin", "Admin commands")]
     public class AdminCommands : InteractionModuleBase<InteractionContext>

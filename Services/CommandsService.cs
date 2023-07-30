@@ -153,8 +153,7 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 ulong channelId = ulong.Parse(ConfigFile.DiscordLogsChannelID.Value!);
-                var channel = await client.GetChannelAsync(channelId) as SocketTextChannel;
-                if (channel is null) return;
+                if (await client.GetChannelAsync(channelId) is not SocketTextChannel channel) return;
 
                 await channel.SendMessageAsync(embed: text.ToInlineEmbed(Color.Orange));
             }
