@@ -24,13 +24,22 @@ namespace CharacterEngineDiscord.Handlers
             _integration = _services.GetRequiredService<IntegrationsService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
 
-            _client.ReactionAdded += (msg, chanel, reaction) =>
+            _client.ReactionAdded += (msg, channel, reaction) =>
             {
                 Task.Run(async () => {
-                    try { await HandleReactionAsync(msg, chanel, reaction); }
+                    try { await HandleReactionAsync(msg, channel, reaction); }
                     catch (Exception e) {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"```\n{e}\n```");
+                        var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
+                        var guild = guildChannel?.Guild;
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                                      $"User: {reaction.User.Value?.Username}\n" +
+                                                                      $"Reaction: {reaction.Emote.Name}\n" +
+                                                                      $"```cs\n" +
+                                                                      $"{e}\n" +
+                                                                      $"```",
+                                                                color: Color.Red);
                     }
                 });
                 return Task.CompletedTask;

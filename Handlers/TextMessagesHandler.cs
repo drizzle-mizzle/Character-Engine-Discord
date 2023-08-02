@@ -11,6 +11,7 @@ using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -41,7 +42,16 @@ namespace CharacterEngineDiscord.Handlers
                     catch (Exception e)
                     {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"```\n{e}\n```");
+                        var channel = message.Channel as SocketGuildChannel;
+                        var guild = channel?.Guild;
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                      $"User: {message.Author?.Username}\n" +
+                                                                      $"Message: {message.Content}\n" +
+                                                                      $"```cs\n" +
+                                                                      $"{e}\n" +
+                                                                      $"```",
+                                                                color: Color.Red);
                     }
                 });
                 return Task.CompletedTask;

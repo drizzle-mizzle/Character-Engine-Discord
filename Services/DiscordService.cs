@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
-
 namespace CharacterEngineDiscord.Services
 {
     internal class DiscordService
@@ -44,6 +43,7 @@ namespace CharacterEngineDiscord.Services
                     await CreateSlashCommandsAsync();
                 });
                 Task.Run(async () => await SetupIntegrationAsync());
+                Task.Run(async () => await RunStatusReporterAsync());
 
                 return Task.CompletedTask;
             };
@@ -64,6 +64,15 @@ namespace CharacterEngineDiscord.Services
             await _client.StartAsync();
 
             await Task.Delay(-1);
+        }
+
+        private async Task RunStatusReporterAsync()
+        {
+            while (true)
+            {
+                await TryToReportInLogsChannel(_client, "Uptime Status", desc: "Running", color: Color.DarkGreen);
+                await Task.Delay(3_600_000);
+            }
         }
 
         private async Task OnGuildJoinAsync(SocketGuild guild)
@@ -93,7 +102,7 @@ namespace CharacterEngineDiscord.Services
                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
                 LogGreen(log);
 
-                await TryToReportInLogsChannel(_client, title: "New server", desc: log);
+                await TryToReportInLogsChannel(_client, title: "New server", desc: log, color: Color.Green);
             }
             catch (Exception e)
             {

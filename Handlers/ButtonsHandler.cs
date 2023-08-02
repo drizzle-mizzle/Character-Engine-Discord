@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using System.Runtime.InteropServices.ObjectiveC;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -31,7 +32,16 @@ namespace CharacterEngineDiscord.Handlers
                     catch (Exception e)
                     {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"```\n{e}\n```");
+                        var channel = (await component.GetOriginalResponseAsync()).Channel as SocketGuildChannel;
+                        var guild = channel?.Guild;
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                      $"User: {component.User?.Username}\n" +
+                                                                      $"Button ID: {component.Data.CustomId}\n" +
+                                                                      $"```cs\n" +
+                                                                      $"{e}\n" +
+                                                                      $"```",
+                                                                color: Color.Red);
                     }
                 });
                 return Task.CompletedTask;

@@ -439,7 +439,8 @@ namespace CharacterEngineDiscord.Services
                 _watchDog.Remove(currUserId);
 
                 await TryToReportInLogsChannel(context.Client, title: $":eyes: Server: {context.Guild.Name} ({context.Guild.Id})",
-                                                                desc: $"User **{context.Message.Author.Username} ({context.Message.Author.Id})** hit the rate limit and was blocked");
+                                                                desc: $"User **{context.Message.Author.Username} ({context.Message.Author.Id})** hit the rate limit and was blocked",
+                                                                color: Color.LightOrange);
                 return true;
             }
             return false;
@@ -478,7 +479,8 @@ namespace CharacterEngineDiscord.Services
 
                 var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
                 await TryToReportInLogsChannel(client, title: $":eyes: Server: {currentChannel?.Guild?.Name} ({currentChannel?.Guild?.Id})",
-                                                        desc: $"User **{reaction.User.Value.Username} ({reaction.User.Value.Id})** hit the rate limit and was blocked");
+                                                        desc: $"```\nUser **{reaction.User.Value.Username} ({reaction.User.Value.Id})** hit the rate limit and was blocked\n```",
+                                                        color: Color.LightOrange);
 
                 return true;
             }

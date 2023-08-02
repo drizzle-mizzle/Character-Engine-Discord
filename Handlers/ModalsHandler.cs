@@ -31,9 +31,19 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleModalAsync(modal); }
-                    catch (Exception e) {
+                    catch (Exception e)
+                    {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"```\n{e}\n```");
+                        var channel = modal.Channel as SocketGuildChannel;
+                        var guild = channel?.Guild;
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                      $"User: {modal.User?.Username}\n" +
+                                                                      $"Modal ID: {modal.Data.CustomId}\n" +
+                                                                      $"```cs\n" +
+                                                                      $"{e}\n" +
+                                                                      $"```",
+                                                                color: Color.Red);
                     }
                 });
                 return Task.CompletedTask;
