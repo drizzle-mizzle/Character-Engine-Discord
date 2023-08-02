@@ -116,7 +116,7 @@ namespace CharacterEngineDiscord.Services
             var messages = new List<OpenAiMessage> { new("system", jailbreakPrompt) };
             
             // Count~ tokens
-            float currentAmountOfTokens = jailbreakPrompt.Length / 4f;
+            float currentAmountOfTokens = jailbreakPrompt.Length / 3.8f;
 
             // Create a separate list and fill it with the dialog history in reverse order.
             // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
