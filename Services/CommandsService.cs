@@ -12,6 +12,20 @@ namespace CharacterEngineDiscord.Services
 {
     public static partial class CommandsService
     {
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookAsync(string webhookIdOrPrefix, InteractionContext context)
+        {
+            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id);
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+
+            if (characterWebhook is null)
+            {
+                bool ok = ulong.TryParse(webhookIdOrPrefix.Trim(), out var cwId);
+                characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == (ok ? cwId : 0));
+            }
+
+            return characterWebhook;
+        }
+
         internal static bool IsHoster(this SocketGuildUser? user)
         {
             string? hosterId = ConfigFile.HosterDiscordID.Value;

@@ -7,6 +7,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord;
+using CharacterEngineDiscord.Models.Database;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -40,9 +41,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -70,9 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -94,9 +91,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -121,9 +116,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -159,9 +152,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-            characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -200,20 +191,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-
             string title;
             string format;
 
             if (webhookIdOrPrefix is null)
             {
+                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
                 title = "Current server";
                 format = channel.Guild.GuildMessagesFormat;
             }
             else
             {
-                var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
-                characterWebhook ??= channel.CharacterWebhooks.FirstOrDefault(c => c.Id == ulong.Parse(webhookIdOrPrefix.Trim()));
+                var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
                 if (characterWebhook is null)
                 {
@@ -224,8 +213,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 title = characterWebhook.Character.Name;
                 format = characterWebhook.MessagesFormat;
             }
-
-           
 
             string text = format.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
 

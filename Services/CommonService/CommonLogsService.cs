@@ -35,16 +35,12 @@
             LogRed($"{string.Join('\n', text)}\n");
             LogRed(new string('~', Console.WindowWidth));
 
-            try
-            {
+            try {
                 var sw = new StreamWriter($"{EXE_DIR}{SC}logs.txt");
                 sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{string.Join('\n', text)}\n");
                 sw.Close();
             }
-            catch (Exception e)
-            {
-                LogRed(e);
-            }
+            catch (Exception e) { LogRed(e); }
         }
     }
 }
