@@ -194,7 +194,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                         "  each line one by one.\n" +
                                                         "  Remove or rename lines that are not\n" +
                                                         "  needed. Custom Jailbreak prompt can\n" +
-                                                        "  be set with `update-character` command\n" +
+                                                        "  be set with `/update` command\n" +
                                                         "  later. Default one can be seen be seen\n" +
                                                         "  with `show-jailbreak-prompt` command." +
                                                         "((DELETE THIS SECTION))\n\n" +

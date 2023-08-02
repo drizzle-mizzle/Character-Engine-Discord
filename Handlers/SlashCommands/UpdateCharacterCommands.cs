@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireManagerAccess]
-    [Group("update-character", "Change character settings")]
+    [Group("update", "Change character settings")]
     public class UpdateCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         //private readonly IntegrationsService _integration;

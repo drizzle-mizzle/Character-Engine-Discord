@@ -35,7 +35,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await ShowInfoAsync(webhookIdOrPrefix);
         }
 
-
         [SlashCommand("cai-history-id", "Show c.ai history ID")]
         public async Task CaiHistory(string webhookIdOrPrefix)
         {

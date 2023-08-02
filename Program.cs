@@ -13,6 +13,9 @@ namespace CharacterEngineDiscord
             Log("Working directory: ");
             LogYellow(EXE_DIR + '\n');
 
+            if (!File.Exists($"{EXE_DIR}{SC}logs.txt"))
+                File.Create($"{EXE_DIR}{SC}logs.txt").Close();
+
             await SetupDiscordClient();
             await Task.Delay(-1);
         }

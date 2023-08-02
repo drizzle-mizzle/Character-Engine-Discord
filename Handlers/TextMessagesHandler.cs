@@ -52,7 +52,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             var userMessage = message as SocketUserMessage;
             var context = new SocketCommandContext(_client, userMessage);
-            await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id, deleteMissing: true);
+            await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id);
             await userMessage.ReplyAsync(embed: SuccessEmbed());
         }
 
@@ -105,7 +105,7 @@ namespace CharacterEngineDiscord.Handlers
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                 canProceed = await CanCallCaiCharacter(characterWebhook, userMessage, _integration);
             else
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `update-character` command.".ToInlineEmbed(Color.Orange));
+                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `update api` command.".ToInlineEmbed(Color.Orange));
 
             if (!canProceed) return;
 

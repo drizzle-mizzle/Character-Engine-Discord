@@ -78,7 +78,7 @@ namespace CharacterEngineDiscord.Services
                     return;
                 }
 
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id, deleteMissing: true);
+                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
 
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
                 {
@@ -112,7 +112,7 @@ namespace CharacterEngineDiscord.Services
             .AddSingleton<ButtonsHandler>()
             .AddSingleton<ModalsHandler>()
             .AddSingleton<IntegrationsService>()
-                .AddSingleton(new InteractionService(discordClient.Rest));
+            .AddSingleton(new InteractionService(discordClient.Rest));
 
             return services.BuildServiceProvider();
         }

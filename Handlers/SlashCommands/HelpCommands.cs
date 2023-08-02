@@ -23,7 +23,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
                                           .AddField("How to use", "1. Use one of the `/spawn` commands to create a character.\n" +
-                                                                  "2. Modify it with one of the `/update-character` commands using a given prefix or webhook ID.\n" +
+                                                                  "2. Modify it with one of the `/update` commands using a given prefix or webhook ID.\n" +
                                                                   "3. Call character by mentioning his prefix or with reply on one if his messages.\n" +
                                                                   "4. If you want to start the chat with a character from the beginning, use `/reset-character` commands.")
                                           .AddField("API", "By default, bot will use its owner's credentials for accessing all needed servcies like **CharacterAI** or **OpenAI**\n" +
@@ -41,19 +41,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task MessagesFormatHelp()
         {
             var embed = new EmbedBuilder().WithTitle("Messages format")
-                                            .WithColor(Color.Gold)
-                                            .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
-                                            .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
-                                                                  "`/update-character messages-format` - Change the format of messages for certain character\n" +
-                                                                  "`/set-default-messages-format` - Change the format of messages for all new characters on this server")
-                                            .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
-                                                                      "**`{{msg}}`** - **Required** placeholder that contains the message itself.\n" +
-                                                                      "**`{{user}}`** - Placeholder that contains the user's Discord name *(server nickname > display name > username)*.\n" +
+                                          .WithColor(Color.Gold)
+                                          .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
+                                          .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
+                                                                "`/update messages-format` - Change the format of messages for certain character\n" +
+                                                                "`/set-default-messages-format` - Change the format of messages for all new characters on this server")
+                                          .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
+                                                                    "**`{{msg}}`** - **Required** placeholder that contains the message itself.\n" +
+                                                                    "**`{{user}}`** - Placeholder that contains the user's Discord name *(server nickname > display name > username)*.\n" +
                                                                       "**`{{ref_msg_begin}}`**, **`{{ref_msg_text}}`**, **`{{ref_msg_end}}`** - Combined placeholder that contains the referenced message (one that user was replying to). *Begin* and *end* parts are needed because user message can have no referenced message, and then placeholder will be removed.\n")
-                                            .AddField("Example", "Format:\n*`{{ref_msg_begin}}[System note: In response to '{{ref_msg_text}}']{{ref_msg_end}}\\n[System note: Name of the user is '{{user}}']\\n{{msg}}`*\n" +
-                                                                 "Inputs:\n- referenced message with text *`Hello`*;\n- user with name *`Average AI Enjoyer`*;\n- message with text *`Do you love donuts?`*\n" +
-                                                                 "Result (what character will see):\n*`[System note: In response to 'Hello']\n[System note: Name of the user is 'Average AI Enjoyer']\nDo you love donuts?`*\n" +
-                                                                 "Example above is used by default, but you are free to play with it the way you want, or you can simply disable it by setting the default message format with `{{msg}}`.");
+                                          .AddField("Example", "Format:\n*`{{ref_msg_begin}}[System note: In response to '{{ref_msg_text}}']{{ref_msg_end}}\\n[System note: Name of the user is '{{user}}']\\n{{msg}}`*\n" +
+                                                               "Inputs:\n- referenced message with text *`Hello`*;\n- user with name *`Average AI Enjoyer`*;\n- message with text *`Do you love donuts?`*\n" +
+                                                               "Result (what character will see):\n*`[System note: In response to 'Hello']\n[System note: Name of the user is 'Average AI Enjoyer']\nDo you love donuts?`*\n" +
+                                                               "Example above is used by default, but you are free to play with it the way you want, or you can simply disable it by setting the default message format with `{{msg}}`.");
             await RespondAsync(embed: embed.Build());
         }
     }

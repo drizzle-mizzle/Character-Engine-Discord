@@ -46,17 +46,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await ClearWebhooksAsync(all: false);
         }
 
-        [SlashCommand("set-random-reply-chance", "Set random replies chance for this channel")]
-        public async Task SetRandomReplyChance(float chance)
-        {
-            await DeferAsync();
+        //[SlashCommand("set-random-reply-chance", "Set random replies chance for this channel")]
+        //public async Task SetRandomReplyChance(float chance)
+        //{
+        //    await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
-            channel.RandomReplyChance = chance;
-            await _db.SaveChangesAsync();
+        //    var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+        //    channel.RandomReplyChance = chance;
+        //    await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed());
-        }
+        //    await FollowupAsync(embed: SuccessEmbed());
+        //}
 
         [SlashCommand("hunt-user", "Make character respond on messages of certain user (or bot)")]
         public async Task HuntUser(string webhookIdOrPrefix, IUser? user = null, string? userId = null, float chanceOfResponse = 100)
@@ -69,7 +69,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await UnhuntUserAsync(webhookIdOrPrefix, user, userId);
         }
-
 
         [SlashCommand("reset-character", "Forget all history and start chat from the beginning")]
         public async Task ResetCharacter(string webhookIdOrPrefix)
