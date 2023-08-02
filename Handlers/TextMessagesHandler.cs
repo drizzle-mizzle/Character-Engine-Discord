@@ -41,7 +41,7 @@ namespace CharacterEngineDiscord.Handlers
                     catch (Exception e)
                     {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString()}`");
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"```\n{e}\n```");
                     }
                 });
                 return Task.CompletedTask;
@@ -232,7 +232,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (!caiResponse.IsSuccessful)
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{caiResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: ```\n{caiResponse.ErrorReason}\n```".ToInlineEmbed(Color.Red));
                 return null;
             }
 
