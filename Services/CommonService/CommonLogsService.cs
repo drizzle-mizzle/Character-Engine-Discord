@@ -36,7 +36,7 @@
             LogRed(new string('~', Console.WindowWidth));
 
             try {
-                var sw = new StreamWriter($"{EXE_DIR}{SC}logs.txt");
+                var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
                 sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{string.Join('\n', text)}\n");
                 sw.Close();
             }
