@@ -242,8 +242,10 @@ namespace CharacterEngineDiscord.Services
             var image = await TryDownloadImgAsync(unsavedCharacter.AvatarUrl, integration.HttpClient);
 
             if (image is null && type is IntegrationType.CharacterAI)
-                image = File.OpenRead($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png");
-
+            {
+                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png"));
+            }
+                
             var channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
             if (channelWebhook is null) return null;
 
