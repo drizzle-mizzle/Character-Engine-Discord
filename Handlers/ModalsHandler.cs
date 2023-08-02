@@ -94,7 +94,7 @@ namespace CharacterEngineDiscord.Handlers
 
             var unsavedCharacter = new Character()
             {
-                Id = $"custom-{channel.Id}-{channel.CharacterWebhooks.Count + 1}",
+                Id = $"custom-{channel.Id}-{modal.Id}-{modal.User.Id}",
                 AuthorName = modal.User.GlobalName,
                 Name = modal.Data.Components.FirstOrDefault(c => c.CustomId == "name")?.Value ?? "Unknown",
                 Greeting = modal.Data.Components.FirstOrDefault(c => c.CustomId == "first-message")?.Value ?? "",
