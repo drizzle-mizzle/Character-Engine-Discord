@@ -41,7 +41,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -69,7 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -91,7 +91,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -116,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -152,7 +152,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
             if (characterWebhook is null)
             {
@@ -202,7 +202,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+                var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
 
                 if (characterWebhook is null)
                 {
