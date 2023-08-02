@@ -4,7 +4,7 @@
     {
         internal static void Log(object? text)
         {
-            Console.Write($"{text + (text is not string ? "\n" : "")}");
+            Console.Write($"{text + (text is string ? "" : "\n")}");
         }
 
         internal static void LogGreen(object? text)
@@ -38,7 +38,7 @@
             try
             {
                 var sw = new StreamWriter($"{EXE_DIR}{SC}logs.txt");
-                sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{text}");
+                sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{string.Join('\n', text)}\n");
                 sw.Close();
             }
             catch (Exception e)
