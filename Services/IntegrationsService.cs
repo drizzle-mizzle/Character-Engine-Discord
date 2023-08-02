@@ -145,9 +145,9 @@ namespace CharacterEngineDiscord.Services
                 ApiToken = openAiToken ?? characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
                 UniversalJailbreakPrompt = jailbreakPrompt,
                 Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
-                FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.85f,
-                PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.85f,
-                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 160,
+                FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.9f,
+                PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.9f,
+                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 200,
                 Model = characterWebhook.OpenAiModel!,
                 Messages = messages
             };

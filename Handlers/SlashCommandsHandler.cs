@@ -30,7 +30,7 @@ namespace CharacterEngineDiscord.Handlers
                     catch (Exception e)
                     {
                         LogException(new[] { e });
-                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString}`");
+                        await TryToReportInLogsChannel(_client, title: "Exception", desc: $"`{e.ToString()}`");
                     }
                 });
                 return Task.CompletedTask;

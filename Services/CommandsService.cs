@@ -12,9 +12,9 @@ namespace CharacterEngineDiscord.Services
 {
     public static partial class CommandsService
     {
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookAsync(string webhookIdOrPrefix, InteractionContext context)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext _db)
         {
-            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id);
+            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, _db);
             var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
 
             if (characterWebhook is null)

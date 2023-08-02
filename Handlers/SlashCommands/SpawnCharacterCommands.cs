@@ -194,9 +194,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                         "  each line one by one.\n" +
                                                         "  Remove or rename lines that are not\n" +
                                                         "  needed. Custom Jailbreak prompt can\n" +
-                                                        "  be set with `/update` command\n" +
-                                                        "  later. Default one can be seen be seen\n" +
-                                                        "  with `show-jailbreak-prompt` command." +
+                                                        "  be set with `/update` command later.\n" +
+                                                        "  Default one can be seen be seen with\n" +
+                                                        "  `show jailbreak-prompt` command.\n" +
                                                         "((DELETE THIS SECTION))\n\n" +
                                                         "{{char}}'s personality: ALL BASIC INFO ABOUT CHARACTER, CONTINUE IN THE NEXT FIELD IF OUT OF SPACE.")
                                             .AddTextInput($"Definition-2", "definition-2", TextInputStyle.Paragraph, required: false, value:
