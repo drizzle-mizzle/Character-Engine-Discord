@@ -13,6 +13,7 @@ using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using System.Reflection;
+using System;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -64,7 +65,7 @@ namespace CharacterEngineDiscord.Handlers
             var userMessage = (SocketUserMessage)message;
             var context = new SocketCommandContext(_client, userMessage);
 
-            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+            await context.Guild.DeleteApplicationCommandsAsync();
             await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id);
 
             await userMessage.ReplyAsync(embed: SuccessEmbed());

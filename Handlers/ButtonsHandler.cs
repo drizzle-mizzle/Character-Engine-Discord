@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Runtime.InteropServices.ObjectiveC;
 
 namespace CharacterEngineDiscord.Handlers
 {
