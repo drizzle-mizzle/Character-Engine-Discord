@@ -45,11 +45,24 @@ namespace CharacterEngineDiscord.Handlers
                 return Task.CompletedTask;
             };
 
-            _client.ReactionRemoved += (msg, chanel, reaction) =>
+            _client.ReactionRemoved += (msg, channel, reaction) =>
             {
                 Task.Run(async () => {
-                    try { await HandleReactionAsync(msg, chanel, reaction); }
-                    catch (Exception e) { LogException(new[] { e }); }
+                    try { await HandleReactionAsync(msg, channel, reaction); }
+                    catch (Exception e)
+                    {
+                        LogException(new[] { e });
+                        var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
+                        var guild = guildChannel?.Guild;
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                                      $"User: {reaction.User.Value?.Username}\n" +
+                                                                      $"Reaction: {reaction.Emote.Name}\n" +
+                                                                      $"```cs\n" +
+                                                                      $"{e}\n" +
+                                                                      $"```",
+                                                                color: Color.Red);
+                    }
                 });
                 return Task.CompletedTask;
             };
@@ -90,7 +103,7 @@ namespace CharacterEngineDiscord.Handlers
             bool msgIsSwipable = characterMessage.Id == characterWebhook.LastCharacterDiscordMsgId;
             if (!(userIsLastCaller && msgIsSwipable)) return;
 
-            if (reaction.Emote.Name == ARROW_LEFT.Name && characterWebhook.CurrentSwipeIndex > 0)
+            if (reaction.Emote?.Name == ARROW_LEFT.Name && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
@@ -98,7 +111,7 @@ namespace CharacterEngineDiscord.Handlers
                 await db.SaveChangesAsync();
                 await SwipeMessageAsync(characterMessage, characterWebhook.Id, userReacted);
             }
-            else if (reaction.Emote.Name == ARROW_RIGHT.Name)
+            else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
