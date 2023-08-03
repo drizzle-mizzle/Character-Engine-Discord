@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using System.Reflection;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -60,9 +61,12 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task TryToCreateSlashCommandsAsync(SocketMessage message)
         {
-            var userMessage = message as SocketUserMessage;
+            var userMessage = (SocketUserMessage)message;
             var context = new SocketCommandContext(_client, userMessage);
+
+            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
             await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id);
+
             await userMessage.ReplyAsync(embed: SuccessEmbed());
         }
 
