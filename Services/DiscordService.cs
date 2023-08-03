@@ -87,7 +87,6 @@ namespace CharacterEngineDiscord.Services
                     return;
                 }
 
-                await guild.DeleteApplicationCommandsAsync();
                 await _interactions.RegisterCommandsToGuildAsync(guild.Id);
 
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
