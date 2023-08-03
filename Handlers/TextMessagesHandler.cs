@@ -36,9 +36,9 @@ namespace CharacterEngineDiscord.Handlers
                 Task.Run(async () => {
                     try
                     {
-                        if (message.Content == "##sync")
-                            await TryToCreateSlashCommandsAsync(message);
-                        else
+                        //if (message.Content == "##sync")
+                        //    await TryToCreateSlashCommandsAsync(message);
+                        //else
                             await HandleMessageAsync(message);
                     }
                     catch (Exception e)
