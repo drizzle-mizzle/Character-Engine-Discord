@@ -1,5 +1,4 @@
-﻿using CharacterAI;
-using Discord;
+﻿using Discord;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Discord.Interactions;
