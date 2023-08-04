@@ -44,7 +44,7 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// Stored swiped messages (Webhook ID : AvailableCharacterResponse)
         /// </summary>
-        internal Dictionary<ulong, List<AvailableCharacterResponse>> AvailableCharacterResponses = new();
+        internal Dictionary<ulong, List<AvailableCharacterResponse>> AvailableCharacterResponses { get; } = new();
 
         /// <summary>
         /// For internal use only
