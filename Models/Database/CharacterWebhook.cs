@@ -1,7 +1,4 @@
-﻿using CharacterEngineDiscord.Models.OpenAI;
-using System.ComponentModel;
-using System.Data.SqlClient;
-using static CharacterEngineDiscord.Services.IntegrationsService;
+﻿using static CharacterEngineDiscord.Services.IntegrationsService;
 
 namespace CharacterEngineDiscord.Models.Database
 {
@@ -26,12 +23,11 @@ namespace CharacterEngineDiscord.Models.Database
         public required IntegrationType IntegrationType { get; set; }
         public required string MessagesFormat { get; set; }
         public required float ReplyChance { get; set; }
-        public required int ReplyDelay { get; set; }
+        public required DateTime LastCallTime { get; set; }
 
         // CharacterAI
         public string? PersonalCaiUserAuthToken { get; set; }
         public required string? CaiActiveHistoryId { get; set; }
-        public virtual List<CaiHistory> CaiHistories { get; set; } = new();
 
         // OpenAI ChatGPT
         public string? PersonalOpenAiApiEndpoint { get; set; }
@@ -44,16 +40,15 @@ namespace CharacterEngineDiscord.Models.Database
 
         // Universal Tavern (except CharacterAI)
         public required string? UniversalJailbreakPrompt { get; set; }
+        public int LastRequestTokensUsage { get; set; } = 0;
 
         public required string CharacterId { get; set; }
         public virtual Character Character { get; set; } = null!;
         public required ulong ChannelId { get; set; }
         public virtual Channel Channel { get; set; } = null!;
-        public int LastRequestTokensUsage { get; set; } = 0;
 
         public virtual List<OpenAiHistoryMessage> OpenAiHistoryMessages { get; set; } = new();
         public virtual List<HuntedUser> HuntedUsers { get; set; } = new();
-
 
         /// <summary>
         /// The last user who have called a character

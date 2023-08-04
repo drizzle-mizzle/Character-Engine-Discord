@@ -8,6 +8,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using Polly;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -53,7 +54,7 @@ namespace CharacterEngineDiscord.Handlers
             var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
             if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
             if (searchQuery.AuthorId != component.User.Id) return;
-            if (await UserIsBannedCheckOnly(component.User)) return;
+            if (await UserIsBannedCheckOnly(component.User.Id)) return;
 
             int tail = searchQuery.SearchQueryData.Characters.Count - (searchQuery.CurrentPage - 1) * 10;
             int maxRow = tail > 10 ? 10 : tail;
@@ -115,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
                     _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-                    await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting}");
+                    await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{component.User.Mention}**")}");
 
                     _integration.SearchQueries.Remove(searchQuery);
                     return;

@@ -63,7 +63,7 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleCommandAsync(SocketSlashCommand command)
         {
-            if (await UserIsBannedCheckOnly(command.User)) return;
+            if (await UserIsBannedCheckOnly(command.User.Id)) return;
 
             var context = new InteractionContext(_client, command, command.Channel);
             await _interactions.ExecuteCommandAsync(context, _services);

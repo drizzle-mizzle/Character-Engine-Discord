@@ -8,6 +8,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -37,13 +38,10 @@ namespace CharacterEngineDiscord.Services
 
             _client.Ready += () =>
             {
-                Task.Run(async () =>
-                {
-                    await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
-                    await CreateSlashCommandsAsync();
-                });
+                Task.Run(async () => await CreateSlashCommandsAsync());
                 Task.Run(async () => await SetupIntegrationAsync());
                 Task.Run(async () => await RunStatusReporterAsync());
+                Task.Run(async () => await RunJobs());
 
                 return Task.CompletedTask;
             };
@@ -66,12 +64,21 @@ namespace CharacterEngineDiscord.Services
             await Task.Delay(-1);
         }
 
+        private async Task RunJobs()
+        {
+            //while (true)
+            //{
+                
+            //    await Task.Delay(86_400_000); // 1 day
+            //}
+        }
+
         private async Task RunStatusReporterAsync()
         {
             while (true)
             {
-                await TryToReportInLogsChannel(_client, "Uptime Status", desc: "Running", color: Color.DarkGreen);
-                await Task.Delay(3_600_000);
+                await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen);
+                await Task.Delay(3_600_000); // 1 hour
             }
         }
 
@@ -134,7 +141,8 @@ namespace CharacterEngineDiscord.Services
 
         private async Task CreateSlashCommandsAsync()
         {
-            try { 
+            try {
+                await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
                 foreach (var guild in _client.Guilds)
                     await _interactions.RegisterCommandsToGuildAsync(guild.Id);
             }

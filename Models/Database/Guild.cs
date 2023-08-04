@@ -4,6 +4,7 @@
     {
         public required ulong Id { get; set; }
         public required string GuildMessagesFormat { get; set; }
+        public required string? GuildJailbreakPrompt { get; set; }
 
         public required string? GuildCaiUserToken { get; set; }
         public required bool? GuildCaiPlusMode { get; set; }

@@ -8,6 +8,9 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord;
 using CharacterEngineDiscord.Models.Database;
+using Microsoft.SqlServer.Server;
+using System.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -80,36 +83,21 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: $"{OK_SIGN_DISCORD} {characterWebhook.LastRequestTokensUsage.ToString() ?? "?"} tokens".ToInlineEmbed(Color.Green));
         }
 
-        [SlashCommand("messages-format", "Check character messages format")]
+        [SlashCommand("messages-format", "Check default or character messages format")]
         public async Task ShowMessagesFormat(string? webhookIdOrPrefix = null)
         {
             await ShowMessagesFormatAsync(webhookIdOrPrefix);
         }
 
-        [SlashCommand("jailbreak-prompt", "Check character jailbreak prompt")]
-        public async Task ShowJailbreakPrompt(string webhookIdOrPrefix)
+        [SlashCommand("jailbreak-prompt", "Check default or character jailbreak prompt")]
+        public async Task ShowJailbreakPrompt(string? webhookIdOrPrefix = null)
         {
-            await DeferAsync();
-
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
-
-            if (characterWebhook is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
-                return;
-            }
-
-            var embed = new EmbedBuilder().WithTitle($"**{characterWebhook.Character.Name}**")
-                                          .WithColor(Color.Gold)
-                                          .AddField("Prompt:", $"{characterWebhook.UniversalJailbreakPrompt}")
-                                          .Build();
-
-            await FollowupAsync(embed: embed);
+            await ShowJailbreakPromptAsync(webhookIdOrPrefix);
         }
 
 
-          ////////////////////
-         //// Long stuff ////
+        ////////////////////
+        //// Long stuff ////
         ////////////////////
 
         private async Task ShowInfoAsync(string webhookIdOrPrefix)
@@ -197,7 +185,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (webhookIdOrPrefix is null)
             {
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-                title = "Current server";
+                title = "Default messages format";
                 format = channel.Guild.GuildMessagesFormat;
             }
             else
@@ -210,7 +198,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                title = characterWebhook.Character.Name;
+                title = $"{characterWebhook.Character.Name}'s messages format";
                 format = characterWebhook.MessagesFormat;
             }
 
@@ -218,16 +206,56 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (text.Contains("{{ref_msg_text}}"))
             {
-                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "").Replace("{{ref_msg_user}}", "Dude");
             }
 
             var embed = new EmbedBuilder().WithTitle($"{title}")
                                           .WithColor(Color.Gold)
                                           .AddField("Format:", $"`{format}`")
-                                          .AddField("Example", $"Referenced message: *`Hola`*\n" +
+                                          .AddField("Example", $"Referenced message: *`Hola`* from user *`Dude`*\n" +
                                                                $"User nickname: `Average AI Enjoyer`\n" +
                                                                $"User message: *`Hello!`*\n" +
                                                                $"Result (what character will see):\n*`{text}`*");
+
+            await FollowupAsync(embed: embed.Build());
+        }
+
+        private async Task ShowJailbreakPromptAsync(string? webhookIdOrPrefix)
+        {
+            await DeferAsync();
+
+            string title;
+            string prompt;
+
+            if (webhookIdOrPrefix is null)
+            {
+                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+
+                title = "Default jailbreak prompt";
+                prompt = channel.Guild.GuildJailbreakPrompt ?? "";
+            }
+            else
+            {
+                var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context);
+
+                if (characterWebhook is null)
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                    return;
+                }
+
+                title = $"{characterWebhook.Character.Name}'s jailbreak prmpt";
+                prompt = characterWebhook.UniversalJailbreakPrompt ?? "";
+            }
+
+            var embed = new EmbedBuilder().WithTitle($"**{title}**")
+                                          .WithColor(Color.Gold);
+
+            int count = 1;
+            var promptChunked = prompt.Chunk(1024);
+
+            foreach (var chunk in promptChunked)
+                embed.AddField($"Part {count++}", chunk);
 
             await FollowupAsync(embed: embed.Build());
         }

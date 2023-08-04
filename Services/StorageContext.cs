@@ -9,7 +9,6 @@ namespace CharacterEngineDiscord.Services
     {
         internal DbSet<BlockedGuild> BlockedGuilds { get; set; }
         internal DbSet<BlockedUser> BlockedUsers { get; set; }
-        internal DbSet<CaiHistory> CaiHistories { get; set; }
         internal DbSet<Channel> Channels { get; set; }
         internal DbSet<Character> Characters { get; set; }
         internal DbSet<CharacterWebhook> CharacterWebhooks { get; set; }
@@ -65,7 +64,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, GuildMessagesFormat = "{{ref_msg_begin}}[System note: In response to '{{ref_msg_text}}']{{ref_msg_end}}\n[System note: Name of the user is '{{user}}']\n{{msg}}", BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null };
+                guild = new() { Id = guildId, GuildMessagesFormat = "{{ref_msg_begin}}[System note: In response to message '{{ref_msg_text}}' from user '{{ref_msg_user}}']{{ref_msg_end}}\n[System note: Name of the user is '{{user}}']\n{{msg}}", BtnsRemoveDelay = 90, GuildCaiPlusMode = false, GuildCaiUserToken = null, GuildOpenAiApiToken = null, GuildOpenAiModel = null, GuildOpenAiApiEndpoint = null, GuildJailbreakPrompt = null };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
                 return await FindOrStartTrackingGuildAsync(guildId, db);

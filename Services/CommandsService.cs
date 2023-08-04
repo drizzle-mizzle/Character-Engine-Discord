@@ -74,20 +74,24 @@ namespace CharacterEngineDiscord.Services
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string? title = (character.Title ?? "").Length > 300 ? character.Title!.Replace("\n\n", "\n")[0..300] + "[...]" : character.Title;
-            string? desc = (character.Description ?? "").Length > 400 ? character.Description!.Replace("\n\n", "\n")[0..300] + "[...]" : character.Description;
+            string title = character.Title ?? "";
+            title = (title.Length > 1000 ? title[0..1000] + "[...]" : title).Replace("\n\n", "\n");
+            if (!string.IsNullOrWhiteSpace(title)) title = $"*\"{title}\"*";
+
+            string desc = character.Description ?? "";
+            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
             if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
 
-            string lastField = $"*\"{title}\"*" +
-                               $"{desc}" +
-                               $"*Original link: {link}\n" +
-                               $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
+            desc = $"{desc}*Original link: {link}\n" +
+                   $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
             emb.WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.");
-            emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix}hey!`*");
             emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it or the prefix to modify this integration with *`/update`* commands.");
-            emb.AddField(characterWebhook.Character.Name, lastField);
+            emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix} hey!`*\n" +
+                                           $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*");
+            emb.AddField(characterWebhook.Character.Name, title);
+            emb.AddField("Description", desc);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
 

@@ -25,7 +25,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("call-prefix", "Change character call prefix")]
-        public async Task CallPrefix(string webhookIdOrPrefix, string newCallPrefix, [Summary(description: "Add a following spacebar for the prefix, e.g. `..prefix `")] bool addFollowingSpacebar)
+        public async Task CallPrefix(string webhookIdOrPrefix, string newCallPrefix)
         {
             await DeferAsync();
 
@@ -37,7 +37,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            characterWebhook.CallPrefix = newCallPrefix + (addFollowingSpacebar ? " " : "");
+            characterWebhook.CallPrefix = newCallPrefix;
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -223,10 +223,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
-        public async Task JailbreakPrompt(string webhookId)
+        public async Task JailbreakPrompt(string webhookIdOrPrefix)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
-                                          .WithCustomId($"upd~{webhookId}")
+                                          .WithCustomId($"upd~{webhookIdOrPrefix}")
                                           .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
                                           .Build();
             await RespondWithModalAsync(modal);
@@ -260,6 +260,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
                 characterWebhook.IntegrationType = IntegrationType.OpenAI;
                 characterWebhook.OpenAiModel = model;
+
                 if (personalApiToken is not null)
                     characterWebhook.PersonalOpenAiApiToken = personalApiToken;
                 if (personalApiEndpont is not null)
@@ -297,8 +298,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("New format:", $"`{newFormat}`")
                                           .AddField("[Example]", $"User message: *`Hello!`*\n" +
                                                                  $"User nickname: `Average AI Enjoyer`\n" +
-                                                                 $"Referenced message: *`Hola`*\n" +
-                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola")}`*")
+                                                                 $"Referenced message: *`Hola`* from user *`Dude`*\n" +
+                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_user}}", "Dude")}`*")
                                           .WithColor(Color.Green)
                                           .Build();
 

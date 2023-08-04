@@ -11,9 +11,7 @@ using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
-using System.Reflection;
-using System;
+using System.Configuration;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -22,25 +20,17 @@ namespace CharacterEngineDiscord.Handlers
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
         private readonly IntegrationsService _integration;
-        private readonly InteractionService _interactions;
 
         public TextMessagesHandler(IServiceProvider services)
         {
             _services = services;
             _integration = _services.GetRequiredService<IntegrationsService>();
             _client = _services.GetRequiredService<DiscordSocketClient>();
-            _interactions = _services.GetRequiredService<InteractionService>();
 
             _client.MessageReceived += (message) =>
             {
                 Task.Run(async () => {
-                    try
-                    {
-                        //if (message.Content == "##sync")
-                        //    await TryToCreateSlashCommandsAsync(message);
-                        //else
-                            await HandleMessageAsync(message);
-                    }
+                    try { await HandleMessageAsync(message); }
                     catch (Exception e)
                     {
                         LogException(new[] { e });
@@ -58,17 +48,6 @@ namespace CharacterEngineDiscord.Handlers
                 });
                 return Task.CompletedTask;
             };
-        }
-
-        private async Task TryToCreateSlashCommandsAsync(SocketMessage message)
-        {
-            var userMessage = (SocketUserMessage)message;
-            var context = new SocketCommandContext(_client, userMessage);
-
-            await context.Guild.DeleteApplicationCommandsAsync();
-            await _interactions.RegisterCommandsToGuildAsync(context.Guild.Id);
-
-            await userMessage.ReplyAsync(embed: SuccessEmbed());
         }
 
         internal async Task HandleMessageAsync(SocketMessage sm)
@@ -120,11 +99,11 @@ namespace CharacterEngineDiscord.Handlers
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                 canProceed = await CanCallCaiCharacter(characterWebhook, userMessage, _integration);
             else
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `update api` command.".ToInlineEmbed(Color.Orange));
+                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `/update api` command.".ToInlineEmbed(Color.Orange));
 
             if (!canProceed) return;
 
-            // Reformat text message
+            // Reformat message
             string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
             text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}").Replace("{{msg}}", $"{text}");
 
@@ -137,10 +116,12 @@ namespace CharacterEngineDiscord.Handlers
                     text = text.Remove(start, end - start).Trim();
                 else
                 {
-                    text = text.Replace("{{ref_msg_text}}", userMessage.ReferencedMessage!.Content.RemoveFirstMentionPrefx()).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+                    string refText = userMessage.ReferencedMessage.Content;
+                    int refL = Math.Min(refText.Length, 500);
+
+                    text = text.Replace("{{ref_msg_text}}", refText[0..refL]).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
                 }
             }
-
 
             // Get character response
             Models.Common.CharacterResponse? characterResponse = null;
@@ -179,7 +160,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Reformat message
             string characterMessage = characterResponse.Text.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{userName}**");
-            characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**," : userMessage.Author.Mention)} {characterMessage}";
+            characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**" : userMessage.Author.Mention)}, {characterMessage}";
 
             // Cut if too long
             if (characterMessage.Length > 2000)
@@ -204,6 +185,10 @@ namespace CharacterEngineDiscord.Handlers
 
             await db.SaveChangesAsync();
 
+            if (userMessage.Author.IsWebhook || userMessage.Author.IsBot)
+            {
+                return;
+            }
             // Add swipe buttons
             var message = await AddArrowButtonsAsync(messageId, userMessage.Channel);
             _ = Task.Run(async () => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
@@ -262,48 +247,51 @@ namespace CharacterEngineDiscord.Handlers
         }
 
         private static readonly Random @Random = new();
-        private static async Task<List<Models.Database.CharacterWebhook>> DetermineCalledCharacterWebhook(SocketUserMessage userMessage, ulong channelId)
+        private static async Task<List<CharacterWebhook>> DetermineCalledCharacterWebhook(SocketUserMessage userMessage, ulong channelId)
         {
             List<CharacterWebhook> characterWebhooks = new();
 
             var db = new StorageContext();
             var channel = await db.Channels.FindAsync(channelId);
 
-            if (channel is null) return characterWebhooks;
-            if (channel.CharacterWebhooks.Count == 0) return characterWebhooks;
+            if (channel is null || channel.CharacterWebhooks.Count == 0)
+            {
+                return characterWebhooks;
+            }
 
             var text = userMessage.Content.Trim();
             var rm = userMessage.ReferencedMessage;
             var withRefMessage = rm is not null && rm.Author.IsWebhook;
-
-            // One certain character that was
-            if (withRefMessage) // called by reply
-            {
-                var cw = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id);
-                if (cw is not null) characterWebhooks.Add(cw);
-            }
-            else // or called by a prefix
-            {
-                var cw = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix));
-                if (cw is not null) characterWebhooks.Add(cw);
-            }
-
             var chance = (float)(@Random.Next(99) + 0.001 + @Random.NextDouble());
-            // Add characters who hunt the user
-            var huntingWebhooks = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.Id == userMessage.Author.Id && h.Chance > chance)).ToList();
-            
-            if (huntingWebhooks is not null && huntingWebhooks.Count > 0)
+
+            // Try to find one certain character that was called by a prefix
+            var cw = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix));
+
+            if (cw is not null)
             {
-                foreach (var cw in huntingWebhooks)
-                    if (!characterWebhooks.Contains(cw)) characterWebhooks.Add(cw);
+                characterWebhooks.Add(cw);
+            }
+            else if (withRefMessage) // or find some other that was called by a reply
+            {
+                cw = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id);
+                if (cw is not null) characterWebhooks.Add(cw);
             }
 
-            // Add some random characters            
-            bool respondOnRandom = channel.RandomReplyChance > chance;
-            if (respondOnRandom)
+            // Add characters who hunt the user
+            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.Id == userMessage.Author.Id && h.Chance > chance)).ToList();            
+            if (hunters is not null && hunters.Count > 0)
             {
-                var cw = channel.CharacterWebhooks[@Random.Next(channel.CharacterWebhooks.Count)];
-                if (!characterWebhooks.Contains(cw)) characterWebhooks.Add(cw);
+                foreach (var h in hunters)
+                    if (!characterWebhooks.Contains(h)) characterWebhooks.Add(h);
+            }
+
+            // Add some random character
+            if (channel.RandomReplyChance > chance)
+            {
+                var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
+                var rw = randomCharacters[@Random.Next(randomCharacters.Count)];
+
+                if (!characterWebhooks.Contains(rw)) characterWebhooks.Add(rw);
             }
 
             return characterWebhooks;

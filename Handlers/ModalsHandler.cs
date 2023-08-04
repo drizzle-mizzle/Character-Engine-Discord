@@ -9,9 +9,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord.Webhook;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using System.Threading.Channels;
-using System.ComponentModel;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -52,7 +50,7 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleModalAsync(SocketModal modal)
         {
-            if (await UserIsBannedCheckOnly(modal.User)) return;
+            if (await UserIsBannedCheckOnly(modal.User.Id)) return;
 
             await modal.DeferAsync();
             var modalId = modal.Data.CustomId;
@@ -68,12 +66,13 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task UpdateCharacterAsync(SocketModal modal)
+        private async Task UpdateCharacterAsync(SocketModal modal)
         {
             var db = new StorageContext();
+            string webhookIdOrPrefix = modal.Data.CustomId.Split('~').Last();
 
-            ulong webhookId = ulong.Parse(modal.Data.CustomId.Split('~').Last());
-            var characterWebhook = await db.CharacterWebhooks.FindAsync(webhookId);
+            var context = new InteractionContext(_client, modal, modal.Channel);
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, context, db);
 
             if (characterWebhook is null)
             {
