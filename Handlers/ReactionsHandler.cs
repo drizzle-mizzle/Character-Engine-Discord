@@ -136,9 +136,6 @@ namespace CharacterEngineDiscord.Handlers
 
             Embed? quoteEmbed = characterMessage.Embeds?.FirstOrDefault() as Embed;
 
-            if (!_integration.AvailableCharacterResponses.ContainsKey(characterWebhookId))
-                _integration.AvailableCharacterResponses.Add(characterWebhookId, new());
-
             // Check if fetching a new message, or just swiping among already available ones
             var availableCharacterResponses = _integration.AvailableCharacterResponses[characterWebhookId];
             if (availableCharacterResponses.Count < characterWebhook.CurrentSwipeIndex + 1) // fetch new
