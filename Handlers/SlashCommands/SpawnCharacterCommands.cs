@@ -207,7 +207,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                         "((DELETE THIS SECTION))\n\n" +
                                                         "Scenario of roleplay: {{char}} has joined Discord!\n\n" +
                                                         "Example conversations between {{char}} and {{user}}:\n<START>\n{{user}}: Nullpo;\n{{char}}: Gah!\n<END>")
-                                            .AddTextInput($"Avatar url", "avatar-url", TextInputStyle.Short, "e.g. \"https://avatars.charhub.io/avatars/x-x-x/avatar.webp\"", required: false)
+                                            .AddTextInput($"Avatar url", "avatar-url", TextInputStyle.Short, "https://avatars.charhub.io/avatars/.../avatar.webp", required: false)
                                             .Build();
 
             await RespondWithModalAsync(modal);

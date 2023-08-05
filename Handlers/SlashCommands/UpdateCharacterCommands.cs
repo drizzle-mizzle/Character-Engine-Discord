@@ -6,6 +6,8 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
+using Discord.WebSocket;
+using Microsoft.VisualBasic;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -13,13 +15,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     [Group("update", "Change character settings")]
     public class UpdateCharacterCommands : InteractionModuleBase<InteractionContext>
     {
-        //private readonly IntegrationsService _integration;
+        private readonly IntegrationsService _integration;
         //private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public UpdateCharacterCommands(IServiceProvider services)
         {
-            //_integration = services.GetRequiredService<IntegrationsService>();
+            _integration = services.GetRequiredService<IntegrationsService>();
             //_client = services.GetRequiredService<DiscordSocketClient>();
             _db = new StorageContext();
         }
@@ -130,6 +132,62 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.SwipesEnabled = enable;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("avatar", "Set character avatar")]
+        public async Task Avatar(string webhookIdOrPrefix, string avatarUrl)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var channel = (SocketTextChannel)Context.Channel;
+            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
+
+            var image = await TryDownloadImgAsync(avatarUrl, _integration.HttpClient);
+            if (image is null && characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+            {
+                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png"));
+            }
+
+            await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
+
+            characterWebhook.Character.AvatarUrl = avatarUrl;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("name", "Set character name")]
+        public async Task CharacterName(string webhookIdOrPrefix, string name)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            name = name.ToLower().Contains("discord") ? name.Replace('o', 'о').Replace('c', 'с') : name;
+
+            var channel = (SocketTextChannel)Context.Channel;
+            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
+
+            await channelWebhook.ModifyAsync(cw => cw.Name = name);
+
+            characterWebhook.Character.Name = name;
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());

@@ -191,7 +191,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             for (int i = 0; i < Math.Min(result.Count, 5); i++)
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
 
             await FollowupAsync(embed: embed.Build());
         }
