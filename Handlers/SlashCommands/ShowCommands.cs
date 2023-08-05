@@ -191,7 +191,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             for (int i = 0; i < Math.Min(result.Count, 5); i++)
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
 
             await FollowupAsync(embed: embed.Build());
         }
@@ -265,18 +265,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                title = $"{characterWebhook.Character.Name}'s jailbreak prmpt";
+                title = $"{characterWebhook.Character.Name}'s jailbreak prompt";
                 prompt = characterWebhook.UniversalJailbreakPrompt ?? "";
             }
 
             var embed = new EmbedBuilder().WithTitle($"**{title}**")
                                           .WithColor(Color.Gold);
 
-            int count = 1;
             var promptChunked = prompt.Chunk(1024);
 
             foreach (var chunk in promptChunked)
-                embed.AddField($"Part {count++}", chunk);
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", new string(chunk));
 
             await FollowupAsync(embed: embed.Build());
         }
