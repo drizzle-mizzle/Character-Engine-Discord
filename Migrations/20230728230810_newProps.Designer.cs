@@ -3,6 +3,7 @@ using System;
 using CharacterEngineDiscord.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    partial class StorageContextModelSnapshot : ModelSnapshot
+    [Migration("20230728230810_newProps")]
+    partial class newProps
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -41,6 +44,27 @@ namespace CharacterEngineDiscord.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("BlockedUsers");
+                });
+
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CaiHistory", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<ulong>("CharacterWebhookId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterWebhookId");
+
+                    b.ToTable("CaiHistories");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Channel", b =>
@@ -133,17 +157,11 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("IntegrationType")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("LastCallTime")
-                        .HasColumnType("TEXT");
-
                     b.Property<ulong>("LastCharacterDiscordMsgId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("LastCharacterMsgUuId")
                         .HasColumnType("TEXT");
-
-                    b.Property<ulong>("LastDiscordUserCallerId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("LastRequestTokensUsage")
                         .HasColumnType("INTEGER");
@@ -185,6 +203,9 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<float>("ReplyChance")
                         .HasColumnType("REAL");
 
+                    b.Property<int>("ReplyDelay")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ResponseDelay")
                         .HasColumnType("INTEGER");
 
@@ -220,9 +241,6 @@ namespace CharacterEngineDiscord.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("GuildCaiUserToken")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GuildJailbreakPrompt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildMessagesFormat")
@@ -284,6 +302,17 @@ namespace CharacterEngineDiscord.Migrations
                     b.HasIndex("CharacterWebhookId");
 
                     b.ToTable("OpenAiHistoryMessages");
+                });
+
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CaiHistory", b =>
+                {
+                    b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", "CharacterWebhook")
+                        .WithMany("CaiHistories")
+                        .HasForeignKey("CharacterWebhookId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CharacterWebhook");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Channel", b =>
@@ -350,6 +379,8 @@ namespace CharacterEngineDiscord.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.CharacterWebhook", b =>
                 {
+                    b.Navigation("CaiHistories");
+
                     b.Navigation("HuntedUsers");
 
                     b.Navigation("OpenAiHistoryMessages");
