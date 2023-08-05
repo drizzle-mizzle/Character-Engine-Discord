@@ -37,25 +37,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await BlockGuildAsync(serverId);
         }
 
-        [SlashCommand("unblock-server", "-")]
-        public async Task UnblockGuild(string serverId)
-        {
-            await DeferAsync();
-
-            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
-
-            if (blockedGuild is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
-                return;
-            }
-
-            _db.BlockedGuilds.Remove(blockedGuild);
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
-        }
-
         [SlashCommand("block-user", "-")]
         public async Task BlockUser(string sUserId)
         {
@@ -74,20 +55,20 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("unblock-user", "-")]
-        public async Task UnblockUser(string sUserId)
+        [SlashCommand("unblock-server", "-")]
+        public async Task UnblockGuild(string serverId)
         {
             await DeferAsync();
 
-            ulong userId = ulong.Parse(sUserId.Trim());
-            var blockedUser = await _db.BlockedUsers.FindAsync(userId);
-            if (blockedUser is null)
+            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
+
+            if (blockedGuild is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            _db.BlockedUsers.Remove(blockedUser);
+            _db.BlockedGuilds.Remove(blockedGuild);
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -113,9 +94,31 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             foreach (var channel in channels)
-                try { await channel.SendMessageAsync(embed: embed.Build()); } catch { }
-
+            {
+                try { await channel.SendMessageAsync(embed: embed.Build()); }
+                catch { continue; }
+            }
+                
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
+
+        [SlashCommand("unblock-user", "-")]
+        public async Task UnblockUser(string sUserId)
+        {
+            await DeferAsync();
+
+            ulong userId = ulong.Parse(sUserId.Trim());
+            var blockedUser = await _db.BlockedUsers.FindAsync(userId);
+            if (blockedUser is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            _db.BlockedUsers.Remove(blockedUser);
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("leave-all-servers", "-")]
@@ -144,16 +147,23 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         [SlashCommand("set-game", "Set game status")]
         public async Task UpdateGame(string? activity = null, string? streamUrl = null, ActivityType type = ActivityType.Playing)
-            => await _client.SetGameAsync(activity, streamUrl, type);
+        {
+            await _client.SetGameAsync(activity, streamUrl, type);
+            await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
 
         [SlashCommand("set-status", "Set status")]
         public async Task UpdateStatus(UserStatus status)
-            => await _client.SetStatusAsync(status);
+        {
+            await _client.SetStatusAsync(status);
+            await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
 
         [SlashCommand("ping", "ping")]
         public async Task Ping()
-            => await RespondAsync(embed: $":ping_pong: Pong! - {_client.Latency} ms".ToInlineEmbed(Color.Red));
-
+        {
+            await RespondAsync(embed: $":ping_pong: Pong! - {_client.Latency} ms".ToInlineEmbed(Color.Red));
+        }
 
         ////////////////////
         //// Long stuff ////
