@@ -172,7 +172,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 var message = characterWebhook.OpenAiHistoryMessages[i];
                 int l = Math.Min(message.Content.Length, 200);
-                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l]}{(l == 200 ? "..." : "")}*\n");
+                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l].Replace("\n", "  ")}{(l == 200 ? "..." : "")}*\n");
             }
             chunks.Reverse();
 
@@ -191,7 +191,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             for (int i = 0; i < Math.Min(result.Count, 5); i++)
-                embed.AddField(new string('~', 10), result[i]);
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
 
             await FollowupAsync(embed: embed.Build());
         }
