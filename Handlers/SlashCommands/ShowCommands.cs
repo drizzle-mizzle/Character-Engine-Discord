@@ -174,6 +174,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 int l = Math.Min(message.Content.Length, 200);
                 chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l]}{(l == 200 ? "..." : "")}*\n");
             }
+            chunks.Reverse();
 
             var result = new List<string>() { "" };
             int resultIndex = 0;
