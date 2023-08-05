@@ -74,11 +74,11 @@ namespace CharacterEngineDiscord.Services
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string title = character.Title ?? "";
+            string title = character.Title ?? "No title";
             title = (title.Length > 1000 ? title[0..1000] + "[...]" : title).Replace("\n\n", "\n");
             if (!string.IsNullOrWhiteSpace(title)) title = $"*\"{title}\"*";
 
-            string desc = character.Description ?? "";
+            string desc = character.Description ?? "No description";
             desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
             if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
 

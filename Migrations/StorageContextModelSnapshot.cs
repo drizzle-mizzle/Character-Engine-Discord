@@ -191,6 +191,9 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<bool>("SkipNextBotMessage")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("SwipesEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("UniversalJailbreakPrompt")
                         .HasColumnType("TEXT");
 

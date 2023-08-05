@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    [Migration("20230804183730_smthng")]
-    partial class smthng
+    [Migration("20230805080412_ReInit")]
+    partial class ReInit
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -192,6 +192,9 @@ namespace CharacterEngineDiscord.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("SkipNextBotMessage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SwipesEnabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("UniversalJailbreakPrompt")

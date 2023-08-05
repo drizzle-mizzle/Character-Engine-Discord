@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CharacterEngineDiscord.Migrations
 {
     /// <inheritdoc />
-    public partial class Init : Migration
+    public partial class ReInit : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -64,6 +64,7 @@ namespace CharacterEngineDiscord.Migrations
                     Id = table.Column<ulong>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     GuildMessagesFormat = table.Column<string>(type: "TEXT", nullable: false),
+                    GuildJailbreakPrompt = table.Column<string>(type: "TEXT", nullable: true),
                     GuildCaiUserToken = table.Column<string>(type: "TEXT", nullable: true),
                     GuildCaiPlusMode = table.Column<bool>(type: "INTEGER", nullable: true),
                     GuildOpenAiApiEndpoint = table.Column<string>(type: "TEXT", nullable: true),
@@ -105,10 +106,12 @@ namespace CharacterEngineDiscord.Migrations
                     WebhookToken = table.Column<string>(type: "TEXT", nullable: false),
                     CallPrefix = table.Column<string>(type: "TEXT", nullable: false),
                     ReferencesEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    SwipesEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    ResponseDelay = table.Column<int>(type: "INTEGER", nullable: false),
                     IntegrationType = table.Column<int>(type: "INTEGER", nullable: false),
                     MessagesFormat = table.Column<string>(type: "TEXT", nullable: false),
                     ReplyChance = table.Column<float>(type: "REAL", nullable: false),
-                    ReplyDelay = table.Column<int>(type: "INTEGER", nullable: false),
+                    LastCallTime = table.Column<DateTime>(type: "TEXT", nullable: false),
                     PersonalCaiUserAuthToken = table.Column<string>(type: "TEXT", nullable: true),
                     CaiActiveHistoryId = table.Column<string>(type: "TEXT", nullable: true),
                     PersonalOpenAiApiEndpoint = table.Column<string>(type: "TEXT", nullable: true),
@@ -119,9 +122,15 @@ namespace CharacterEngineDiscord.Migrations
                     OpenAiTemperature = table.Column<float>(type: "REAL", nullable: true),
                     OpenAiMaxTokens = table.Column<int>(type: "INTEGER", nullable: true),
                     UniversalJailbreakPrompt = table.Column<string>(type: "TEXT", nullable: true),
+                    LastRequestTokensUsage = table.Column<int>(type: "INTEGER", nullable: false),
                     CharacterId = table.Column<string>(type: "TEXT", nullable: false),
                     ChannelId = table.Column<ulong>(type: "INTEGER", nullable: false),
-                    LastRequestTokensUsage = table.Column<int>(type: "INTEGER", nullable: true)
+                    LastDiscordUserCallerId = table.Column<ulong>(type: "INTEGER", nullable: false),
+                    LastCharacterDiscordMsgId = table.Column<ulong>(type: "INTEGER", nullable: false),
+                    LastUserMsgUuId = table.Column<string>(type: "TEXT", nullable: true),
+                    LastCharacterMsgUuId = table.Column<string>(type: "TEXT", nullable: true),
+                    CurrentSwipeIndex = table.Column<int>(type: "INTEGER", nullable: false),
+                    SkipNextBotMessage = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -136,26 +145,6 @@ namespace CharacterEngineDiscord.Migrations
                         name: "FK_CharacterWebhooks_Characters_CharacterId",
                         column: x => x.CharacterId,
                         principalTable: "Characters",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "CaiHistories",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "TEXT", nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CharacterWebhookId = table.Column<ulong>(type: "INTEGER", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CaiHistories", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_CaiHistories_CharacterWebhooks_CharacterWebhookId",
-                        column: x => x.CharacterWebhookId,
-                        principalTable: "CharacterWebhooks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -202,11 +191,6 @@ namespace CharacterEngineDiscord.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_CaiHistories_CharacterWebhookId",
-                table: "CaiHistories",
-                column: "CharacterWebhookId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Channels_GuildId",
                 table: "Channels",
                 column: "GuildId");
@@ -240,9 +224,6 @@ namespace CharacterEngineDiscord.Migrations
 
             migrationBuilder.DropTable(
                 name: "BlockedUsers");
-
-            migrationBuilder.DropTable(
-                name: "CaiHistories");
 
             migrationBuilder.DropTable(
                 name: "HuntedUsers");

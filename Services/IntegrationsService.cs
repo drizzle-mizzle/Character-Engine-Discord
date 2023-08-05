@@ -126,7 +126,7 @@ namespace CharacterEngineDiscord.Services
             {
                 string msgContent = characterWebhook.OpenAiHistoryMessages[i].Content;
                 float tokensInThisMessage = msgContent.Length / 3.8f;
-                if ((currentAmountOfTokens + tokensInThisMessage) > 4000f) break;
+                if ((currentAmountOfTokens + tokensInThisMessage) > 3600f) break;
 
                 // Build history message
                 var historyMessage = new OpenAiMessage(characterWebhook.OpenAiHistoryMessages[i].Role, msgContent);
@@ -297,6 +297,7 @@ namespace CharacterEngineDiscord.Services
                     WebhookToken = channelWebhook.Token,
                     CallPrefix = callPrefix,
                     ReferencesEnabled = false,
+                    SwipesEnabled = true,
                     ResponseDelay = 1,
                     MessagesFormat = channel.Guild.GuildMessagesFormat,
                     IntegrationType = type,

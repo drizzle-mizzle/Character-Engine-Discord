@@ -117,19 +117,23 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string? title = (character.Title ?? "").Length > 300 ? (character.Title!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Title;
-            string? desc = (character.Description ?? "").Length > 400 ? (character.Description!.Replace("\n\n", "\n")[0..300] + "[...]") : character.Description;
+            string title = character.Title ?? "No title";
+            title = (title.Length > 800 ? title[0..800] + "[...]" : title).Replace("\n\n", "\n");
+            if (!string.IsNullOrWhiteSpace(title)) title = $"*\"{title}\"*";
+
+            title = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
+                    $"Webhook ID: *`{characterWebhook.Id}`*\n\n{title}";
+            
+            string desc = character.Description ?? "No description";
+            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
             if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
 
-            string fullDesc = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
-                              $"Webhook ID: *`{characterWebhook.Id}`*\n\n" +
-                              $"*\"{title}\"*" +
-                              $"{desc}" +
-                              $"*Original link: {link}\n" +
-                              $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
+            desc = $"{desc}*Original link: {link}\n" +
+                   $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **{character.Name}**").WithColor(Color.Gold);
-            emb.WithDescription(fullDesc);
+            emb.WithDescription(title);
+            emb.AddField("Description", desc);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
 
@@ -160,19 +164,35 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            int count = characterWebhook.OpenAiHistoryMessages.Count > 15 ? 15 : characterWebhook.OpenAiHistoryMessages.Count;
-            var embed = new EmbedBuilder().WithColor(Color.Green)
-                                          .WithTitle($"{OK_SIGN_DISCORD} Last {count} messages from the dialog with {characterWebhook.Character.Name}");
+            int amount = Math.Min(characterWebhook.OpenAiHistoryMessages.Count, 30);
+            var embed = new EmbedBuilder().WithColor(Color.Green).WithTitle($"{OK_SIGN_DISCORD} Last {amount} messages from the dialog with {characterWebhook.Character.Name}");
 
-            string desc = "";
+            var chunks = new List<string>();
             for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
             {
                 var message = characterWebhook.OpenAiHistoryMessages[i];
-                int l = message.Content.Length > 60 ? 60 : message.Content.Length;
-                desc = $"{count--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l]}{(l == 60 ? "..." : "")}*\n" + desc;
+                int l = Math.Min(message.Content.Length, 200);
+                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l]}{(l == 200 ? "..." : "")}*\n");
             }
 
-            await FollowupAsync(embed: embed.WithDescription(desc).Build());
+            var result = new List<string>() { "" };
+            int resultIndex = 0;
+            foreach (var chunk in chunks)
+            {
+                if ((result.ElementAt(resultIndex).Length + chunk.Length) > 1024)
+                {
+                    resultIndex++;
+                    result.Add(chunk);
+                    continue;
+                }
+                
+                result[resultIndex] += chunk;
+            }
+
+            for (int i = 0; i < Math.Min(result.Count, 5); i++)
+                embed.AddField(new string('~', 10), result[i]);
+
+            await FollowupAsync(embed: embed.Build());
         }
 
         private async Task ShowMessagesFormatAsync(string? webhookIdOrPrefix)

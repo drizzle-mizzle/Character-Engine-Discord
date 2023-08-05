@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Interactions;
 using System.Configuration;
+using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -190,8 +191,13 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
             // Add swipe buttons
-            var message = await AddArrowButtonsAsync(messageId, userMessage.Channel);
-            _ = Task.Run(async () => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+            if (characterWebhook.SwipesEnabled)
+            {
+                var message = await userMessage.Channel.GetMessageAsync(messageId);
+                var removeArrowButtonsAction = new Action(async () => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+
+                await AddArrowButtonsAsync(message, userMessage.Channel, removeArrowButtonsAction);
+            }
         }
 
         private async Task<Models.Common.CharacterResponse?> CallOpenAiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
@@ -224,7 +230,7 @@ namespace CharacterEngineDiscord.Handlers
             };
         }
 
-        private async Task<Models.Common.CharacterResponse?> CallCaiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
+        private async Task<CharacterResponse?> CallCaiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
         {
             var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
@@ -297,13 +303,18 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task<IMessage> AddArrowButtonsAsync(ulong messageId, ISocketMessageChannel channel)
+        private static async Task AddArrowButtonsAsync(IMessage message, ISocketMessageChannel channel, Action removeReactions)
         {
-            var message = await channel.GetMessageAsync(messageId);
-            await message.AddReactionAsync(ARROW_LEFT);
-            await message.AddReactionAsync(ARROW_RIGHT);
-
-            return message;
+            try
+            {
+                await message.AddReactionAsync(ARROW_LEFT);
+                await message.AddReactionAsync(ARROW_RIGHT);
+                _ = Task.Run(removeReactions);
+            }
+            catch
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update swipes enable:false` command.".ToInlineEmbed(Color.Red));
+            }
         }
 
         private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)

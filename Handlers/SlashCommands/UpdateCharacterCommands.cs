@@ -116,6 +116,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("swipes", "Enable/disable swipes")]
+        public async Task Swipes(string webhookIdOrPrefix, bool enable)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.SwipesEnabled = enable;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
         [SlashCommand("max-tokens", "Change amount of tokens for ChatGPT responses")]
         public async Task MaxTokens(string webhookIdOrPrefix, int tokens)
         {

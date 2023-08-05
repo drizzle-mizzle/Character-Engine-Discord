@@ -1,4 +1,6 @@
-﻿using static CharacterEngineDiscord.Services.IntegrationsService;
+﻿using System.Security.Permissions;
+using System.Security.Policy;
+using static CharacterEngineDiscord.Services.IntegrationsService;
 
 namespace CharacterEngineDiscord.Models.Database
 {
@@ -19,6 +21,7 @@ namespace CharacterEngineDiscord.Models.Database
         /// </summary>
         public required string CallPrefix { get; set; }
         public required bool ReferencesEnabled { get; set; }
+        public required bool SwipesEnabled { get; set; }
         public required int ResponseDelay { get; set; }
         public required IntegrationType IntegrationType { get; set; }
         public required string MessagesFormat { get; set; }
