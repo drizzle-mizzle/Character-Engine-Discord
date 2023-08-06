@@ -74,11 +74,16 @@ namespace CharacterEngineDiscord.Services
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string title = character.Title ?? "No title";
+            string? title = character.Title;
+            if (string.IsNullOrWhiteSpace(title)) title = "No title";
+
             title = (title.Length > 1000 ? title[0..1000] + "[...]" : title).Replace("\n\n", "\n");
             title = $"*\"{title}\"*";
 
-            string desc = character.Description ?? "No description";
+
+            string? desc = character.Description;
+            if (string.IsNullOrWhiteSpace(desc)) desc = "No description";
+
             desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
             desc = $"\n\n{desc}\n\n*Original link: {link}\n" +
                    $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
@@ -90,8 +95,9 @@ namespace CharacterEngineDiscord.Services
                                            $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*");
             emb.AddField(characterWebhook.Character.Name ?? "???", title);
             emb.AddField("Description", desc);
-            emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
+            if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
 
             return emb.Build();
         }
