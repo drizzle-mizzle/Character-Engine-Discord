@@ -172,7 +172,7 @@ namespace CharacterEngineDiscord.Handlers
             List<Embed>? embeds = new();
             if (characterWebhook.ReferencesEnabled)
             {
-                int l = Math.Min(userMessage.Content.Length - 1, 40);
+                int l = Math.Min(userMessage.Content.Length, 40);
                 embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 40 ? "..." : "")}").Build());
             }
             if (characterResponse.ImageRelPath is not null)

@@ -398,15 +398,20 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             else
             {
                 characterWebhook.OpenAiHistoryMessages.Clear();
+                _db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
             }
 
             await _db.SaveChangesAsync();
             await FollowupAsync(embed: SuccessEmbed());
 
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var channelWebhook);
-            if (channelWebhook is null) return;
+            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var webhookClient);
+            if (webhookClient is null)
+            {
+                webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+            }
 
-            await channelWebhook.SendMessageAsync(characterWebhook.Character.Greeting);
+            await webhookClient.SendMessageAsync(characterWebhook.Character.Greeting);
         }
 
         private async Task HuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix, float chanceOfResponse)
