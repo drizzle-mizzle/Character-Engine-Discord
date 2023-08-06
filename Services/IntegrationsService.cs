@@ -191,11 +191,12 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                Log(e);
+                LogException(new[] { e });
             }
             finally
             {
-                try { RemoveEmojiRequestQueue.Remove(message.Id); } catch { }
+                try { RemoveEmojiRequestQueue.Remove(message.Id); }
+                catch { }
             }
         }
 
