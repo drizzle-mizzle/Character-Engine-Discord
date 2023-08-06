@@ -17,6 +17,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
 using System.ComponentModel;
 using Polly;
+using System.Security.Cryptography;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -189,7 +190,7 @@ namespace CharacterEngineDiscord.Services
             }
             finally
             {
-                RemoveEmojiRequestQueue.Remove(message.Id);
+                try { RemoveEmojiRequestQueue.Remove(message.Id); } catch { }
             }
         }
 
@@ -231,7 +232,8 @@ namespace CharacterEngineDiscord.Services
         internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration)
         {
             // Create basic call prefix from two first letters in the character name
-            string callPrefix = $"..{unsavedCharacter.Name![..2].ToLower()}"; // => "..ch " (with spacebar)
+            int l = Math.Min(2, unsavedCharacter.Name.Length-1);
+            string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch " (with spacebar)
 
             IIntegrationChannel? discordChannel;
             discordChannel = context.Channel as IIntegrationChannel;
@@ -246,8 +248,17 @@ namespace CharacterEngineDiscord.Services
             {
                 image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png"));
             }
-                
-            var channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
+
+            IWebhook? channelWebhook = null;
+            try
+            {
+                channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
+            }
+            catch (Exception e)
+            {
+                await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red));
+            }
+
             if (channelWebhook is null) return null;
 
             var db = new StorageContext();
@@ -439,7 +450,8 @@ namespace CharacterEngineDiscord.Services
                 await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId });
+                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
+
                 await db.SaveChangesAsync();
                 _watchDog.Remove(currUserId);
 
@@ -480,7 +492,8 @@ namespace CharacterEngineDiscord.Services
                 await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId });
+                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
+
                 await db.SaveChangesAsync();
                 _watchDog.Remove(currUserId);
 

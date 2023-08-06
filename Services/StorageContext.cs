@@ -16,10 +16,12 @@ namespace CharacterEngineDiscord.Services
         internal DbSet<HuntedUser> HuntedUsers { get; set; }
         internal DbSet<OpenAiHistoryMessage> OpenAiHistoryMessages { get; set; }
 
+#pragma warning disable CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
         public StorageContext()
         {
 
         }
+#pragma warning restore CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

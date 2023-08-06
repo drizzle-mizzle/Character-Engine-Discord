@@ -40,7 +40,6 @@ namespace CharacterEngineDiscord.Services
             {
                 Task.Run(async () => await CreateSlashCommandsAsync());
                 Task.Run(async () => await SetupIntegrationAsync());
-                Task.Run(async () => await RunStatusReporterAsync());
                 Task.Run(async () => await RunJobs());
 
                 return Task.CompletedTask;
@@ -66,20 +65,13 @@ namespace CharacterEngineDiscord.Services
 
         private async Task RunJobs()
         {
-            //while (true)
-            //{
-                
-            //    await Task.Delay(86_400_000); // 1 day
-            //}
-        }
+            await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen);
 
-        private async Task RunStatusReporterAsync()
-        {
-            while (true)
-            {
-                await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen);
-                await Task.Delay(3_600_000); // 1 hour
-            }
+            var db = new StorageContext();
+            var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) < DateTime.UtcNow));
+            db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+
+            await Task.Delay(3_600_000); // 1 hour
         }
 
         private async Task OnGuildJoinAsync(SocketGuild guild)

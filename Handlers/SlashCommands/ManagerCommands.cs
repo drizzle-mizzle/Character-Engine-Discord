@@ -231,9 +231,62 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("block-user", "Make characters ignore certain user.")]
+        public async Task BlockUser(string userId, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
+        {
+            await DeferAsync();
 
-          ////////////////////
-         //// Long stuff ////
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            bool ok = ulong.TryParse(userId, out var uUserId);
+
+            if (!ok)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (guild.BlockedUsers.Any(bu => bu.Id == uUserId))
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            guild.BlockedUsers.Add(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours });
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("unblock-user", "---")]
+        public async Task UnblockUser(string userId)
+        {
+            await DeferAsync();
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            bool ok = ulong.TryParse(userId, out var uUserId);
+
+            if (!ok)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var blockedUser = guild.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId);
+            if (blockedUser is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            guild.BlockedUsers.Remove(blockedUser);
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+
+        ////////////////////
+        //// Long stuff ////
         ////////////////////
 
         private async Task DeleteWebhookAsync(string webhookIdOrPrefix)

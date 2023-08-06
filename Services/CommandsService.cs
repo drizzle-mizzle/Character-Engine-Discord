@@ -76,13 +76,11 @@ namespace CharacterEngineDiscord.Services
 
             string title = character.Title ?? "No title";
             title = (title.Length > 1000 ? title[0..1000] + "[...]" : title).Replace("\n\n", "\n");
-            if (!string.IsNullOrWhiteSpace(title)) title = $"*\"{title}\"*";
+            title = $"*\"{title}\"*";
 
             string desc = character.Description ?? "No description";
             desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
-            if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
-
-            desc = $"{desc}*Original link: {link}\n" +
+            desc = $"\n\n{desc}\n\n*Original link: {link}\n" +
                    $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
@@ -90,7 +88,7 @@ namespace CharacterEngineDiscord.Services
             emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it or the prefix to modify this integration with *`/update`* commands.");
             emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix} hey!`*\n" +
                                            $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*");
-            emb.AddField(characterWebhook.Character.Name, title);
+            emb.AddField(characterWebhook.Character.Name ?? "???", title);
             emb.AddField("Description", desc);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");

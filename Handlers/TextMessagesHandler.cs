@@ -125,7 +125,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Get character response
-            Models.Common.CharacterResponse? characterResponse = null;
+            CharacterResponse? characterResponse = null;
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                 characterResponse = await CallOpenAiCharacterAsync(characterWebhook, userMessage, text);
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
@@ -200,7 +200,7 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task<Models.Common.CharacterResponse?> CallOpenAiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
+        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
         {
             cw.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
 

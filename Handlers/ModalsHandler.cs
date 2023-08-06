@@ -117,6 +117,12 @@ namespace CharacterEngineDiscord.Handlers
                 Tgt = null
             };
 
+            if (unsavedCharacter.Name.Length < 2)
+            {
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Character name is too short".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
             var context = new InteractionContext(_client, modal, modal.Channel);
             var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration);
             if (characterWebhook is null) return;

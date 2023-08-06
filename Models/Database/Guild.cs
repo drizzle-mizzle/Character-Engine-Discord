@@ -14,5 +14,6 @@
         public required string? GuildOpenAiModel { get; set; }
         public required int BtnsRemoveDelay { get; set; }
         public virtual List<Channel> Channels { get; } = new();
+        public virtual List<BlockedUser> BlockedUsers { get; } = new();
     }
 }

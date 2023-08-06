@@ -38,18 +38,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("block-user", "-")]
-        public async Task BlockUser(string sUserId)
+        public async Task BlockUser(string userId)
         {
             await DeferAsync();
 
-            ulong userId = ulong.Parse(sUserId.Trim());
-            if ((await _db.BlockedUsers.FindAsync(userId)) is not null)
+            bool ok = ulong.TryParse(userId, out var uUserId);
+
+            if (!ok)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if ((await _db.BlockedUsers.FindAsync(uUserId)) is not null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            await _db.BlockedUsers.AddAsync(new() { Id = userId });
+            await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = 0 });
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -69,6 +76,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             _db.BlockedGuilds.Remove(blockedGuild);
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("unblock-user", "-")]
+        public async Task UnblockUser(string userId)
+        {
+            await DeferAsync();
+
+            bool ok = ulong.TryParse(userId, out var uUserId);
+
+            if (!ok)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var blockedUser = await _db.BlockedUsers.FindAsync(uUserId);
+            if (blockedUser is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            _db.BlockedUsers.Remove(blockedUser);
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -100,25 +133,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
                 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
-        }
-
-        [SlashCommand("unblock-user", "-")]
-        public async Task UnblockUser(string sUserId)
-        {
-            await DeferAsync();
-
-            ulong userId = ulong.Parse(sUserId.Trim());
-            var blockedUser = await _db.BlockedUsers.FindAsync(userId);
-            if (blockedUser is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red));
-                return;
-            }
-
-            _db.BlockedUsers.Remove(blockedUser);
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("leave-all-servers", "-")]
