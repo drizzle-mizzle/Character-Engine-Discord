@@ -65,13 +65,17 @@ namespace CharacterEngineDiscord.Services
 
         private async Task RunJobs()
         {
-            await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen);
+            while (true)
+            {
+                await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen);
 
-            var db = new StorageContext();
-            var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) < DateTime.UtcNow));
-            db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+                var db = new StorageContext();
+                var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
+                db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+                await db.SaveChangesAsync();
 
-            await Task.Delay(3_600_000); // 1 hour
+                await Task.Delay(3_600_000); // 1 hour
+            }
         }
 
         private async Task OnGuildJoinAsync(SocketGuild guild)
