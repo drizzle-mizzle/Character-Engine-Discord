@@ -117,18 +117,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string title = character.Title ?? "No title";
+            string? title = character.Title;
+            if (string.IsNullOrWhiteSpace(title)) title = "No title";
             title = (title.Length > 800 ? title[0..800] + "[...]" : title).Replace("\n\n", "\n");
-            if (!string.IsNullOrWhiteSpace(title)) title = $"*\"{title}\"*";
-
             title = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
-                    $"Webhook ID: *`{characterWebhook.Id}`*\n\n{title}";
+                    $"Webhook ID: *`{characterWebhook.Id}`*\n\n\"{title}\"";
             
-            string desc = character.Description ?? "No description";
-            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
-            if (!string.IsNullOrWhiteSpace(desc)) desc = $"\n\n{desc}\n\n";
+            string? desc = character.Description;
+            if (string.IsNullOrWhiteSpace(desc)) desc = "No description";
 
-            desc = $"{desc}*Original link: {link}\n" +
+            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
+            desc = $"\n\n{desc}\n\n*Original link: {link}\n" +
                    $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **{character.Name}**").WithColor(Color.Gold);
