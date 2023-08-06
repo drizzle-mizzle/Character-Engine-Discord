@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CharacterEngineDiscord.Migrations
 {
     /// <inheritdoc />
-    public partial class smthng : Migration
+    public partial class Smthng : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

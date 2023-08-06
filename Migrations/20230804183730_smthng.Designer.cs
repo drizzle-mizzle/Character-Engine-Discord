@@ -12,7 +12,7 @@ namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
     [Migration("20230804183730_smthng")]
-    partial class smthng
+    partial class Smthng
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

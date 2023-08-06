@@ -173,7 +173,10 @@ namespace CharacterEngineDiscord.Handlers
                 });
             }
 
-            var newCharacterMessage = _integration.AvailableCharacterResponses[characterWebhookId].ElementAt(characterWebhook.CurrentSwipeIndex);
+            AvailableCharacterResponse newCharacterMessage;
+            try { newCharacterMessage = _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex]; }
+            catch { return; }
+
             characterWebhook.LastCharacterMsgUuId = newCharacterMessage.MessageUuId;
 
             // Add image or/and quote to the message
@@ -187,7 +190,7 @@ namespace CharacterEngineDiscord.Handlers
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
             // Add text to message
-            string responseText = newCharacterMessage.Text;
+            string responseText = newCharacterMessage.Text ?? " ";
             if (responseText.Length > 2000)
                 responseText = responseText[0..1994] + "[...]";
 

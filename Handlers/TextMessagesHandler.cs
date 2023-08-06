@@ -105,8 +105,8 @@ namespace CharacterEngineDiscord.Handlers
             if (!canProceed) return;
 
             // Reformat message
-            string text = userMessage.Content.RemovePrefix(characterWebhook.CallPrefix);
-            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}").Replace("{{msg}}", $"{text}");
+            string text = userMessage.Content ?? "";
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}").Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}");
 
             if (text.Contains("{{ref_msg_text}}"))
             {
@@ -142,7 +142,7 @@ namespace CharacterEngineDiscord.Handlers
             _integration.AvailableCharacterResponses[characterWebhookId].Add(new()
             {
                 Text = characterResponse.Text,
-                MessageUuId = characterResponse.CharacterMessageUuid!,
+                MessageUuId = characterResponse.CharacterMessageUuid,
                 ImageUrl = characterResponse.ImageRelPath
             });
 
@@ -170,7 +170,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Fill embeds
             List<Embed>? embeds = new();
-            if (characterWebhook.ReferencesEnabled)
+            if (characterWebhook.ReferencesEnabled && userMessage.Content is not null)
             {
                 int l = Math.Min(userMessage.Content.Length, 40);
                 embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 40 ? "..." : "")}").Build());
@@ -195,7 +195,10 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook.SwipesEnabled)
             {
                 var message = await userMessage.Channel.GetMessageAsync(messageId);
-                var removeArrowButtonsAction = new Action(async () => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+                if (message is null) return;
+
+                var removeArrowButtonsAction = new Action(async ()
+                    => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
 
                 await AddArrowButtonsAsync(message, userMessage.Channel, removeArrowButtonsAction);
             }
