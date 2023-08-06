@@ -198,7 +198,7 @@ namespace CharacterEngineDiscord.Handlers
                     var removeArrowButtonsAction = new Action(async ()
                         => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
 
-                    await AddArrowButtonsAsync(message, userMessage.Channel, removeArrowButtonsAction);
+                    await AddArrowButtonsAsync(message, removeArrowButtonsAction);
                 }
                 catch
                 {
@@ -313,26 +313,26 @@ namespace CharacterEngineDiscord.Handlers
             // Add some random character
             if (channel.RandomReplyChance > chance)
             {
-                var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
-                if (randomCharacters.Count > 0)
+                var randomCharacters1 = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
+                if (randomCharacters1.Count > 0)
                 {
-                    var rc = randomCharacters[@Random.Next(randomCharacters.Count)];
+                    var rc = randomCharacters1[@Random.Next(randomCharacters1.Count)];
                     if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
                 }
             }
 
             // Add certain random characters
-            var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
-            if (randomCharacters.Count > 0)
+            var randomCharacters2 = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
+            if (randomCharacters2.Count > 0)
             {
-                foreach (var rc in randomCharacters)
+                foreach (var rc in randomCharacters2)
                     if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
             }
 
             return characterWebhooks;
         }
 
-        private static async Task AddArrowButtonsAsync(IMessage message, ISocketMessageChannel channel, Action removeReactions)
+        private static async Task AddArrowButtonsAsync(IMessage message, Action removeReactions)
         {
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
