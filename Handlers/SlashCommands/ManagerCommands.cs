@@ -242,7 +242,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id);
 
             ulong uUserId;
             if (user is null)
@@ -266,7 +266,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            guild.BlockedUsers.Add(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours });
+            _db.BlockedUsers.Add(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours, GuildId = guild.Id });
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -299,7 +299,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 uUserId = user!.Id;
             }
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id);
 
             var blockedUser = guild.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId);
             if (blockedUser is null)
@@ -308,7 +308,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            guild.BlockedUsers.Remove(blockedUser);
+            _db.BlockedUsers.Remove(blockedUser);
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
