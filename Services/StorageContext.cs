@@ -91,7 +91,7 @@ namespace CharacterEngineDiscord.Services
             return channel;
         }
 
-        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext? db = null)
+        protected internal static async Task<Character> UpdateOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext? db = null)
         {
             db ??= new StorageContext();
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
@@ -99,10 +99,14 @@ namespace CharacterEngineDiscord.Services
             if (character is null)
             {
                 character = db.Characters.Add(notSavedCharacter).Entity;
-                await db.SaveChangesAsync();
-                return await FindOrStartTrackingCharacterAsync(character, db);
+            }
+            else
+            {
+                db.Characters.Remove(character);
+                character = db.Characters.Add(notSavedCharacter).Entity;
             }
 
+            await db.SaveChangesAsync();
             return character;
         }
     }
