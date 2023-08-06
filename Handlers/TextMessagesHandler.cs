@@ -295,9 +295,11 @@ namespace CharacterEngineDiscord.Handlers
             if (channel.RandomReplyChance > chance)
             {
                 var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
-                var rw = randomCharacters[@Random.Next(randomCharacters.Count)];
-
-                if (!characterWebhooks.Contains(rw)) characterWebhooks.Add(rw);
+                if (randomCharacters.Count > 0)
+                {
+                    var rw = randomCharacters[@Random.Next(randomCharacters.Count)];
+                    if (!characterWebhooks.Contains(rw)) characterWebhooks.Add(rw);
+                }
             }
 
             return characterWebhooks;
