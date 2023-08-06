@@ -76,5 +76,6 @@ namespace CharacterEngineDiscord.Services
 
             return text;
         }
+
     }
 }

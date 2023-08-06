@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using CharacterEngineDiscord.Services;
+using System.Data.SqlTypes;
 
 namespace CharacterEngineDiscord.Models.Common
 {
@@ -28,6 +29,8 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField DefaultOpenAiApiEndpoint { get; } = new("open_ai_default_api_endpoint");
         public static ConfigField DefaultOpenAiApiToken { get; } = new("open_ai_default_api_token");
         public static ConfigField DefaultOpenAiModel { get; } = new("open_ai_default_model");
+
+        public static ConfigField DefaultJailbreakPrompt { get; } = new("default_jailbreak_prompt");
 
         private static JObject ConfigParsed { get; } = CommonService.TryToParseConfigFile();
 

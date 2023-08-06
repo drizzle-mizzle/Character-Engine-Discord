@@ -80,6 +80,12 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            {
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
             string? newJailbreakPrompt = modal.Data.Components.FirstOrDefault(c => c.CustomId == "new-prompt")?.Value;
             if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
 

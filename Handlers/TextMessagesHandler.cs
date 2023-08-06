@@ -187,20 +187,23 @@ namespace CharacterEngineDiscord.Handlers
 
             await db.SaveChangesAsync();
 
-            if (userMessage.Author.IsWebhook || userMessage.Author.IsBot)
-            {
-                return;
-            }
             // Add swipe buttons
-            if (characterWebhook.SwipesEnabled)
+            if (!(userMessage.Author.IsWebhook || userMessage.Author.IsBot) && characterWebhook.SwipesEnabled)
             {
-                var message = await userMessage.Channel.GetMessageAsync(messageId);
-                if (message is null) return;
+                try
+                {
+                    var message = await userMessage.Channel.GetMessageAsync(messageId);
+                    if (message is null) return;
 
-                var removeArrowButtonsAction = new Action(async ()
-                    => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+                    var removeArrowButtonsAction = new Action(async ()
+                        => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
 
-                await AddArrowButtonsAsync(message, userMessage.Channel, removeArrowButtonsAction);
+                    await AddArrowButtonsAsync(message, userMessage.Channel, removeArrowButtonsAction);
+                }
+                catch
+                {
+                    await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update swipes enable:false` command.".ToInlineEmbed(Color.Red));
+                }
             }
         }
 
@@ -299,8 +302,9 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Add characters who hunt the user
-            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.Id == userMessage.Author.Id && h.Chance > chance)).ToList();            
-            if (hunters is not null && hunters.Count > 0)
+            bool messageIsFromCharacterToUser = userMessage.Author.IsWebhook && userMessage.Content.StartsWith("<");
+            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.Id == userMessage.Author.Id && h.Chance > chance)).ToList();
+            if (hunters is not null && hunters.Count > 0 && !messageIsFromCharacterToUser)
             {
                 foreach (var h in hunters)
                     if (!characterWebhooks.Contains(h)) characterWebhooks.Add(h);
@@ -312,9 +316,17 @@ namespace CharacterEngineDiscord.Handlers
                 var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
                 if (randomCharacters.Count > 0)
                 {
-                    var rw = randomCharacters[@Random.Next(randomCharacters.Count)];
-                    if (!characterWebhooks.Contains(rw)) characterWebhooks.Add(rw);
+                    var rc = randomCharacters[@Random.Next(randomCharacters.Count)];
+                    if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
                 }
+            }
+
+            // Add certain random characters
+            var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
+            if (randomCharacters.Count > 0)
+            {
+                foreach (var rc in randomCharacters)
+                    if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
             }
 
             return characterWebhooks;
@@ -322,16 +334,9 @@ namespace CharacterEngineDiscord.Handlers
 
         private static async Task AddArrowButtonsAsync(IMessage message, ISocketMessageChannel channel, Action removeReactions)
         {
-            try
-            {
-                await message.AddReactionAsync(ARROW_LEFT);
-                await message.AddReactionAsync(ARROW_RIGHT);
-                _ = Task.Run(removeReactions);
-            }
-            catch
-            {
-                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update swipes enable:false` command.".ToInlineEmbed(Color.Red));
-            }
+            await message.AddReactionAsync(ARROW_LEFT);
+            await message.AddReactionAsync(ARROW_RIGHT);
+            _ = Task.Run(removeReactions);
         }
 
         private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)

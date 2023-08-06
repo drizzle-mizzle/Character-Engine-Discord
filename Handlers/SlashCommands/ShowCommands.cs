@@ -120,7 +120,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string? title = character.Title;
             if (string.IsNullOrWhiteSpace(title)) title = "No title";
             title = (title.Length > 800 ? title[0..800] + "[...]" : title).Replace("\n\n", "\n");
-            title = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
+            title = $"Swipes enabled: {characterWebhook.SwipesEnabled}\n" +
+                    $"ResponseDelay: {characterWebhook.ResponseDelay}s\n" +
+                    $"Reply chance: {characterWebhook.ReplyChance}\n" +
+                    $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
                     $"Webhook ID: *`{characterWebhook.Id}`*\n\n\"{title}\"";
             
             string? desc = character.Description;

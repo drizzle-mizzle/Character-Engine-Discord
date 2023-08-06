@@ -243,6 +243,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("random-response-chance", "Set random replies chance")]
+        public async Task RandomResponseChance(string webhookIdOrPrefix, float chance)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.OpenAiTemperature = chance;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
         [SlashCommand("presence-penalty", "Set responses presence penalty")]
         public async Task PresPenalty(string webhookIdOrPrefix, float presencePenalty)
         {
