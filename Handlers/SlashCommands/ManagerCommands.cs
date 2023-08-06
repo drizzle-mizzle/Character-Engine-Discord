@@ -232,17 +232,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("block-user", "Make characters ignore certain user.")]
-        public async Task BlockUser(string userId, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
+        public async Task BlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
         {
             await DeferAsync();
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-            bool ok = ulong.TryParse(userId, out var uUserId);
-
-            if (!ok)
+            if (user is null && userId is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user or user-ID".ToInlineEmbed(Color.Red));
                 return;
+            }
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
+            ulong uUserId;
+            if (userId is null)
+            {
+                bool ok = ulong.TryParse(userId, out uUserId);
+
+                if (!ok)
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                    return;
+                }
+            }
+            else
+            {
+                uUserId = user!.Id;
             }
 
             if (guild.BlockedUsers.Any(bu => bu.Id == uUserId))
@@ -258,18 +273,33 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("unblock-user", "---")]
-        public async Task UnblockUser(string userId)
+        public async Task UnblockUser(IUser? user = null, string? userId = null)
         {
             await DeferAsync();
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-            bool ok = ulong.TryParse(userId, out var uUserId);
-
-            if (!ok)
+            if (user is null && userId is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user or user-ID".ToInlineEmbed(Color.Red));
                 return;
             }
+
+            ulong uUserId;
+            if (userId is null)
+            {
+                bool ok = ulong.TryParse(userId, out uUserId);
+
+                if (!ok)
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user ID".ToInlineEmbed(Color.Red));
+                    return;
+                }
+            }
+            else
+            {
+                uUserId = user!.Id;
+            }
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
             var blockedUser = guild.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId);
             if (blockedUser is null)
