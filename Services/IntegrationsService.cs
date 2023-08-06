@@ -107,7 +107,7 @@ namespace CharacterEngineDiscord.Services
             return new(response);
         }
 
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, string? openAiToken = null)
+        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool removeLastMessage = false)
         {
             string jailbreakPrompt = $"{characterWebhook.UniversalJailbreakPrompt}.  " +
                                      $"{{{{char}}}}'s name: {characterWebhook.Character.Name}.  " +
@@ -137,6 +137,10 @@ namespace CharacterEngineDiscord.Services
                 currentAmountOfTokens += tokensInThisMessage;
             }
 
+            // Needed for "swipe"
+            if (removeLastMessage)
+                oldMessages.RemoveAt(0);
+
             oldMessages.Reverse(); // restore natural order
             messages.AddRange(oldMessages); // add history message to the payload
 
@@ -144,7 +148,7 @@ namespace CharacterEngineDiscord.Services
             var openAiParams = new OpenAiChatRequestParams()
             {
                 ApiEndpoint = characterWebhook.PersonalOpenAiApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value!,
-                ApiToken = openAiToken ?? characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
+                ApiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
                 UniversalJailbreakPrompt = jailbreakPrompt,
                 Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
                 FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.9f,

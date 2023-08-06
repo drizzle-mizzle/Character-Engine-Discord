@@ -170,7 +170,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
             {
                 var message = characterWebhook.OpenAiHistoryMessages[i];
-                int l = Math.Min(message.Content.Length, 200);
+                int l = Math.Min(message.Content.Length - 1, 200);
                 chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l].Replace("\n", "  ")}{(l == 200 ? "..." : "")}*\n");
             }
             chunks.Reverse();

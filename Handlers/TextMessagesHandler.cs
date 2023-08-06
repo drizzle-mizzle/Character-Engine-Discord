@@ -118,19 +118,19 @@ namespace CharacterEngineDiscord.Handlers
                 else
                 {
                     string refText = userMessage.ReferencedMessage.Content;
-                    int refL = Math.Min(refText.Length, 500);
+                    int refL = Math.Min(refText.Length, 350);
 
-                    text = text.Replace("{{ref_msg_text}}", refText[0..refL]).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+                    text = text.Replace("{{ref_msg_text}}", refText[0..refL] + (refL == 350 ? "..." : "")).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
                 }
             }
 
             // Get character response
             CharacterResponse? characterResponse = null;
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                characterResponse = await CallOpenAiCharacterAsync(characterWebhook, userMessage, text);
+                characterResponse = await CallOpenAiCharacterAsync(characterWebhookId, userMessage, text);
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await CallCaiCharacterAsync(characterWebhook, userMessage, text);
-                
+                characterResponse = await CallCaiCharacterAsync(characterWebhookId, userMessage, text);
+
             if (characterResponse is null) return;
 
             // Ensure webhook is being tracked
@@ -146,6 +146,7 @@ namespace CharacterEngineDiscord.Handlers
                 ImageUrl = characterResponse.ImageRelPath
             });
 
+            await db.Entry(characterWebhook).ReloadAsync();
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
             characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
@@ -171,8 +172,8 @@ namespace CharacterEngineDiscord.Handlers
             List<Embed>? embeds = new();
             if (characterWebhook.ReferencesEnabled)
             {
-                int l = userMessage.Content.Length > 30 ? 30 : userMessage.Content.Length;
-                embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 30 ? "..." : "")}").Build());
+                int l = Math.Min(userMessage.Content.Length - 1, 40);
+                embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 40 ? "..." : "")}").Build());
             }
             if (characterResponse.ImageRelPath is not null)
             {
@@ -200,8 +201,12 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
+        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(ulong cwId, SocketUserMessage userMessage, string text)
         {
+            var db = new StorageContext();
+            var cw = await db.CharacterWebhooks.FindAsync(cwId);
+            if (cw is null) return null;
+
             cw.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
 
             var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
@@ -210,6 +215,7 @@ namespace CharacterEngineDiscord.Handlers
             if (openAiResponse.IsFailure)
             {
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
+                await db.SaveChangesAsync();
                 return null;
             }
 
@@ -221,6 +227,8 @@ namespace CharacterEngineDiscord.Handlers
             if (cw.OpenAiHistoryMessages.Count > 60)
                 cw.OpenAiHistoryMessages.RemoveRange(0, 20);
 
+            await db.SaveChangesAsync();
+
             return new()
             {
                 Text = openAiResponse.Message!,
@@ -230,8 +238,12 @@ namespace CharacterEngineDiscord.Handlers
             };
         }
 
-        private async Task<CharacterResponse?> CallCaiCharacterAsync(CharacterWebhook cw, SocketUserMessage userMessage, string text)
+        private async Task<CharacterResponse?> CallCaiCharacterAsync(ulong cwId, SocketUserMessage userMessage, string text)
         {
+            var db = new StorageContext();
+            var cw = await db.CharacterWebhooks.FindAsync(cwId);
+            if (cw is null) return null;
+
             var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var caiResponse = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.CaiActiveHistoryId!, text, primaryMsgUuId: cw.LastCharacterMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);

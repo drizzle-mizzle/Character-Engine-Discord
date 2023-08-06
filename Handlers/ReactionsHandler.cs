@@ -212,7 +212,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private static async Task<Models.Common.CharacterResponse> SwipeOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client)
         {
-            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook);
+            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: true);
             var openAiResponse = await CallChatOpenAiAsync(openAiParams, client);
 
             if (openAiResponse.IsFailure)
