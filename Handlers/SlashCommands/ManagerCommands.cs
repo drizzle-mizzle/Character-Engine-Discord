@@ -245,7 +245,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
             ulong uUserId;
-            if (userId is null)
+            if (user is null)
             {
                 bool ok = ulong.TryParse(userId, out uUserId);
 
@@ -284,7 +284,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             ulong uUserId;
-            if (userId is null)
+            if (user is null)
             {
                 bool ok = ulong.TryParse(userId, out uUserId);
 
