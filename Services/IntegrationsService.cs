@@ -166,24 +166,25 @@ namespace CharacterEngineDiscord.Services
         /// </summary>
         internal async Task RemoveButtonsAsync(IMessage message, IUser currentUser, int delay)
         {
-            // Add request to the end of the line
-            RemoveEmojiRequestQueue.Add(message.Id, delay);
-
-            // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
-            while (RemoveEmojiRequestQueue[message.Id] > 0)
-            {
-                await Task.Delay(1000);
-                RemoveEmojiRequestQueue[message.Id]--; // value contains the time that left before removing
-            }
-
-            // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
-            while (RemoveEmojiRequestQueue.First().Key != message.Id)
-            {
-                await Task.Delay(100);
-            }
-
             try
-            {  // May fail because of the missing permissions or some connection problems 
+            {
+                // Add request to the end of the line
+                RemoveEmojiRequestQueue.Add(message.Id, delay);
+
+                // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
+                while (RemoveEmojiRequestQueue[message.Id] > 0)
+                {
+                    await Task.Delay(1000);
+                    RemoveEmojiRequestQueue[message.Id]--; // value contains the time that left before removing
+                }
+
+                // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
+                while (RemoveEmojiRequestQueue.First().Key != message.Id)
+                {
+                    await Task.Delay(100);
+                }
+
+                // May fail because of the missing permissions or some connection problems 
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, STOP_BTN };
                 foreach (var btn in btns)
                     await message.RemoveReactionAsync(btn, currentUser);
