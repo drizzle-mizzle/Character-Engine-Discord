@@ -1,7 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-namespace CharacterEngineDiscord.Models.Database
+﻿namespace CharacterEngineDiscord.Models.Database
 {
     public class HuntedUser
     {
