@@ -1,7 +1,11 @@
-﻿namespace CharacterEngineDiscord.Models.Database
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace CharacterEngineDiscord.Models.Database
 {
     public class HuntedUser
     {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
         public required ulong UserId { get; set; }
         public required float Chance { get; set; }
