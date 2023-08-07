@@ -415,7 +415,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            await webhookClient.SendMessageAsync(characterWebhook.Character.Greeting);
+            await webhookClient.SendMessageAsync(text: characterWebhook.Character.Greeting ?? Context.User.Mention);
         }
 
         private async Task HuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix, float chanceOfResponse)
