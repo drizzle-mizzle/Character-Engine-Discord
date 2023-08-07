@@ -1,6 +1,4 @@
-﻿using Discord.Interactions;
-
-namespace CharacterEngineDiscord.Models.Database
+﻿namespace CharacterEngineDiscord.Models.Database
 {
     public class Character
     {

@@ -39,7 +39,8 @@ namespace CharacterEngineDiscord.Handlers
                                                                       $"```cs\n" +
                                                                       $"{e}\n" +
                                                                       $"```",
-                                                                color: Color.Red);
+                                                                color: Color.Red,
+                                                                error: true);
                     }
                 });
                 return Task.CompletedTask;
@@ -61,7 +62,8 @@ namespace CharacterEngineDiscord.Handlers
                                                                       $"```cs\n" +
                                                                       $"{e}\n" +
                                                                       $"```",
-                                                                color: Color.Red);
+                                                                color: Color.Red,
+                                                                error: true);
                     }
                 });
                 return Task.CompletedTask;

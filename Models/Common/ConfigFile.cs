@@ -16,6 +16,7 @@ namespace CharacterEngineDiscord.Models.Common
 
         public static ConfigField HosterDiscordID { get; } = new("hoster_discord_id");
         public static ConfigField DiscordLogsChannelID { get; } = new("discord_logs_channel_id");
+        public static ConfigField DiscordErrorLogsChannelID { get; } = new("discord_error_logs_channel_id");
         public static ConfigField RateLimit { get; } = new("rate_limit");
         public static ConfigField MaxCharactersPerChannel { get; } = new("max_characters_per_channel");
 

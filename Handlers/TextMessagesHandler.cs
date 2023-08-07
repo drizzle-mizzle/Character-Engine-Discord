@@ -10,9 +10,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using Discord.Interactions;
-using System.Configuration;
-using System.Threading.Channels;
+using System.Text.RegularExpressions;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -44,7 +42,8 @@ namespace CharacterEngineDiscord.Handlers
                                                                       $"```cs\n" +
                                                                       $"{e}\n" +
                                                                       $"```",
-                                                                color: Color.Red);
+                                                                color: Color.Red,
+                                                                error: true);
                     }
                 });
                 return Task.CompletedTask;
@@ -106,7 +105,10 @@ namespace CharacterEngineDiscord.Handlers
 
             // Reformat message
             string text = userMessage.Content ?? "";
-            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}").Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}");
+            if (text.StartsWith("<")) text = new Regex("\\<(.*?)\\>").Replace(text, "", 1);
+            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}")
+                                                  .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
+                                                  .Replace("\\n", "\n");
 
             if (text.Contains("{{ref_msg_text}}"))
             {
@@ -216,10 +218,19 @@ namespace CharacterEngineDiscord.Handlers
             cw.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
 
             var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
+            if (openAiRequestParams.Messages.Count < 2)
+            {
+                cw.OpenAiHistoryMessages.RemoveAt(cw.OpenAiHistoryMessages.Count - 1);
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`".ToInlineEmbed(Color.Red));
+                await db.SaveChangesAsync();
+                return null;
+            }
+
             var openAiResponse = await CallChatOpenAiAsync(openAiRequestParams, _integration.HttpClient);
 
             if (openAiResponse.IsFailure)
             {
+                cw.OpenAiHistoryMessages.RemoveAt(cw.OpenAiHistoryMessages.Count - 1);
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
                 await db.SaveChangesAsync();
                 return null;

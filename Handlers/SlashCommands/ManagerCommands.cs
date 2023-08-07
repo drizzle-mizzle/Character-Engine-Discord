@@ -106,7 +106,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (refCount == 3)
             {
-                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "").Replace("{{ref_msg_user}}", "Dude");
+                text = text.Replace("{{ref_msg_text}}", "Hola")
+                           .Replace("{{ref_msg_begin}}", "")
+                           .Replace("{{ref_msg_end}}", "")
+                           .Replace("{{ref_msg_user}}", "Dude")
+                           .Replace("\\n", "\n");
             }
 
             var embed = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Green)
@@ -467,7 +471,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;
-            await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** hunting **{username}**".ToInlineEmbed(Color.LighterGrey));
+            await FollowupAsync(embed: $":ghost: {characterWebhook.Character.Name}** hunting **{username}".ToInlineEmbed(Color.LighterGrey));
         }
 
         private async Task UnhuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix)
@@ -519,7 +523,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;
-            await FollowupAsync(embed: $":ghost: **{username}** is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
+            await FollowupAsync(embed: $":ghost: {username}** is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
         }
 
     }

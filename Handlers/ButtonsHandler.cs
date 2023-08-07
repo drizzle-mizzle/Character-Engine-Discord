@@ -8,7 +8,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using Polly;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -40,7 +39,8 @@ namespace CharacterEngineDiscord.Handlers
                                                                       $"```cs\n" +
                                                                       $"{e}\n" +
                                                                       $"```",
-                                                                color: Color.Red);
+                                                                color: Color.Red,
+                                                                error: true);
                     }
                 });
                 return Task.CompletedTask;

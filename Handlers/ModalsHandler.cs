@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord.Webhook;
-using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -41,7 +40,8 @@ namespace CharacterEngineDiscord.Handlers
                                                                       $"```cs\n" +
                                                                       $"{e}\n" +
                                                                       $"```",
-                                                                color: Color.Red);
+                                                                color: Color.Red,
+                                                                error: true);
                     }
                 });
                 return Task.CompletedTask;

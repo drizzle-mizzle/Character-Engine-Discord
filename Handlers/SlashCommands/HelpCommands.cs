@@ -1,8 +1,5 @@
-﻿using CharacterEngineDiscord.Services;
-using Discord;
+﻿using Discord;
 using Discord.Interactions;
-using Microsoft.Extensions.DependencyInjection;
-using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {

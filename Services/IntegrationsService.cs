@@ -15,9 +15,6 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
-using System.ComponentModel;
-using Polly;
-using System.Security.Cryptography;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -118,7 +115,7 @@ namespace CharacterEngineDiscord.Services
             var messages = new List<OpenAiMessage> { new("system", jailbreakPrompt) };
             
             // Count~ tokens
-            float currentAmountOfTokens = jailbreakPrompt.Length / 3.8f;
+            float currentAmountOfTokens = jailbreakPrompt.Length / 3.6f;
 
             // Create a separate list and fill it with the dialog history in reverse order.
             // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
@@ -126,7 +123,7 @@ namespace CharacterEngineDiscord.Services
             for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
             {
                 string msgContent = characterWebhook.OpenAiHistoryMessages[i].Content;
-                float tokensInThisMessage = msgContent.Length / 3.8f;
+                float tokensInThisMessage = msgContent.Length / 3.6f;
                 if ((currentAmountOfTokens + tokensInThisMessage) > 3600f) break;
 
                 // Build history message
@@ -463,7 +460,8 @@ namespace CharacterEngineDiscord.Services
 
                 await TryToReportInLogsChannel(context.Client, title: $":eyes: Notification",
                                                                desc: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
-                                                               color: Color.LightOrange);
+                                                               color: Color.LightOrange,
+                                                               error: false);
 
                 await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {context.User.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
                 return true;
@@ -506,7 +504,8 @@ namespace CharacterEngineDiscord.Services
                 var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
                 await TryToReportInLogsChannel(client, title: $":eyes: Notification",
                                                         desc: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
-                                                        color: Color.LightOrange);
+                                                        color: Color.LightOrange,
+                                                        error: false);
 
                 await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
                 return true;

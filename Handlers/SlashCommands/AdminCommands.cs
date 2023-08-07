@@ -5,8 +5,6 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-using PuppeteerSharp;
-using System.Collections;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {

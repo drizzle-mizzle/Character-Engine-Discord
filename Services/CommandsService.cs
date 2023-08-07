@@ -168,14 +168,17 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
-        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string desc, Color color)
+        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string desc, Color color, bool error)
         {
-            if (ConfigFile.DiscordLogsChannelID.Value.IsEmpty()) return;
+            string? channelId = null;
+            if (error) channelId = ConfigFile.DiscordErrorLogsChannelID.Value;
+            if (channelId.IsEmpty()) channelId = ConfigFile.DiscordLogsChannelID.Value;
+            if (channelId.IsEmpty()) return;
 
             try
             {
-                ulong channelId = ulong.Parse(ConfigFile.DiscordLogsChannelID.Value!);
-                if (await client.GetChannelAsync(channelId) is not SocketTextChannel channel) return;
+                ulong uChannelId = ulong.Parse(channelId!);
+                if (await client.GetChannelAsync(uChannelId) is not SocketTextChannel channel) return;
 
                 var embed = new EmbedBuilder().WithTitle(title).WithDescription(desc).WithColor(color).Build();
                 await channel.SendMessageAsync(embed: embed);

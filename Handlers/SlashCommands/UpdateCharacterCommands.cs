@@ -4,10 +4,8 @@ using Discord.Interactions;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-using Microsoft.VisualBasic;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -395,7 +393,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("[Example]", $"User message: *`Hello!`*\n" +
                                                                  $"User nickname: `Average AI Enjoyer`\n" +
                                                                  $"Referenced message: *`Hola`* from user *`Dude`*\n" +
-                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_user}}", "Dude")}`*")
+                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_user}}", "Dude").Replace("\\n", "\n")}`*")
                                           .WithColor(Color.Green)
                                           .Build();
 

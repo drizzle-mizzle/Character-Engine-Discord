@@ -1,16 +1,10 @@
 ﻿using Discord.Interactions;
-using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using Microsoft.Extensions.DependencyInjection;
 using Discord;
-using CharacterEngineDiscord.Models.Database;
-using Microsoft.SqlServer.Server;
-using System.Diagnostics;
-using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -229,7 +223,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (text.Contains("{{ref_msg_text}}"))
             {
-                text = text.Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "").Replace("{{ref_msg_user}}", "Dude");
+                text = text.Replace("{{ref_msg_text}}", "Hola")
+                           .Replace("{{ref_msg_begin}}", "")
+                           .Replace("{{ref_msg_end}}", "")
+                           .Replace("{{ref_msg_user}}", "Dude")
+                           .Replace("\\n", "\n");
             }
 
             var embed = new EmbedBuilder().WithTitle($"{title}")
