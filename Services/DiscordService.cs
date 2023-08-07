@@ -140,7 +140,7 @@ namespace CharacterEngineDiscord.Services
             try {
                 await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
                 foreach (var guild in _client.Guilds)
-                    await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+                    try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); } catch { continue; }
 
                 await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", Color.Green, error: false);
             }

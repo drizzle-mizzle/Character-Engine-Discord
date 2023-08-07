@@ -305,7 +305,7 @@ namespace CharacterEngineDiscord.Services
                 }
 
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
-                var characterWebhook = db.CharacterWebhooks.Add(new CharacterWebhook()
+                var characterWebhook = (await db.CharacterWebhooks.AddAsync(new CharacterWebhook()
                 {
                     Id = channelWebhook.Id,
                     WebhookToken = channelWebhook.Token,
@@ -326,7 +326,7 @@ namespace CharacterEngineDiscord.Services
                     CharacterId = character.Id,
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,
-                }).Entity;
+                })).Entity;
 
                 if (type is not IntegrationType.CharacterAI)
                     db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = character.Greeting, Role = "assistant" });

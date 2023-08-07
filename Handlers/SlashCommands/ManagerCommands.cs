@@ -270,7 +270,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            _db.BlockedUsers.Add(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours, GuildId = guild.Id });
+            await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours, GuildId = guild.Id });
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -402,7 +402,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             else
             {
                 characterWebhook.OpenAiHistoryMessages.Clear();
-                _db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+                await _db.OpenAiHistoryMessages.AddAsync(new() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
             }
 
             await _db.SaveChangesAsync();
@@ -467,7 +467,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            _db.HuntedUsers.Add(new() { Id = _db.HuntedUsers.Count() + 1, UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
+            await _db.HuntedUsers.AddAsync(new() { UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;

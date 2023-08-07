@@ -98,7 +98,7 @@ namespace CharacterEngineDiscord.Services
 
             if (character is null)
             {
-                character = db.Characters.Add(notSavedCharacter).Entity;
+                character = (await db.Characters.AddAsync(notSavedCharacter)).Entity;
                 await db.SaveChangesAsync();
             }
             else

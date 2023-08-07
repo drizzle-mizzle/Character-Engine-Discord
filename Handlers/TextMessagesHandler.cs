@@ -158,7 +158,13 @@ namespace CharacterEngineDiscord.Handlers
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
             if (webhookClient is null)
             {
-                webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
+                catch (Exception e)
+                {
+                    await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
+                    return;
+                }
+                finally { await db.SaveChangesAsync(); }
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
@@ -195,10 +201,7 @@ namespace CharacterEngineDiscord.Handlers
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
                 return;
             }
-            finally
-            {
-                await db.SaveChangesAsync();
-            }
+            finally { await db.SaveChangesAsync(); }
 
             // Add swipe buttons
             if (!(userMessage.Author.IsWebhook || userMessage.Author.IsBot) && characterWebhook.SwipesEnabled)
