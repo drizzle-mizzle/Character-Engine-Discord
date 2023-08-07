@@ -467,7 +467,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            _db.HuntedUsers.Add(new() { UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
+            _db.HuntedUsers.Add(new() { Id = _db.HuntedUsers.Count() + 1, UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;

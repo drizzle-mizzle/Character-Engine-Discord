@@ -164,7 +164,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Reformat message
             string characterMessage = characterResponse.Text.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{userName}**");
-            characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**" : userMessage.Author.Mention)}, {characterMessage}";
+            characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**," : userMessage.Author.Mention)} {characterMessage}";
 
             // Cut if too long
             if (characterMessage.Length > 2000)
@@ -239,10 +239,10 @@ namespace CharacterEngineDiscord.Handlers
 
             var openAiResponse = await CallChatOpenAiAsync(openAiRequestParams, _integration.HttpClient);
 
-            if (openAiResponse.IsFailure)
+            if (openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
                 cw.OpenAiHistoryMessages.RemoveAt(cw.OpenAiHistoryMessages.Count - 1);
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason}`".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason ?? "Something went wrong..."}`".ToInlineEmbed(Color.Red));
                 await db.SaveChangesAsync();
                 return null;
             }
@@ -358,7 +358,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
-            await Task.Run(removeReactions);
+            _ = Task.Run(removeReactions);
         }
 
         private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)
