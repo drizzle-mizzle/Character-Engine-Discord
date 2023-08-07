@@ -184,10 +184,21 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Send message
-            var messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
-            characterWebhook.LastCharacterDiscordMsgId = messageId;
-
-            await db.SaveChangesAsync();
+            ulong messageId;
+            try
+            {
+                messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
+                characterWebhook.LastCharacterDiscordMsgId = messageId;
+            }
+            catch (Exception e)
+            {
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
+                return;
+            }
+            finally
+            {
+                await db.SaveChangesAsync();
+            }
 
             // Add swipe buttons
             if (!(userMessage.Author.IsWebhook || userMessage.Author.IsBot) && characterWebhook.SwipesEnabled)
@@ -347,7 +358,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
-            _ = Task.Run(removeReactions);
+            await Task.Run(removeReactions);
         }
 
         private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)
