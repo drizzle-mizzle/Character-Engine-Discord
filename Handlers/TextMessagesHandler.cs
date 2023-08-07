@@ -325,7 +325,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Add characters who hunt the user
             bool messageIsFromCharacterToUser = userMessage.Author.IsWebhook && userMessage.Content.StartsWith("<");
-            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.Id == userMessage.Author.Id && h.Chance > chance)).ToList();
+            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
             if (hunters is not null && hunters.Count > 0 && !messageIsFromCharacterToUser)
             {
                 foreach (var h in hunters)

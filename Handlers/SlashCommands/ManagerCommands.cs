@@ -461,13 +461,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if (characterWebhook.HuntedUsers.Any(h => h.Id == userToHuntId))
+            if (characterWebhook.HuntedUsers.Any(h => h.UserId == userToHuntId))
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already hunted".ToInlineEmbed(Color.Orange));
                 return;
             }
 
-            _db.HuntedUsers.Add(new() { Id = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
+            _db.HuntedUsers.Add(new() { UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;
@@ -511,7 +511,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var huntedUser = characterWebhook.HuntedUsers.FirstOrDefault(h => h.Id == huntedUserId);
+            var huntedUser = characterWebhook.HuntedUsers.FirstOrDefault(h => h.UserId == huntedUserId);
 
             if (huntedUser is null)
             {
