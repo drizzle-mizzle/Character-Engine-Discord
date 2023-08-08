@@ -136,7 +136,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-swipes-remove-delay", "Set time after that swipe reaction buttons will fade away on this server")]
+        [SlashCommand("set-server-swipes-lifespan", "Set time after that swipe reaction buttons will fade away on this server")]
         public async Task SetSwipeRemoveDelay(int seconds)
         {
             await DeferAsync(ephemeral: true);
@@ -235,7 +235,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("block-user", "Make characters ignore certain user on this server.")]
+        [SlashCommand("server-block-user", "Make characters ignore certain user on this server.")]
         public async Task BlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
         {
             await DeferAsync();
@@ -276,7 +276,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("unblock-user", "---")]
+        [SlashCommand("server-unblock-user", "---")]
         public async Task UnblockUser(IUser? user = null, string? userId = null)
         {
             await DeferAsync();

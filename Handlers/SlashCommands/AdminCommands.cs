@@ -35,7 +35,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await BlockGuildAsync(serverId);
         }
 
-        [SlashCommand("block-user", "-")]
+        [SlashCommand("block-user-permanent", "-")]
         public async Task BlockUser(string userId)
         {
             await DeferAsync();
@@ -79,7 +79,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("unblock-user", "-")]
+        [SlashCommand("unblock-user-permanent", "-")]
         public async Task UnblockUser(string userId)
         {
             await DeferAsync();
@@ -171,11 +171,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("ping", "ping")]
-        public async Task Ping()
-        {
-            await RespondAsync(embed: $":ping_pong: Pong! - {_client.Latency} ms".ToInlineEmbed(Color.Red));
-        }
+
 
         ////////////////////
         //// Long stuff ////

@@ -21,13 +21,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
-        [SlashCommand("characters", "Show all characters in this channel")]
+        [SlashCommand("all-characters", "Show all characters in this channel")]
         public async Task ShowCharacters(int page = 1)
         {
             await ShowCharactersAsync(page);
         }
 
-        [SlashCommand("info", "Show info about character")]
+        [SlashCommand("character-info", "Show info about character")]
         public async Task ShowInfo(string webhookIdOrPrefix)
         {
             await ShowInfoAsync(webhookIdOrPrefix);
@@ -55,7 +55,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Current history ID: `{characterWebhook.CaiActiveHistoryId}`".ToInlineEmbed(Color.Green));
         }
 
-        [SlashCommand("history", "Show last 15 messages with a character. Works only with OpenAI.")]
+        [SlashCommand("dialog-history", "Show last 15 messages with a character")]
         public async Task ShowHistory(string webhookIdOrPrefix)
         {
             await ShowHistoryAsync(webhookIdOrPrefix);

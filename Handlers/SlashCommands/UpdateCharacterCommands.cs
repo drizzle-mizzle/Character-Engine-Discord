@@ -24,7 +24,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db = new StorageContext();
         }
 
-        [SlashCommand("call-prefix", "Change character call prefix")]
+        [SlashCommand("set-call-prefix", "Change character call prefix")]
         public async Task CallPrefix(string webhookIdOrPrefix, string newCallPrefix)
         {
             await DeferAsync();
@@ -43,7 +43,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("cai-history-id", "Change c.ai history ID")]
+        [SlashCommand("set-cai-history-id", "Change c.ai history ID")]
         public async Task CaiHistory(string webhookIdOrPrefix, string newHistoryId)
         {
             await DeferAsync();
@@ -72,13 +72,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
         }
 
-        [SlashCommand("api", "Change API backend")]
+        [SlashCommand("set-api", "Change API backend")]
         public async Task ApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
         {
             await UpdateApiAsync(webhookIdOrPrefix, apiType, openAiModel, personalApiToken, personalApiEndpoint);
         }
 
-        [SlashCommand("delay", "Set response delay")]
+        [SlashCommand("set-delay", "Change response delay")]
         public async Task Delay(string webhookIdOrPrefix, int seconds)
         {
             await DeferAsync();
@@ -97,7 +97,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("quotes", "Enable/disable quotes")]
+        [SlashCommand("toggle-quotes", "Enable/disable quotes")]
         public async Task Quotes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
@@ -116,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("swipes", "Enable/disable swipes")]
+        [SlashCommand("toggle-swipes", "Enable/disable swipes")]
         public async Task Swipes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
@@ -135,7 +135,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("avatar", "Set character avatar")]
+        [SlashCommand("set-avatar", "Change character avatar")]
         public async Task Avatar(string webhookIdOrPrefix, string avatarUrl)
         {
             await DeferAsync();
@@ -165,7 +165,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("name", "Set character name")]
+        [SlashCommand("set-name", "Change character name")]
         public async Task CharacterName(string webhookIdOrPrefix, string name)
         {
             await DeferAsync();
@@ -191,7 +191,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("max-tokens", "Change amount of tokens for ChatGPT responses")]
+        [SlashCommand("set-max-tokens", "Change amount of tokens for ChatGPT responses")]
         public async Task MaxTokens(string webhookIdOrPrefix, int tokens)
         {
             await DeferAsync();
@@ -216,7 +216,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("temperature", "Set responses temperature")]
+        [SlashCommand("set-temperature", "Change responses temperature")]
         public async Task Temperature(string webhookIdOrPrefix, float temperature)
         {
             await DeferAsync();
@@ -241,7 +241,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("random-response-chance", "Set random replies chance")]
+        [SlashCommand("set-random-reply-chance", "Change random replies chance")]
         public async Task RandomResponseChance(string webhookIdOrPrefix, float chance)
         {
             await DeferAsync();
@@ -260,7 +260,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("presence-penalty", "Set responses presence penalty")]
+        [SlashCommand("set-presence-penalty", "Change responses presence penalty")]
         public async Task PresPenalty(string webhookIdOrPrefix, float presencePenalty)
         {
             await DeferAsync();
@@ -285,7 +285,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("frequency-penalty", "Set responses frequency penalty")]
+        [SlashCommand("set-frequency-penalty", "Change responses frequency penalty")]
         public async Task FreqPenalty(string webhookIdOrPrefix, float frequencyPenalty)
         {
             await DeferAsync();
@@ -310,13 +310,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("messages-format", "Change character messages format")]
+        [SlashCommand("set-messages-format", "Change character messages format")]
         public async Task MessagesFormat(string webhookIdOrPrefix, string newFormat)
         {
             await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
         }
 
-        [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
+        [SlashCommand("set-jailbreak-prompt", "Change character jailbreak prompt")]
         public async Task JailbreakPrompt(string webhookIdOrPrefix)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
