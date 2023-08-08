@@ -25,7 +25,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-call-prefix", "Change character call prefix")]
-        public async Task CallPrefix(string webhookIdOrPrefix, string newCallPrefix)
+        public async Task SetCallPrefix(string webhookIdOrPrefix, string newCallPrefix)
         {
             await DeferAsync();
 
@@ -44,7 +44,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-cai-history-id", "Change c.ai history ID")]
-        public async Task CaiHistory(string webhookIdOrPrefix, string newHistoryId)
+        public async Task SetCaiHistory(string webhookIdOrPrefix, string newHistoryId)
         {
             await DeferAsync();
 
@@ -73,13 +73,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-api", "Change API backend")]
-        public async Task ApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
+        public async Task SetApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
         {
             await UpdateApiAsync(webhookIdOrPrefix, apiType, openAiModel, personalApiToken, personalApiEndpoint);
         }
 
         [SlashCommand("set-delay", "Change response delay")]
-        public async Task Delay(string webhookIdOrPrefix, int seconds)
+        public async Task SetDelay(string webhookIdOrPrefix, int seconds)
         {
             await DeferAsync();
 
@@ -98,7 +98,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("toggle-quotes", "Enable/disable quotes")]
-        public async Task Quotes(string webhookIdOrPrefix, bool enable)
+        public async Task ToggleQuotes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
 
@@ -117,7 +117,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("toggle-swipes", "Enable/disable swipes")]
-        public async Task Swipes(string webhookIdOrPrefix, bool enable)
+        public async Task ToggleSwipes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
 
@@ -136,7 +136,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-avatar", "Change character avatar")]
-        public async Task Avatar(string webhookIdOrPrefix, string avatarUrl)
+        public async Task SetAvatar(string webhookIdOrPrefix, string avatarUrl)
         {
             await DeferAsync();
 
@@ -166,7 +166,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-name", "Change character name")]
-        public async Task CharacterName(string webhookIdOrPrefix, string name)
+        public async Task SetCharacterName(string webhookIdOrPrefix, string name)
         {
             await DeferAsync();
 
@@ -192,7 +192,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-max-tokens", "Change amount of tokens for ChatGPT responses")]
-        public async Task MaxTokens(string webhookIdOrPrefix, int tokens)
+        public async Task SetMaxTokens(string webhookIdOrPrefix, int tokens)
         {
             await DeferAsync();
 
@@ -217,7 +217,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-temperature", "Change responses temperature")]
-        public async Task Temperature(string webhookIdOrPrefix, float temperature)
+        public async Task SetTemperature(string webhookIdOrPrefix, float temperature)
         {
             await DeferAsync();
 
@@ -242,7 +242,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-random-reply-chance", "Change random replies chance")]
-        public async Task RandomResponseChance(string webhookIdOrPrefix, float chance)
+        public async Task SetRandomReplyChance(string webhookIdOrPrefix, float chance)
         {
             await DeferAsync();
 
@@ -261,7 +261,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-presence-penalty", "Change responses presence penalty")]
-        public async Task PresPenalty(string webhookIdOrPrefix, float presencePenalty)
+        public async Task SetPresPenalty(string webhookIdOrPrefix, float presencePenalty)
         {
             await DeferAsync();
 
@@ -286,7 +286,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-frequency-penalty", "Change responses frequency penalty")]
-        public async Task FreqPenalty(string webhookIdOrPrefix, float frequencyPenalty)
+        public async Task SetFreqPenalty(string webhookIdOrPrefix, float frequencyPenalty)
         {
             await DeferAsync();
 
@@ -311,13 +311,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-messages-format", "Change character messages format")]
-        public async Task MessagesFormat(string webhookIdOrPrefix, string newFormat)
+        public async Task SetMessagesFormat(string webhookIdOrPrefix, string newFormat)
         {
             await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
         }
 
         [SlashCommand("set-jailbreak-prompt", "Change character jailbreak prompt")]
-        public async Task JailbreakPrompt(string webhookIdOrPrefix)
+        public async Task SetJailbreakPrompt(string webhookIdOrPrefix)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
                                           .WithCustomId($"upd~{webhookIdOrPrefix}")

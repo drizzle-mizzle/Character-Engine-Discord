@@ -24,19 +24,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("list-servers", "-")]
-        public async Task ListServers(int page = 1)
+        public async Task AdminListServers(int page = 1)
         {
             await ListServersAsync(page);
         }
 
         [SlashCommand("block-server", "-")]
-        public async Task BlockGuild(string serverId)
+        public async Task AdminBlockGuild(string serverId)
         {
             await BlockGuildAsync(serverId);
         }
 
         [SlashCommand("block-user-permanent", "-")]
-        public async Task BlockUser(string userId)
+        public async Task AdminBlockUser(string userId)
         {
             await DeferAsync();
 
@@ -61,7 +61,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("unblock-server", "-")]
-        public async Task UnblockGuild(string serverId)
+        public async Task AdminUnblockGuild(string serverId)
         {
             await DeferAsync();
 
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("unblock-user-permanent", "-")]
-        public async Task UnblockUser(string userId)
+        public async Task AdminUnblockUser(string userId)
         {
             await DeferAsync();
 
@@ -106,7 +106,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("shout-out", "Send a message in each channel where bot was ever called")]
-        public async Task ShoutOut(string title, string? desc = null, string? imageUrl = null)
+        public async Task AdminShoutOut(string title, string? desc = null, string? imageUrl = null)
         {
             await DeferAsync();
 
@@ -134,7 +134,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("leave-all-servers", "-")]
-        public async Task LeaveAllGuilds()
+        public async Task AdminLeaveAllGuilds()
         {
             await DeferAsync();
 
@@ -148,7 +148,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("shutdown", "Shutdown")]
-        public async Task ShutdownAsync()
+        public async Task AdminShutdownAsync()
         {
             await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange));
 
@@ -158,14 +158,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-game", "Set game status")]
-        public async Task UpdateGame(string? activity = null, string? streamUrl = null, ActivityType type = ActivityType.Playing)
+        public async Task AdminUpdateGame(string? activity = null, string? streamUrl = null, ActivityType type = ActivityType.Playing)
         {
             await _client.SetGameAsync(activity, streamUrl, type);
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
         [SlashCommand("set-status", "Set status")]
-        public async Task UpdateStatus(UserStatus status)
+        public async Task AdminUpdateStatus(UserStatus status)
         {
             await _client.SetStatusAsync(status);
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);

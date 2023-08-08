@@ -46,7 +46,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-channel-random-reply-chance", "Set random character replies chance for this channel")]
-        public async Task SetRandomReplyChance(float chance)
+        public async Task SetChannelRandomReplyChance(float chance)
         {
             await DeferAsync();
 
@@ -124,7 +124,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("set-server-jailbreak-prompt", "Change messages format used for all new characters on this server by default")]
-        public async Task SetDefaultPrompt(string newPrompt)
+        public async Task SetServerDefaultPrompt(string newPrompt)
         {
             await DeferAsync();
 
@@ -236,7 +236,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("server-block-user", "Make characters ignore certain user on this server.")]
-        public async Task BlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
+        public async Task ServerBlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
         {
             await DeferAsync();
 
@@ -277,7 +277,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("server-unblock-user", "---")]
-        public async Task UnblockUser(IUser? user = null, string? userId = null)
+        public async Task ServerUnblockUser(IUser? user = null, string? userId = null)
         {
             await DeferAsync();
 
@@ -415,7 +415,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            await webhookClient.SendMessageAsync(text: characterWebhook.Character.Greeting ?? Context.User.Mention);
+            await webhookClient.SendMessageAsync(text: $"{Context.User.Mention} {characterWebhook.Character.Greeting}");
         }
 
         private async Task HuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix, float chanceOfResponse)

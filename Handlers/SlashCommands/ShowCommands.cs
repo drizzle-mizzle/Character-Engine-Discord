@@ -34,7 +34,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("cai-history-id", "Show c.ai history ID")]
-        public async Task CaiHistory(string webhookIdOrPrefix)
+        public async Task ShowCaiHistory(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
@@ -56,7 +56,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
         [SlashCommand("dialog-history", "Show last 15 messages with a character")]
-        public async Task ShowHistory(string webhookIdOrPrefix)
+        public async Task ShowDialogHistory(string webhookIdOrPrefix)
         {
             await ShowHistoryAsync(webhookIdOrPrefix);
         }
