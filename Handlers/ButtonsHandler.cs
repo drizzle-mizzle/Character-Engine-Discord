@@ -76,11 +76,19 @@ namespace CharacterEngineDiscord.Handlers
                     if (searchQuery.CurrentPage == searchQuery.Pages) searchQuery.CurrentPage = 1;
                     else searchQuery.CurrentPage++; break;
                 case "select":
-                    await component.Message.ModifyAsync(msg =>
+                    try
                     {
-                        msg.Embed = WAIT_MESSAGE.ToInlineEmbed(Color.Teal);
-                        msg.Components = null;
-                    });
+                        await component.Message.ModifyAsync(msg =>
+                        {
+                            msg.Embed = WAIT_MESSAGE.ToInlineEmbed(Color.Teal);
+                            msg.Components = null;
+                        });
+                    }
+                    catch (Exception e)
+                    {
+                        await component.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to handle button: {e.Message}\nMake sure that bot has all needed permissions in the current channel.".ToInlineEmbed(Color.Red));
+                        return;
+                    }
 
                     int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
                     string characterId = searchQuery.SearchQueryData.Characters[index].Id;
@@ -124,8 +132,15 @@ namespace CharacterEngineDiscord.Handlers
                     return;
             }
 
-            // Only if left/right/up/down is selected, either this line will never be reached
-            await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
+            try
+            {
+                // Only if left/right/up/down is selected, either this line will never be reached
+                await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                await component.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to handle button: {e.Message}\nMake sure that bot has all needed permissions in the current channel.".ToInlineEmbed(Color.Red));
+            }
         }
 
 

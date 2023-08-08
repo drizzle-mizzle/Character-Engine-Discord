@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Services;
 using CharacterEngineDiscord.Models.Database;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using Discord.Commands;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -29,21 +30,7 @@ namespace CharacterEngineDiscord.Handlers
                 Task.Run(async () =>
                 {
                     try { await HandleCommandAsync(command); }
-                    catch (Exception e)
-                    {
-                        LogException(new[] { e });
-                        var channel = command.Channel as SocketGuildChannel;
-                        var guild = channel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                                      $"User: {command.User?.Username}\n" +
-                                                                      $"Slash command: {command.CommandName}\n" +
-                                                                      $"```cs\n" +
-                                                                      $"{e}\n" +
-                                                                      $"```",
-                                                                color: Color.Red,
-                                                                error: true);
-                    }
+                    catch (Exception e) { await HandleSlashCommandException(command, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -52,36 +39,55 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () =>
                 {
-                    if (!result.IsSuccess)
-                    {
-                        LogException(new object?[] { result.ErrorReason, result.Error });
-                        var channel = context.Channel as SocketGuildChannel;
-                        var guild = context.Guild;
-
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                       text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                             $"User: {context.Interaction.User?.Username}\n" +
-                                                             $"Interaction: {context.Interaction.Data}\n" +
-                                                             $"```cs\n" +
-                                                             $"{result}\n" +
-                                                             $"```",
-                                                       color: Color.Red,
-                                                       error: true);
-
-                        try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
-                        catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
-                    }
+                    if (!result.IsSuccess) await HandleInteractionException(context, result);
                 });
                 return Task.CompletedTask;
             };
         }
 
-        internal async Task HandleCommandAsync(SocketSlashCommand command)
+        private async Task HandleCommandAsync(SocketSlashCommand command)
         {
             if (await UserIsBannedCheckOnly(command.User.Id)) return;
 
             var context = new InteractionContext(_client, command, command.Channel);
             await _interactions.ExecuteCommandAsync(context, _services);
+        }
+
+
+        private async Task HandleInteractionException(IInteractionContext context, Discord.Interactions.IResult result)
+        {
+            LogException(new object?[] { result.ErrorReason, result.Error });
+            var channel = context.Channel as SocketGuildChannel;
+            var guild = context.Guild;
+
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                           text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                 $"User: {context.Interaction.User?.Username}\n" +
+                                                 $"Interaction type: {context.Interaction.Type}\n" +
+                                                 $"```cs\n" +
+                                                 $"{result.Error}\n\\~\\~\\~\\~\\~\n{result.ErrorReason}" +
+                                                 $"```",
+                                           color: Color.Red,
+                                           error: true);
+
+            try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
+            catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
+        }
+
+        private async Task HandleSlashCommandException(SocketSlashCommand command, Exception e)
+        {
+            LogException(new[] { e });
+            var channel = command.Channel as SocketGuildChannel;
+            var guild = channel?.Guild;
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                          $"User: {command.User?.Username}\n" +
+                                                          $"Slash command: {command.CommandName}\n" +
+                                                          $"```cs\n" +
+                                                          $"{e}\n" +
+                                                          $"```",
+                                                    color: Color.Red,
+                                                    error: true);
         }
     }
 }

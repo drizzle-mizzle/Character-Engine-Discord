@@ -471,12 +471,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;
-            await FollowupAsync(embed: $":ghost: {characterWebhook.Character.Name}** hunting **{username}".ToInlineEmbed(Color.LighterGrey));
+            await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** hunting **{username}**".ToInlineEmbed(Color.LighterGrey, false));
         }
 
         private async Task UnhuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix)
         {
             await DeferAsync();
+
+            if (user is null && string.IsNullOrWhiteSpace(userIdOrCharacterPrefix))
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Specify user or user ID".ToInlineEmbed(Color.Red));
+                return;
+            }
 
             var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
 
@@ -523,7 +529,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
 
             username ??= user?.Mention;
-            await FollowupAsync(embed: $":ghost: {username}** is not hunted anymore".ToInlineEmbed(Color.LighterGrey));
+            await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** is not hunting **{username}** anymore".ToInlineEmbed(Color.LighterGrey, false));
         }
 
     }

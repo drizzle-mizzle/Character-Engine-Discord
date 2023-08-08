@@ -40,8 +40,12 @@ namespace CharacterEngineDiscord.Services
             return null;
         }
 
-        internal static Embed ToInlineEmbed(this string text, Color color)
-            => new EmbedBuilder().WithDescription($"**{text}**").WithColor(color).Build();
+        internal static Embed ToInlineEmbed(this string text, Color color, bool bold = true)
+        {
+            string desc = bold ? $"**{text}**" : text;
+
+            return new EmbedBuilder().WithDescription(desc).WithColor(color).Build();
+        }
 
         public static bool ToBool(this string? str)
             => bool.Parse(str ?? "false");

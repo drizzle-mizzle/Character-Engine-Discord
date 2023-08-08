@@ -192,12 +192,12 @@ namespace CharacterEngineDiscord.Services
                     {
                         if (text.Length > 1024)
                         {
-                            embed.AddField("~~~~~~~~~", text[0..1023]);
+                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{text[0..1023]}```");
                             text = text[1023..];
                         }
                         else
                         {
-                            embed.AddField("~~~~~~~~~", text);
+                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{text}```");
                             break;
                         }
                     }

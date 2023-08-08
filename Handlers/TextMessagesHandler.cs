@@ -30,27 +30,13 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleMessageAsync(message); }
-                    catch (Exception e)
-                    {
-                        LogException(new[] { e });
-                        var channel = message.Channel as SocketGuildChannel;
-                        var guild = channel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                                      $"User: {message.Author?.Username}\n" +
-                                                                      $"Message: {message.Content}\n" +
-                                                                      $"```cs\n" +
-                                                                      $"{e}\n" +
-                                                                      $"```",
-                                                                color: Color.Red,
-                                                                error: true);
-                    }
+                    catch (Exception e) { await HandleTextMessageException(message, e); }
                 });
                 return Task.CompletedTask;
             };
         }
 
-        internal async Task HandleMessageAsync(SocketMessage sm)
+        private async Task HandleMessageAsync(SocketMessage sm)
         {
             if (sm is not SocketUserMessage userMessage) return;
             if (userMessage.Author.Id == _client.CurrentUser.Id) return;
@@ -231,9 +217,8 @@ namespace CharacterEngineDiscord.Handlers
             var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
             if (openAiRequestParams.Messages.Count < 2)
             {
-                cw.OpenAiHistoryMessages.RemoveAt(cw.OpenAiHistoryMessages.Count - 1);
+                cw.OpenAiHistoryMessages.Remove(cw.OpenAiHistoryMessages.Last());
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`".ToInlineEmbed(Color.Red));
-                await db.SaveChangesAsync();
                 return null;
             }
 
@@ -241,9 +226,8 @@ namespace CharacterEngineDiscord.Handlers
 
             if (openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
-                cw.OpenAiHistoryMessages.RemoveAt(cw.OpenAiHistoryMessages.Count - 1);
+                cw.OpenAiHistoryMessages.Remove(cw.OpenAiHistoryMessages.Last());
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason ?? "Something went wrong..."}`".ToInlineEmbed(Color.Red));
-                await db.SaveChangesAsync();
                 return null;
             }
 
@@ -432,6 +416,22 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             return true;
+        }
+
+        private async Task HandleTextMessageException(SocketMessage message, Exception e)
+        {
+            LogException(new[] { e });
+            var channel = message.Channel as SocketGuildChannel;
+            var guild = channel?.Guild;
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                          $"User: {message.Author?.Username}\n" +
+                                                          $"Message: {message.Content}\n" +
+                                                          $"```cs\n" +
+                                                          $"{e}\n" +
+                                                          $"```",
+                                                    color: Color.Red,
+                                                    error: true);
         }
 
         [GeneratedRegex("\\<(.*?)\\>")]

@@ -28,20 +28,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (Exception e) {
-                        LogException(new[] { e });
-                        var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
-                        var guild = guildChannel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
-                                                                      $"User: {reaction.User.Value?.Username}\n" +
-                                                                      $"Reaction: {reaction.Emote.Name}\n" +
-                                                                      $"```cs\n" +
-                                                                      $"{e}\n" +
-                                                                      $"```",
-                                                                color: Color.Red,
-                                                                error: true);
-                    }
+                    catch (Exception e) { await HandleReactionException(msg, channel, reaction, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -50,21 +37,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (Exception e)
-                    {
-                        LogException(new[] { e });
-                        var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
-                        var guild = guildChannel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
-                                                                      $"User: {reaction.User.Value?.Username}\n" +
-                                                                      $"Reaction: {reaction.Emote.Name}\n" +
-                                                                      $"```cs\n" +
-                                                                      $"{e}\n" +
-                                                                      $"```",
-                                                                color: Color.Red,
-                                                                error: true);
-                    }
+                    catch (Exception e) { await HandleReactionException(msg, channel, reaction, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -278,6 +251,22 @@ namespace CharacterEngineDiscord.Handlers
                     ImageRelPath = caiResponse.Response.ImageRelPath,
                 };
             }
+        }
+
+        private async Task HandleReactionException(Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)
+        {
+            LogException(new[] { e });
+            var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
+            var guild = guildChannel?.Guild;
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                          $"User: {reaction.User.Value?.Username}\n" +
+                                                          $"Reaction: {reaction.Emote.Name}\n" +
+                                                          $"```cs\n" +
+                                                          $"{e}\n" +
+                                                          $"```",
+                                                    color: Color.Red,
+                                                    error: true);
         }
     }
 }
