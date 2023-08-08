@@ -1,4 +1,6 @@
-﻿namespace CharacterEngineDiscord.Services
+﻿using CharacterEngineDiscord.Models.Common;
+
+namespace CharacterEngineDiscord.Services
 {
     internal static partial class CommonService
     {
@@ -34,6 +36,8 @@
             LogRed(new string('~', Console.WindowWidth));
             LogRed($"{string.Join('\n', text)}\n");
             LogRed(new string('~', Console.WindowWidth));
+
+            if (!ConfigFile.LogFileEnabled.Value.ToBool()) return;
 
             try {
                 var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");

@@ -10,6 +10,7 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField DbConnString { get; } = new("db_connection_string");
         public static ConfigField DbLogEnabled { get; } = new("db_enable_logging");
         public static ConfigField NoPermissionFile { get; } = new("no_permission_file");
+        public static ConfigField LogFileEnabled { get; } = new("enable_file_logging");
 
         public static ConfigField DiscordBotToken { get; } = new("discord_bot_token");
         public static ConfigField DiscordBotRole { get; } = new("discord_bot_manager_role");

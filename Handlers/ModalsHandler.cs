@@ -34,7 +34,7 @@ namespace CharacterEngineDiscord.Handlers
                         var channel = modal.Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                                       $"User: {modal.User?.Username}\n" +
                                                                       $"Modal ID: {modal.Data.CustomId}\n" +
                                                                       $"```cs\n" +

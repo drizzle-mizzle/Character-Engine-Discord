@@ -33,7 +33,7 @@ namespace CharacterEngineDiscord.Handlers
                         var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
                         var guild = guildChannel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
                                                                       $"User: {reaction.User.Value?.Username}\n" +
                                                                       $"Reaction: {reaction.Emote.Name}\n" +
                                                                       $"```cs\n" +
@@ -56,7 +56,7 @@ namespace CharacterEngineDiscord.Handlers
                         var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
                         var guild = guildChannel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
                                                                       $"User: {reaction.User.Value?.Username}\n" +
                                                                       $"Reaction: {reaction.Emote.Name}\n" +
                                                                       $"```cs\n" +

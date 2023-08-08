@@ -45,7 +45,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await ClearWebhooksAsync(all: false);
         }
 
-        [SlashCommand("set-random-reply-chance", "Set random character replies chance for this channel")]
+        [SlashCommand("set-channel-random-reply-chance", "Set random character replies chance for this channel")]
         public async Task SetRandomReplyChance(float chance)
         {
             await DeferAsync();
@@ -75,7 +75,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await ResetCharacterAsync(webhookIdOrPrefix);
         }
 
-        [SlashCommand("set-default-messages-format", "Change messages format used for all new characters on this server by default")]
+        [SlashCommand("set-server-messages-format", "Change messages format used for all new characters on this server by default")]
         public async Task SetDefaultMessagesFormat(string newFormat)
         {
             await DeferAsync();
@@ -123,7 +123,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed.Build());
         }
 
-        [SlashCommand("set-default-jailbreak-prompt", "Change messages format used for all new characters on this server by default")]
+        [SlashCommand("set-server-jailbreak-prompt", "Change messages format used for all new characters on this server by default")]
         public async Task SetDefaultPrompt(string newPrompt)
         {
             await DeferAsync();
@@ -235,7 +235,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("block-user", "Make characters ignore certain user.")]
+        [SlashCommand("block-user", "Make characters ignore certain user on this server.")]
         public async Task BlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
         {
             await DeferAsync();

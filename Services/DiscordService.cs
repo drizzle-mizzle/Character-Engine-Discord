@@ -67,7 +67,7 @@ namespace CharacterEngineDiscord.Services
         {
             while (true)
             {
-                await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen, error: false);
+                await TryToReportInLogsChannel(_client, "Uptime Status", text: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen, error: false);
 
                 var db = new StorageContext();
                 var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
@@ -105,7 +105,7 @@ namespace CharacterEngineDiscord.Services
                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
                 LogGreen(log);
 
-                await TryToReportInLogsChannel(_client, title: "New server", desc: log, color: Color.Green, error: false);
+                await TryToReportInLogsChannel(_client, title: "New server", text: log, color: Color.Green, error: false);
             }
             catch (Exception e)
             {

@@ -33,7 +33,7 @@ namespace CharacterEngineDiscord.Handlers
                         var channel = (await component.GetOriginalResponseAsync()).Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                                       $"User: {component.User?.Username}\n" +
                                                                       $"Button ID: {component.Data.CustomId}\n" +
                                                                       $"```cs\n" +

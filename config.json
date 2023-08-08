@@ -3,6 +3,7 @@
     "db_file_name": "database.sqlite3",
     "db_connection_string": "",
     "db_enable_logging": false,
+    "enable_file_logging": false,
     "no_permission_file": "nopower.gif",
 
     "discord_bot_token": "YOUR_BOT_TOKEN",

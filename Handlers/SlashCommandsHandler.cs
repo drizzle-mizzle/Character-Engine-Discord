@@ -6,6 +6,8 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Services;
+using CharacterEngineDiscord.Models.Database;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -33,7 +35,7 @@ namespace CharacterEngineDiscord.Handlers
                         var channel = command.Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                                       $"User: {command.User?.Username}\n" +
                                                                       $"Slash command: {command.CommandName}\n" +
                                                                       $"```cs\n" +
@@ -53,6 +55,19 @@ namespace CharacterEngineDiscord.Handlers
                     if (!result.IsSuccess)
                     {
                         LogException(new object?[] { result.ErrorReason, result.Error });
+                        var channel = context.Channel as SocketGuildChannel;
+                        var guild = context.Guild;
+
+                        await TryToReportInLogsChannel(_client, title: "Exception",
+                                                       text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                             $"User: {context.Interaction.User?.Username}\n" +
+                                                             $"Interaction: {context.Interaction.Data}\n" +
+                                                             $"```cs\n" +
+                                                             $"{result}\n" +
+                                                             $"```",
+                                                       color: Color.Red,
+                                                       error: true);
+
                         try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
                         catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
                     }

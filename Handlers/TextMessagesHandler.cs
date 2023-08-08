@@ -14,7 +14,7 @@ using System.Text.RegularExpressions;
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class TextMessagesHandler
+    internal partial class TextMessagesHandler
     {
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
@@ -36,7 +36,7 @@ namespace CharacterEngineDiscord.Handlers
                         var channel = message.Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                                       $"User: {message.Author?.Username}\n" +
                                                                       $"Message: {message.Content}\n" +
                                                                       $"```cs\n" +
@@ -105,7 +105,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Reformat message
             string text = userMessage.Content ?? "";
-            if (text.StartsWith("<")) text = new Regex("\\<(.*?)\\>").Replace(text, "", 1);
+            if (text.StartsWith("<")) text = MentionRegex().Replace(text, "", 1);
             text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}")
                                                   .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
                                                   .Replace("\\n", "\n");
@@ -208,13 +208,10 @@ namespace CharacterEngineDiscord.Handlers
             {
                 try
                 {
-                    var message = await userMessage.Channel.GetMessageAsync(messageId);
-                    if (message is null) return;
-
                     var removeArrowButtonsAction = new Action(async ()
-                        => await _integration.RemoveButtonsAsync(message, _client.CurrentUser, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+                        => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
 
-                    await AddArrowButtonsAsync(message, removeArrowButtonsAction);
+                    await AddArrowButtonsAsync(userMessage.Channel, messageId, removeArrowButtonsAction);
                 }
                 catch
                 {
@@ -357,11 +354,52 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task AddArrowButtonsAsync(IMessage message, Action removeReactions)
+        private static async Task AddArrowButtonsAsync(ISocketMessageChannel channel, ulong messageId, Action removeReactions)
         {
+            var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
             _ = Task.Run(removeReactions);
+        }
+
+        /// <summary>
+        /// Task that will delete all emoji-buttons from the message after some time
+        /// </summary>
+        private async Task RemoveButtonsAsync(ISocketMessageChannel channel, ulong messageId, int delay)
+        {
+            try
+            {
+                // Add request to the end of the line
+                _integration.RemoveEmojiRequestQueue.Add(messageId, delay);
+
+                // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
+                while (_integration.RemoveEmojiRequestQueue[messageId] > 0)
+                {
+                    await Task.Delay(1000);
+                    _integration.RemoveEmojiRequestQueue[messageId]--; // value contains the time that left before removing
+                }
+
+                // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
+                while (_integration.RemoveEmojiRequestQueue.First().Key != messageId)
+                {
+                    await Task.Delay(100);
+                }
+
+                // May fail because of the missing permissions or some connection problems 
+                var message = await channel.GetMessageAsync(messageId);
+                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, STOP_BTN };
+                foreach (var btn in btns)
+                    await message.RemoveReactionAsync(btn, _client.CurrentUser);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+            }
+            finally
+            {
+                try { _integration.RemoveEmojiRequestQueue.Remove(messageId); }
+                catch { }
+            }
         }
 
         private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)
@@ -395,5 +433,8 @@ namespace CharacterEngineDiscord.Handlers
 
             return true;
         }
+
+        [GeneratedRegex("\\<(.*?)\\>")]
+        private static partial Regex MentionRegex();
     }
 }

@@ -158,45 +158,6 @@ namespace CharacterEngineDiscord.Services
             return openAiParams;
         }
 
-        /// <summary>
-        /// Task that will delete all emoji-buttons from the message after some time
-        /// </summary>
-        internal async Task RemoveButtonsAsync(IMessage message, IUser currentUser, int delay)
-        {
-            try
-            {
-                // Add request to the end of the line
-                RemoveEmojiRequestQueue.Add(message.Id, delay);
-
-                // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
-                while (RemoveEmojiRequestQueue[message.Id] > 0)
-                {
-                    await Task.Delay(1000);
-                    RemoveEmojiRequestQueue[message.Id]--; // value contains the time that left before removing
-                }
-
-                // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
-                while (RemoveEmojiRequestQueue.First().Key != message.Id)
-                {
-                    await Task.Delay(100);
-                }
-
-                // May fail because of the missing permissions or some connection problems 
-                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, STOP_BTN };
-                foreach (var btn in btns)
-                    await message.RemoveReactionAsync(btn, currentUser);
-            }
-            catch (Exception e)
-            {
-                LogException(new[] { e });
-            }
-            finally
-            {
-                try { RemoveEmojiRequestQueue.Remove(message.Id); }
-                catch { }
-            }
-        }
-
         internal static async Task<ChubSearchResponse> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
         {
             string uri = "https://v2.chub.ai/search?" +
@@ -459,7 +420,7 @@ namespace CharacterEngineDiscord.Services
                 _watchDog.Remove(currUserId);
 
                 await TryToReportInLogsChannel(context.Client, title: $":eyes: Notification",
-                                                               desc: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
+                                                               text: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
                                                                color: Color.LightOrange,
                                                                error: false);
 
@@ -503,7 +464,7 @@ namespace CharacterEngineDiscord.Services
 
                 var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
                 await TryToReportInLogsChannel(client, title: $":eyes: Notification",
-                                                        desc: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
+                                                        text: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
                                                         color: Color.LightOrange,
                                                         error: false);
 
