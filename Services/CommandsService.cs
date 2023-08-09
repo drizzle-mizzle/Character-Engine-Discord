@@ -41,9 +41,6 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static string RemoveFirstMentionPrefx(this string text)
-            => MentionRegex().Replace(text, "", 1).Trim();
-
         internal static bool IsServerOwner(this SocketGuildUser? user)
             => user is not null && user.Id == user.Guild.OwnerId;
 
@@ -224,8 +221,5 @@ namespace CharacterEngineDiscord.Services
         {
             OpenAI
         }
-
-        [GeneratedRegex("\\<(.*?)\\>")]
-        private static partial Regex MentionRegex();
-    }
+            }
 }
