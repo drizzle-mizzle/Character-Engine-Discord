@@ -36,15 +36,6 @@ namespace CharacterEngineDiscord.Services
 
             await new StorageContext().Database.MigrateAsync();
 
-            _client.Ready += () =>
-            {
-                Task.Run(async () => await CreateSlashCommandsAsync());
-                Task.Run(async () => await SetupIntegrationAsync());
-                Task.Run(async () => await RunJobs());
-
-                return Task.CompletedTask;
-            };
-
             _client.JoinedGuild += (guild) =>
             {
                 Task.Run(async () => await OnGuildJoinAsync(guild));
@@ -60,10 +51,12 @@ namespace CharacterEngineDiscord.Services
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
 
-            await Task.Delay(-1);
+            _ = Task.Run(CreateSlashCommandsAsync);
+            _ = Task.Run(SetupIntegrationAsync);
+            await Task.Run(RunJobsAsync);
         }
 
-        private async Task RunJobs()
+        private async Task RunJobsAsync()
         {
             while (true)
             {
@@ -90,15 +83,13 @@ namespace CharacterEngineDiscord.Services
                     return;
                 }
 
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
-
+                try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); }
+                catch { await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Commands reg fail", $"Guild: {guild.Name}\nOwner: {guild.Owner.DisplayName ?? guild.Owner.GlobalName}", Color.Red, true); return; }
+                
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
-                {
-                    var role = await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
-                }
+                    await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
-
                 string log = $"Sever name: {guild.Name}\n" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                              $"Members: {guild.MemberCount}\n" +
