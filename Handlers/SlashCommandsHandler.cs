@@ -9,6 +9,7 @@ using CharacterEngineDiscord.Services;
 using CharacterEngineDiscord.Models.Database;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Discord.Commands;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -61,12 +62,10 @@ namespace CharacterEngineDiscord.Handlers
             var guild = context.Guild;
 
             await TryToReportInLogsChannel(_client, title: "Exception",
-                                           text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                           desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                  $"User: {context.Interaction.User?.Username}\n" +
-                                                 $"Interaction type: {context.Interaction.Type}\n" +
-                                                 $"```cs\n" +
-                                                 $"{result.Error}\n\\~\\~\\~\\~\\~\n{result.ErrorReason}" +
-                                                 $"```",
+                                                 $"Interaction type: {context.Interaction.Type}",
+                                           content: $"{result.Error}",
                                            color: Color.Red,
                                            error: true);
 
@@ -80,12 +79,10 @@ namespace CharacterEngineDiscord.Handlers
             var channel = command.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
             await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                           $"User: {command.User?.Username}\n" +
-                                                          $"Slash command: {command.CommandName}\n" +
-                                                          $"```cs\n" +
-                                                          $"{e}\n" +
-                                                          $"```",
+                                                          $"Slash command: {command.CommandName}",
+                                                    content: e.ToString(),
                                                     color: Color.Red,
                                                     error: true);
         }

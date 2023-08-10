@@ -5,6 +5,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
+using System;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -120,8 +121,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             foreach (var channelId in channelIds)
             {
-                var sgc = (await _client.GetChannelAsync(channelId)) as IMessageChannel;
-                if (sgc is not null) channels.Add(sgc);
+                IMessageChannel? mc;
+                try { mc = (await _client.GetChannelAsync(channelId)) as IMessageChannel; }
+                catch { continue; }
+                if (mc is not null) channels.Add(mc);
             }
 
             foreach (var channel in channels)

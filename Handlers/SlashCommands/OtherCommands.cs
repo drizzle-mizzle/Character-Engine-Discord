@@ -11,15 +11,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     public class OtherCommands : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
+        //private readonly IntegrationsService _integration;
         private readonly DiscordSocketClient _client;
-        private readonly StorageContext _db;
+        //private readonly StorageContext _db;
 
         public OtherCommands(IServiceProvider services)
         {
-            _integration = services.GetRequiredService<IntegrationsService>();
+            //_integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = new StorageContext();
+            //_db = new StorageContext();
         }
 
         [SlashCommand("ping", "ping")]

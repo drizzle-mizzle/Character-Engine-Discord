@@ -160,7 +160,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
 
             await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-            await webhookClient.SendMessageAsync($"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{Context.User.Mention}**")}");
+
+            string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{Context.User.Mention}**")}";
+            if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+            await webhookClient.SendMessageAsync(characterMessage);
         }
 
         private async Task FinishSearchAsync(SearchQueryData searchQueryData)

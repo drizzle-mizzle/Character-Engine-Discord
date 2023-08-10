@@ -24,7 +24,7 @@ namespace CharacterEngineDiscord.Models.Database
         public required bool SwipesEnabled { get; set; }
         public required int ResponseDelay { get; set; }
         public required IntegrationType IntegrationType { get; set; }
-        public required string MessagesFormat { get; set; }
+        public required string? MessagesFormat { get; set; }
         public required float ReplyChance { get; set; }
         public required DateTime LastCallTime { get; set; }
 

@@ -235,7 +235,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("server-block-user", "Make characters ignore certain user on this server.")]
+        [SlashCommand("block-user", "Make characters ignore certain user on this server.")]
         public async Task ServerBlockUser(IUser? user = null, string? userId = null, [Summary(description: "Don't specify hours to block forever")]int hours = 0)
         {
             await DeferAsync();
@@ -276,7 +276,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("server-unblock-user", "---")]
+        [SlashCommand("unblock-user", "---")]
         public async Task ServerUnblockUser(IUser? user = null, string? userId = null)
         {
             await DeferAsync();

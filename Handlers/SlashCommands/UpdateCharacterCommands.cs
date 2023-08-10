@@ -6,6 +6,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
+using CharacterEngineDiscord.Models.Database;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -24,7 +25,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db = new StorageContext();
         }
 
-        [SlashCommand("set-call-prefix", "Change character call prefix")]
+        [SlashCommand("call-prefix", "Change character call prefix")]
         public async Task SetCallPrefix(string webhookIdOrPrefix, string newCallPrefix)
         {
             await DeferAsync();
@@ -135,7 +136,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-avatar", "Change character avatar")]
+        [SlashCommand("avatar", "Change character avatar")]
         public async Task SetAvatar(string webhookIdOrPrefix, string avatarUrl)
         {
             await DeferAsync();
@@ -165,7 +166,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-name", "Change character name")]
+        [SlashCommand("name", "Change character name")]
         public async Task SetCharacterName(string webhookIdOrPrefix, string name)
         {
             await DeferAsync();
@@ -310,13 +311,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-messages-format", "Change character messages format")]
+        [SlashCommand("messages-format", "Change character messages format")]
         public async Task SetMessagesFormat(string webhookIdOrPrefix, string newFormat)
         {
             await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
         }
 
-        [SlashCommand("set-jailbreak-prompt", "Change character jailbreak prompt")]
+        [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
         public async Task SetJailbreakPrompt(string webhookIdOrPrefix)
         {
             var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
@@ -385,15 +386,37 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
+            int refCount = 0;
+            if (newFormat.Contains("{{ref_msg_begin}}")) refCount++;
+            if (newFormat.Contains("{{ref_msg_text}}")) refCount++;
+            if (newFormat.Contains("{{ref_msg_end}}")) refCount++;
+
+            if (refCount != 0 && refCount != 3)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong `ref_msg` placeholder format!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
             characterWebhook.MessagesFormat = newFormat;
             await _db.SaveChangesAsync();
+
+            string text = newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
+
+            if (refCount == 3)
+            {
+                text = text.Replace("{{ref_msg_text}}", "Hola")
+                           .Replace("{{ref_msg_begin}}", "")
+                           .Replace("{{ref_msg_end}}", "")
+                           .Replace("{{ref_msg_user}}", "Dude")
+                           .Replace("\\n", "\n");
+            }
 
             var embed = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **{characterWebhook.Character.Name}**")
                                           .AddField("New format:", $"`{newFormat}`")
                                           .AddField("[Example]", $"User message: *`Hello!`*\n" +
                                                                  $"User nickname: `Average AI Enjoyer`\n" +
                                                                  $"Referenced message: *`Hola`* from user *`Dude`*\n" +
-                                                                 $"Result (what character will see): *`{newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer").Replace("{{ref_msg_text}}", "Hola").Replace("{{ref_msg_user}}", "Dude").Replace("\\n", "\n")}`*")
+                                                                 $"Result (what character will see): *`{text}`*")
                                           .WithColor(Color.Green)
                                           .Build();
 

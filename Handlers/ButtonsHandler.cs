@@ -8,6 +8,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using Polly;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -33,12 +34,10 @@ namespace CharacterEngineDiscord.Handlers
                         var channel = (await component.GetOriginalResponseAsync()).Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
                         await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                                       $"User: {component.User?.Username}\n" +
-                                                                      $"Button ID: {component.Data.CustomId}\n" +
-                                                                      $"```cs\n" +
-                                                                      $"{e}\n" +
-                                                                      $"```",
+                                                                      $"Button ID: {component.Data.CustomId}",
+                                                                content: e.ToString(),
                                                                 color: Color.Red,
                                                                 error: true);
                     }
@@ -124,7 +123,11 @@ namespace CharacterEngineDiscord.Handlers
                     _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-                    await webhookClient.SendMessageAsync($"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{component.User.Mention}**")}");
+
+                    string characterMessage = $"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{component.User.Mention}**")}";
+                    if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+                    await webhookClient.SendMessageAsync(characterMessage);
 
                     _integration.SearchQueries.Remove(searchQuery);
                     return;

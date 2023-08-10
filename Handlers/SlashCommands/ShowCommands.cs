@@ -5,6 +5,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord;
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -15,7 +16,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //private readonly IntegrationsService _integration;
         //private readonly DiscordSocketClient _client;
 
-        public ShowCommands(IServiceProvider services)
+        public ShowCommands() //IServiceProvider services)
         {
             //_integration = services.GetRequiredService<IntegrationsService>();
             //_client = services.GetRequiredService<DiscordSocketClient>();
@@ -203,7 +204,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
                 title = "Default messages format";
-                format = channel.Guild.GuildMessagesFormat;
+                format = channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
             else
             {
@@ -216,7 +217,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
 
                 title = $"{characterWebhook.Character.Name}'s messages format";
-                format = characterWebhook.MessagesFormat;
+                format = characterWebhook.MessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
 
             string text = format.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");

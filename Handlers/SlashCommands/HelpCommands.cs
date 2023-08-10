@@ -9,7 +9,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //private readonly IntegrationsService _integration;
         //private readonly DiscordSocketClient _client;
 
-        public HelpCommands(IServiceProvider services)
+        public HelpCommands()//IServiceProvider services)
         {
             //_integration = services.GetRequiredService<IntegrationsService>();
             //_client = services.GetRequiredService<DiscordSocketClient>();
@@ -42,14 +42,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
                                           .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
                                                                 "`/update messages-format` - Change the format of messages for certain character\n" +
-                                                                "`/set-default-messages-format` - Change the format of messages for all new characters on this server")
+                                                                "`/set-default-messages-format` - Change the format of messages for all **new** characters on this server")
                                           .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
                                                                     "**`{{msg}}`** - **Required** placeholder that contains the message itself.\n" +
                                                                     "**`{{user}}`** - Placeholder that contains the user's Discord name *(server nickname > display name > username)*.\n" +
                                                                     "**`{{ref_msg_begin}}`**, **`{{ref_msg_user}}`**, **`{{ref_msg_text}}`**, **`{{ref_msg_end}}`** - Combined placeholder that contains the referenced message (one that user was replying to). *Begin* and *end* parts are needed because user message can have no referenced message, and then placeholder will be removed.\n")
-                                          .AddField("Example", "Format:\n*`{{ref_msg_begin}}[System note: In response to message '{{ref_msg_text}}' from user '{{ref_msg_user}}'{{ref_msg_end}}\\n[System note: Name of the user is '{{user}}']\\n{{msg}}`*\n" +
+                                          .AddField("Example", "Format:\n*`{{ref_msg_begin}}((In response to '{{ref_msg_text}}' from '{{ref_msg_user}}')){{ref_msg_end}}\\n{{user}} says:\\n{{msg}}`*\n" +
                                                                "Inputs:\n- referenced message with text *`Hello`* from user *`Dude`*;\n- user with name *`Average AI Enjoyer`*;\n- message with text *`Do you love donuts?`*\n" +
-                                                               "Result (what character will see):\n*`[System note: In response to message 'Hello' from user 'Dude']\n[System note: Name of the user is 'Average AI Enjoyer']\nDo you love donuts?`*\n" +
+                                                               "Result (what character will see):\n*`((In response to 'Hello' from 'Dude'))\nAverage AI Enjoyer says:\nDo you love donuts?`*\n" +
                                                                "Example above is used by default, but you are free to play with it the way you want, or you can simply disable it by setting the default message format with `{{msg}}`.");
             await RespondAsync(embed: embed.Build());
         }

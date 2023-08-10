@@ -55,9 +55,9 @@ namespace CharacterEngineDiscord.Handlers
             {
                 int delay = characterWebhook.ResponseDelay;
 
-                if ((userMessage.Author.IsWebhook || userMessage.Author.IsBot) && delay < 5)
+                if ((userMessage.Author.IsWebhook || userMessage.Author.IsBot) && delay < 10)
                 {
-                    delay = 5;
+                    delay = 10;
                 }
 
                 await Task.Delay(delay * 1000);
@@ -85,16 +85,18 @@ namespace CharacterEngineDiscord.Handlers
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                 canProceed = await CanCallCaiCharacter(characterWebhook, userMessage, _integration);
             else
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `/update api` command.".ToInlineEmbed(Color.Orange));
+                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `/update set-api` command.".ToInlineEmbed(Color.Orange));
 
             if (!canProceed) return;
 
             // Reformat message
             string text = userMessage.Content ?? "";
             if (text.StartsWith("<")) text = MentionRegex().Replace(text, "", 1);
-            text = characterWebhook.MessagesFormat.Replace("{{user}}", $"{userName}")
-                                                  .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
-                                                  .Replace("\\n", "\n");
+
+            var format = characterWebhook.MessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+            text = format.Replace("{{user}}", $"{userName}")
+                         .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
+                         .Replace("\\n", "\n");
 
             if (text.Contains("{{ref_msg_text}}"))
             {
@@ -121,20 +123,26 @@ namespace CharacterEngineDiscord.Handlers
 
             if (characterResponse is null) return;
 
+            await db.Entry(characterWebhook).ReloadAsync();
+            try { await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName); }
+            finally { await db.SaveChangesAsync(); }
+        }
+
+        private async Task TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName)
+        {
             // Ensure webhook is being tracked
-            if (!_integration.AvailableCharacterResponses.ContainsKey(characterWebhookId))
-                _integration.AvailableCharacterResponses.Add(characterWebhookId, new());
+            if (!_integration.AvailableCharacterResponses.ContainsKey(characterWebhook.Id))
+                _integration.AvailableCharacterResponses.Add(characterWebhook.Id, new());
 
             // Forget the choises from last message and remember new one
-            _integration.AvailableCharacterResponses[characterWebhookId].Clear();
-            _integration.AvailableCharacterResponses[characterWebhookId].Add(new()
+            _integration.AvailableCharacterResponses[characterWebhook.Id].Clear();
+            _integration.AvailableCharacterResponses[characterWebhook.Id].Add(new()
             {
                 Text = characterResponse.Text,
                 MessageUuId = characterResponse.CharacterMessageUuid,
                 ImageUrl = characterResponse.ImageRelPath
             });
 
-            await db.Entry(characterWebhook).ReloadAsync();
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
             characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
@@ -150,7 +158,6 @@ namespace CharacterEngineDiscord.Handlers
                     await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
                     return;
                 }
-                finally { await db.SaveChangesAsync(); }
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
@@ -187,22 +194,18 @@ namespace CharacterEngineDiscord.Handlers
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
                 return;
             }
-            finally { await db.SaveChangesAsync(); }
 
             // Add swipe buttons
-            if (!(userMessage.Author.IsWebhook || userMessage.Author.IsBot) && characterWebhook.SwipesEnabled)
-            {
-                try
-                {
-                    var removeArrowButtonsAction = new Action(async ()
-                        => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+            bool isWebhook = userMessage.Author.IsWebhook;
+            bool isBotMessage = isWebhook || userMessage.Author.IsBot;
+            if (isBotMessage) return;
+            if (!characterWebhook.SwipesEnabled) return;
 
-                    await AddArrowButtonsAsync(userMessage.Channel, messageId, removeArrowButtonsAction);
-                }
-                catch
-                {
-                    await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update swipes enable:false` command.".ToInlineEmbed(Color.Red));
-                }
+            try {
+                await AddSwipesAsync(userMessage.Channel, messageId, async ()
+                    => await RemoveSwipesAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay)); }
+            catch {
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
             }
         }
 
@@ -224,10 +227,10 @@ namespace CharacterEngineDiscord.Handlers
 
             var openAiResponse = await CallChatOpenAiAsync(openAiRequestParams, _integration.HttpClient);
 
-            if (openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
+            if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
                 cw.OpenAiHistoryMessages.Remove(cw.OpenAiHistoryMessages.Last());
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse.ErrorReason ?? "Something went wrong..."}`".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse?.ErrorReason ?? "Something went wrong!"}`".ToInlineEmbed(Color.Red));
                 return null;
             }
 
@@ -338,7 +341,7 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task AddArrowButtonsAsync(ISocketMessageChannel channel, ulong messageId, Action removeReactions)
+        private static async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId, Action removeReactions)
         {
             var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
@@ -349,7 +352,7 @@ namespace CharacterEngineDiscord.Handlers
         /// <summary>
         /// Task that will delete all emoji-buttons from the message after some time
         /// </summary>
-        private async Task RemoveButtonsAsync(ISocketMessageChannel channel, ulong messageId, int delay)
+        private async Task RemoveSwipesAsync(ISocketMessageChannel channel, ulong messageId, int delay)
         {
             try
             {
@@ -371,18 +374,14 @@ namespace CharacterEngineDiscord.Handlers
 
                 // May fail because of the missing permissions or some connection problems 
                 var message = await channel.GetMessageAsync(messageId);
-                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, STOP_BTN };
+                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT };
                 foreach (var btn in btns)
                     await message.RemoveReactionAsync(btn, _client.CurrentUser);
-            }
-            catch (Exception e)
-            {
-                LogException(new[] { e });
             }
             finally
             {
                 try { _integration.RemoveEmojiRequestQueue.Remove(messageId); }
-                catch { }
+                catch (Exception e) { LogException(new[] { e }); }
             }
         }
 
@@ -424,12 +423,10 @@ namespace CharacterEngineDiscord.Handlers
             var channel = message.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
             await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
                                                           $"User: {message.Author?.Username}\n" +
-                                                          $"Message: {message.Content}\n" +
-                                                          $"```cs\n" +
-                                                          $"{e}\n" +
-                                                          $"```",
+                                                          $"Message: {message.Content}",
+                                                    content: e.ToString(),
                                                     color: Color.Red,
                                                     error: true);
         }

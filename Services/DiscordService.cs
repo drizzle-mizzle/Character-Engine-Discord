@@ -48,26 +48,36 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
+            await Task.Run(SetupIntegrationAsync);
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
-
+            
             _ = Task.Run(CreateSlashCommandsAsync);
-            _ = Task.Run(SetupIntegrationAsync);
-            await Task.Run(RunJobsAsync);
+            await RunJobsAsync();
         }
 
         private async Task RunJobsAsync()
         {
-            while (true)
+            try
             {
-                await TryToReportInLogsChannel(_client, "Uptime Status", text: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}", color: Color.DarkGreen, error: false);
+                while (true)
+                {
+                    await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}",
+                                                                             content: null, color: Color.DarkGreen, error: false);
+                    
+                    var db = new StorageContext();
+                    var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
+                    db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+                    await db.SaveChangesAsync();
 
-                var db = new StorageContext();
-                var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
-                db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
-                await db.SaveChangesAsync();
-
-                await Task.Delay(3_600_000); // 1 hour
+                    await Task.Delay(3_600_000); // 1 hour
+                }
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+                await TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
+                _ = Task.Run(RunJobsAsync);
             }
         }
 
@@ -84,7 +94,7 @@ namespace CharacterEngineDiscord.Services
                 }
 
                 try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); }
-                catch { await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Commands reg fail", $"Guild: {guild.Name}\nOwner: {guild.Owner.DisplayName ?? guild.Owner.GlobalName}", Color.Red, true); return; }
+                catch { await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Commands reg fail", $"Guild: {guild.Name}\nOwner: {guild.Owner.DisplayName ?? guild.Owner.GlobalName}", null, Color.Red, true); return; }
                 
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
                     await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
@@ -96,7 +106,7 @@ namespace CharacterEngineDiscord.Services
                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
                 LogGreen(log);
 
-                await TryToReportInLogsChannel(_client, title: "New server", text: log, color: Color.Green, error: false);
+                await TryToReportInLogsChannel(_client, "New server", log, null, Color.Green, false);
             }
             catch (Exception e)
             {
@@ -133,7 +143,7 @@ namespace CharacterEngineDiscord.Services
                 foreach (var guild in _client.Guilds)
                     try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); } catch { continue; }
 
-                await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", Color.Green, error: false);
+                await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
             }
             catch (Exception e) { LogException(new[] { e }); }
         }

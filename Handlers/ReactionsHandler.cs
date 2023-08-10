@@ -28,7 +28,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (Exception e) { await HandleReactionException(msg, channel, reaction, e); }
+                    catch (Exception e) { await HandleReactionException(channel, reaction, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -37,7 +37,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (Exception e) { await HandleReactionException(msg, channel, reaction, e); }
+                    catch (Exception e) { await HandleReactionException(channel, reaction, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -51,14 +51,17 @@ namespace CharacterEngineDiscord.Handlers
             var userReacted = (SocketGuildUser)user;
             if (userReacted.IsBot) return;
 
-            var characterMessage = await rawMessage.DownloadAsync();
-            if (!characterMessage.Author.IsWebhook) return;
+            IUserMessage originalMessage;
+            try { originalMessage = await rawMessage.DownloadAsync(); }
+            catch { return; }
+
+            if (!originalMessage.Author.IsWebhook) return;
 
             var db = new StorageContext();
             var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
-            var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == characterMessage.Author.Id);
+            var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
             if (characterWebhook is null) return;
 
             if (reaction.Emote.Name == STOP_BTN.Name)
@@ -75,16 +78,16 @@ namespace CharacterEngineDiscord.Handlers
             //}
 
             bool userIsLastCaller = characterWebhook.LastDiscordUserCallerId == userReacted.Id;
-            bool msgIsSwipable = characterMessage.Id == characterWebhook.LastCharacterDiscordMsgId;
+            bool msgIsSwipable = originalMessage.Id == characterWebhook.LastCharacterDiscordMsgId;
             if (!(userIsLastCaller && msgIsSwipable)) return;
 
-            if (reaction.Emote?.Name == ARROW_LEFT.Name && characterWebhook.CurrentSwipeIndex > 0)
+            if ((reaction.Emote?.Name == ARROW_LEFT.Name) && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
                 characterWebhook.CurrentSwipeIndex--;
                 await db.SaveChangesAsync();
-                await SwipeMessageAsync(characterMessage, characterWebhook.Id, userReacted);
+                await SwipeMessageAsync(originalMessage, characterWebhook.Id, userReacted);
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
@@ -92,7 +95,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 characterWebhook.CurrentSwipeIndex++;
                 await db.SaveChangesAsync();
-                await SwipeMessageAsync(characterMessage, characterWebhook.Id, userReacted);
+                await SwipeMessageAsync(originalMessage, characterWebhook.Id, userReacted);
             }
         }
 
@@ -193,11 +196,11 @@ namespace CharacterEngineDiscord.Handlers
             var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: true);
             var openAiResponse = await CallChatOpenAiAsync(openAiParams, client);
 
-            if (openAiResponse.IsFailure)
+            if (openAiResponse is null || openAiResponse.IsFailure)
             {
                 return new()
                 {
-                    Text = openAiResponse.ErrorReason!,
+                    Text = openAiResponse?.ErrorReason ?? "Something went wrong!",
                     IsSuccessful = false,
                     CharacterMessageUuid = null, UserMessageId = null, ImageRelPath = null,
                 };
@@ -253,18 +256,16 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task HandleReactionException(Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)
+        private async Task HandleReactionException(Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)
         {
             LogException(new[] { e });
             var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
             var guild = guildChannel?.Guild;
             await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    text: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
+                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
                                                           $"User: {reaction.User.Value?.Username}\n" +
-                                                          $"Reaction: {reaction.Emote.Name}\n" +
-                                                          $"```cs\n" +
-                                                          $"{e}\n" +
-                                                          $"```",
+                                                          $"Reaction: {reaction.Emote.Name}",
+                                                    content: e.ToString(),
                                                     color: Color.Red,
                                                     error: true);
         }

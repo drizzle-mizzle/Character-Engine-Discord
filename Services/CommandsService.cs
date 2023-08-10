@@ -7,6 +7,8 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
+using System.Web;
+using Discord.Rest;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -165,9 +167,10 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
-        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string text, Color color, bool error)
+        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string desc, string? content, Color color, bool error)
         {
             string? channelId = null;
+
             if (error) channelId = ConfigFile.DiscordErrorLogsChannelID.Value;
             if (channelId.IsEmpty()) channelId = ConfigFile.DiscordLogsChannelID.Value;
             if (channelId.IsEmpty()) return;
@@ -175,32 +178,30 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 ulong uChannelId = ulong.Parse(channelId!);
-                if (await client.GetChannelAsync(uChannelId) is not SocketTextChannel channel) return;
-
+                var channel = await client.GetChannelAsync(uChannelId);
+                var textChannel = channel as ITextChannel;
+                if (textChannel is null) return;
+                
                 var embed = new EmbedBuilder().WithTitle(title).WithColor(color);
 
-                string desc = text;
-                if (desc.Length > 4096)
+                if (content is not null)
                 {
-                    desc = desc[0..4095];
-                    text = text[4095..];
-
                     for (int i = 0; i < 5; i++)
                     {
-                        if (text.Length > 1024)
+                        if (content.Length > 1010)
                         {
-                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{text[0..1023]}```");
-                            text = text[1023..];
+                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```cs\n{content[0..1009]}...```");
+                            content = content[1010..];
                         }
                         else
                         {
-                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{text}```");
+                            embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```cs\n{content}```");
                             break;
                         }
                     }
                 }
 
-                await channel.SendMessageAsync(embed: embed.WithDescription(desc).Build());
+                await textChannel.SendMessageAsync(embed: embed.WithDescription(desc).Build());
             }
             catch (Exception e)
             {

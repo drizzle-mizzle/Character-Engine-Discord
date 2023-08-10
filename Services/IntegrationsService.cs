@@ -82,7 +82,7 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// Temporary "raw" solution, will be redone into a library later
         /// </summary>
-        internal static async Task<OpenAiChatResponse> CallChatOpenAiAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
+        internal static async Task<OpenAiChatResponse?> CallChatOpenAiAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
         {
             // Build data payload
             dynamic content = new ExpandoObject();
@@ -100,8 +100,15 @@ namespace CharacterEngineDiscord.Services
                 Content = new StringContent(JsonConvert.SerializeObject(content), Encoding.UTF8, "application/json"),
             };
 
-            var response = await httpClient.SendAsync(httpRequestMessage);
-            return new(response);
+            try
+            {
+                var response = await httpClient.SendAsync(httpRequestMessage);
+                return new(response);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool removeLastMessage = false)
@@ -274,7 +281,7 @@ namespace CharacterEngineDiscord.Services
                     ReferencesEnabled = false,
                     SwipesEnabled = true,
                     ResponseDelay = 1,
-                    MessagesFormat = channel.Guild.GuildMessagesFormat,
+                    MessagesFormat = null,
                     IntegrationType = type,
                     ReplyChance = 0,
                     CaiActiveHistoryId = caiHistoryId,
@@ -420,7 +427,8 @@ namespace CharacterEngineDiscord.Services
                 _watchDog.Remove(currUserId);
 
                 await TryToReportInLogsChannel(context.Client, title: $":eyes: Notification",
-                                                               text: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
+                                                               desc: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
+                                                               content: null,
                                                                color: Color.LightOrange,
                                                                error: false);
 
@@ -464,9 +472,10 @@ namespace CharacterEngineDiscord.Services
 
                 var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
                 await TryToReportInLogsChannel(client, title: $":eyes: Notification",
-                                                        text: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
-                                                        color: Color.LightOrange,
-                                                        error: false);
+                                                       desc: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
+                                                       content: null,
+                                                       color: Color.LightOrange,
+                                                       error: false);
 
                 await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
                 return true;

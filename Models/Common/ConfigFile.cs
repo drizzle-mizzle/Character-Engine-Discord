@@ -33,6 +33,8 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField DefaultOpenAiModel { get; } = new("open_ai_default_model");
 
         public static ConfigField DefaultJailbreakPrompt { get; } = new("default_jailbreak_prompt");
+        public static ConfigField DefaultMessagesFormat { get; } = new("default_messages_format");
+        
 
         private static JObject ConfigParsed { get; } = CommonService.TryToParseConfigFile();
 
