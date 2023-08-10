@@ -48,9 +48,9 @@ namespace CharacterEngineDiscord.Handlers
 
         internal async Task HandleModalAsync(SocketModal modal)
         {
+            await modal.DeferAsync();
             if (await UserIsBannedCheckOnly(modal.User.Id)) return;
 
-            await modal.DeferAsync();
             var modalId = modal.Data.CustomId;
             
             // Update call prefix command

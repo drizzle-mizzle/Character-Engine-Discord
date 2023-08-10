@@ -28,22 +28,25 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleButtonAsync(component); }
-                    catch (Exception e)
-                    {
-                        LogException(new[] { e });
-                        var channel = (await component.GetOriginalResponseAsync()).Channel as SocketGuildChannel;
-                        var guild = channel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                                      $"User: {component.User?.Username}\n" +
-                                                                      $"Button ID: {component.Data.CustomId}",
-                                                                content: e.ToString(),
-                                                                color: Color.Red,
-                                                                error: true);
-                    }
+                    catch (Exception e) { await HandleButtonExceptionAsync(component, e); }
                 });
                 return Task.CompletedTask;
             };
+        }
+
+        private async Task HandleButtonExceptionAsync(SocketMessageComponent component, Exception e)
+        {
+            LogException(new[] { e });
+            var channel = component.Channel as IGuildChannel;
+            var guild = channel?.Guild;
+
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                          $"User: {component.User?.Username}\n" +
+                                                          $"Button ID: {component.Data.CustomId}",
+                                                    content: e.ToString(),
+                                                    color: Color.Red,
+                                                    error: true);
         }
 
         private async Task HandleButtonAsync(SocketMessageComponent component)

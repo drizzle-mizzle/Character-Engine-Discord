@@ -57,18 +57,6 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleInteractionException(IInteractionContext context, Discord.Interactions.IResult result)
         {
-            LogException(new object?[] { result.ErrorReason, result.Error });
-            var channel = context.Channel as SocketGuildChannel;
-            var guild = context.Guild;
-
-            await TryToReportInLogsChannel(_client, title: "Exception",
-                                           desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                 $"User: {context.Interaction.User?.Username}\n" +
-                                                 $"Interaction type: {context.Interaction.Type}",
-                                           content: $"{result.Error}",
-                                           color: Color.Red,
-                                           error: true);
-
             try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
             catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
         }

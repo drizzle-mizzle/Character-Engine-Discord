@@ -26,6 +26,7 @@ namespace CharacterEngineDiscord.Services
             _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
             _interactions = _services.GetRequiredService<InteractionService>();
+            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
 
             // Initialize handlers
             _services.GetRequiredService<ReactionsHandler>();
@@ -48,11 +49,16 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
+            _client.Ready += () =>
+            {
+                Task.Run(CreateSlashCommandsAsync);
+                return Task.CompletedTask;
+            };
+
             await Task.Run(SetupIntegrationAsync);
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
             
-            _ = Task.Run(CreateSlashCommandsAsync);
             await RunJobsAsync();
         }
 
@@ -139,9 +145,15 @@ namespace CharacterEngineDiscord.Services
         private async Task CreateSlashCommandsAsync()
         {
             try {
-                await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
                 foreach (var guild in _client.Guilds)
-                    try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); } catch { continue; }
+                {
+                    try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); }
+                    catch (Exception e)
+                    {
+                        LogException(new[] { e });
+                        continue;
+                    }
+                }
 
                 await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
             }
