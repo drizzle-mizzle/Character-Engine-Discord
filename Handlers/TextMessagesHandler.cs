@@ -5,7 +5,6 @@ using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
@@ -201,10 +200,9 @@ namespace CharacterEngineDiscord.Handlers
             if (isBotMessage) return;
             if (!characterWebhook.SwipesEnabled) return;
 
-            try {
-                await AddSwipesAsync(userMessage.Channel, messageId, async ()
-                    => await RemoveSwipesAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay)); }
-            catch {
+            try { await AddSwipesAsync(userMessage.Channel, messageId, characterWebhook.Channel.Guild.BtnsRemoveDelay); }
+            catch
+            {
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
             }
         }
@@ -341,12 +339,12 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId, Action removeReactions)
+        private async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId, int lifespan)
         {
             var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
-            _ = Task.Run(removeReactions);
+            _ = Task.Run(async () => await RemoveSwipesAsync(channel, messageId, lifespan));
         }
 
         /// <summary>
@@ -362,17 +360,19 @@ namespace CharacterEngineDiscord.Handlers
                 // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
                 while (_integration.RemoveEmojiRequestQueue[messageId] > 0)
                 {
-                    await Task.Delay(1000);
-                    _integration.RemoveEmojiRequestQueue[messageId]--; // value contains the time that left before removing
+                    if (_integration.RemoveEmojiRequestQueue.ContainsKey(messageId))
+                    {
+                        await Task.Delay(1500);
+                        _integration.RemoveEmojiRequestQueue[messageId]--; // value contains the time that left before removing
+                    }
                 }
 
                 // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
                 while (_integration.RemoveEmojiRequestQueue.First().Key != messageId)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(300);
                 }
 
-                // May fail because of the missing permissions or some connection problems 
                 var message = await channel.GetMessageAsync(messageId);
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT };
                 foreach (var btn in btns)
@@ -380,8 +380,11 @@ namespace CharacterEngineDiscord.Handlers
             }
             finally
             {
-                try { _integration.RemoveEmojiRequestQueue.Remove(messageId); }
-                catch (Exception e) { LogException(new[] { e }); }
+                if (_integration.RemoveEmojiRequestQueue.ContainsKey(messageId))
+                {
+                    try { _integration.RemoveEmojiRequestQueue.Remove(messageId); }
+                    catch (Exception e) { LogException(new[] { e }); }
+                }
             }
         }
 
