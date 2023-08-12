@@ -183,7 +183,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 if (amount == 0) break;
             }
             chunks.Reverse();
-
+            
             var result = new List<string>() { "" };
             int resultIndex = 0;
             foreach (var chunk in chunks)

@@ -420,7 +420,7 @@ namespace CharacterEngineDiscord.Services
                 await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} {context.User.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
+                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 24 });
 
                 await db.SaveChangesAsync();
                 _watchDog.Remove(currUserId);
@@ -464,7 +464,7 @@ namespace CharacterEngineDiscord.Services
                 await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value?.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
+                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 24 });
 
                 await db.SaveChangesAsync();
                 _watchDog.Remove(currUserId);

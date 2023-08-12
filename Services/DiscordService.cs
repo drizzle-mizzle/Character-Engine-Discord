@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using Discord.Rest;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -54,7 +55,7 @@ namespace CharacterEngineDiscord.Services
                 Task.Run(CreateSlashCommandsAsync);
                 return Task.CompletedTask;
             };
-
+            
             await Task.Run(SetupIntegrationAsync);
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();

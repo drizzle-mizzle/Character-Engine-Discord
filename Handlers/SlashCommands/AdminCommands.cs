@@ -36,7 +36,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await BlockGuildAsync(serverId);
         }
 
-        [SlashCommand("block-user-permanent", "-")]
+        [SlashCommand("block-user-global", "-")]
         public async Task AdminBlockUser(string userId)
         {
             await DeferAsync();
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("unblock-user-permanent", "-")]
+        [SlashCommand("unblock-user-global", "-")]
         public async Task AdminUnblockUser(string userId)
         {
             await DeferAsync();

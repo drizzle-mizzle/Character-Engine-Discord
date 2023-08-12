@@ -12,7 +12,7 @@
     "hoster_discord_id": null,
     "discord_logs_channel_id": null,
     "discord_error_logs_channel_id": null,
-    "rate_limit": 10,
+    "rate_limit": 15,
     "max_characters_per_channel": 15,
 
     // c.ai integration
