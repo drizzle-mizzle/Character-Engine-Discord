@@ -57,11 +57,32 @@ namespace CharacterEngineDiscord.Handlers
             if (modalId.StartsWith("upd"))
             {
                 await UpdateCharacterAsync(modal);
-            } // Spawn custom character command
+            } else if (modalId.StartsWith("guild"))
+            {
+                await UpdateGuildAsync(modal);
+            }
+            // Spawn custom character command
             else if (modalId == "spawn")
             {
                 await SpawnCustomCharacterAsync(modal);
             }
+        }
+
+        private async Task UpdateGuildAsync(SocketModal modal)
+        {
+            var db = new StorageContext();
+            string guildId = modal.Data.CustomId.Split('~').Last();
+
+            var context = new InteractionContext(_client, modal, modal.Channel);
+            var guild = await FindOrStartTrackingGuildAsync(ulong.Parse(guildId), db);
+
+            string? newJailbreakPrompt = modal.Data.Components.FirstOrDefault(c => c.CustomId == "new-prompt")?.Value;
+            if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
+
+            guild.GuildJailbreakPrompt = newJailbreakPrompt;
+            await db.SaveChangesAsync();
+
+            await modal.FollowupAsync(embed: SuccessEmbed());
         }
 
         private async Task UpdateCharacterAsync(SocketModal modal)

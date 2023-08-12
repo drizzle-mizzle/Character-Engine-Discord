@@ -123,14 +123,37 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: embed.Build());
         }
 
-        [SlashCommand("set-server-jailbreak-prompt", "Change messages format used for all new characters on this server by default")]
-        public async Task SetServerDefaultPrompt(string newPrompt)
+        [SlashCommand("drop-server-messages-format", "Drop default messages format for this server")]
+        public async Task DropGuildMessagesFormat()
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: true);
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
-            guild.GuildJailbreakPrompt = newPrompt;
+            guild.GuildMessagesFormat = null;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("set-server-jailbreak-prompt", "Change messages format used for all new characters on this server by default")]
+        public async Task SetServerDefaultPrompt()
+        {
+            var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for this server")
+                                          .WithCustomId($"guild~{Context.Guild.Id}")
+                                          .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
+                                          .Build();
+            await RespondWithModalAsync(modal);
+        }
+
+        [SlashCommand("drop-server-jailbreak-prompt", "Drop default jailbreak prompt for this server")]
+        public async Task DropGuildPrompt()
+        {
+            await DeferAsync(ephemeral: true);
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
+            guild.GuildJailbreakPrompt = null;
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -146,7 +169,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             guild.BtnsRemoveDelay = seconds;
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("set-server-cai-user-token", "Set default CharacterAI auth token for this server")]
@@ -174,8 +197,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             guild.GuildCaiPlusMode = null;
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+            await FollowupAsync(embed: SuccessEmbed());
         }
+
 
         [SlashCommand("set-server-openai-api-token", "Set default OpenAI api token for this server")]
         public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? reverseProxyEndpoint = null)
@@ -207,7 +231,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("say", "Make character say something")]

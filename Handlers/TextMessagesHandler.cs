@@ -12,6 +12,7 @@ using CharacterEngineDiscord.Models.Common;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -111,9 +112,11 @@ namespace CharacterEngineDiscord.Handlers
                     string refContent = userMessage.ReferencedMessage.Content;
 
                     if (refContent.StartsWith("<")) refContent = MentionRegex().Replace(refContent, "", 1);
-                    int refL = Math.Min(refContent.Length, 350);
 
-                    text = text.Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 350 ? "..." : "")).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+                    string refName = userMessage.ReferencedMessage.Author is SocketGuildUser refGuildUser ? (refGuildUser.Nickname ?? refGuildUser.DisplayName ?? refGuildUser.Username) : userMessage.Author.Username;
+                    int refL = Math.Min(refContent.Length, 200);
+
+                    text = text.Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 200 ? "..." : "")).Replace("{{ref_msg_user}}", refName).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
                 }
             }
 
@@ -169,7 +172,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Reformat message
-            string characterMessage = characterResponse.Text.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{userName}**");
+            string characterMessage = characterResponse.Text.Replace("{{user}}", $"**{userName}**");
             characterMessage = $"{(userMessage.Author.IsWebhook ? $"**{userMessage.Author.Username}**," : userMessage.Author.Mention)} {characterMessage}";
 
             // Cut if too long
@@ -232,7 +235,7 @@ namespace CharacterEngineDiscord.Handlers
 
             characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = characterWebhook.Id }); // remember user message (will be included in payload)
 
-            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: false);
+            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: false);
             if (openAiRequestParams.Messages.Count < 2)
             {
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
@@ -457,8 +460,5 @@ namespace CharacterEngineDiscord.Handlers
                                                     color: Color.Red,
                                                     error: true);
         }
-
-        [GeneratedRegex("\\<(.*?)\\>")]
-        private static partial Regex MentionRegex();
     }
 }

@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -112,7 +113,9 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook is null) return;
 
             // Move it to the end of the queue
-            _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
+            if (_integration.RemoveEmojiRequestQueue.ContainsKey(characterMessage.Id))
+                _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
+
             _integration.RemoveEmojiRequestQueue.Add(characterMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
@@ -133,7 +136,8 @@ namespace CharacterEngineDiscord.Handlers
             bool gottaFetch = !isSwipe || (_integration.AvailableCharacterResponses[characterWebhookId].Count < characterWebhook.CurrentSwipeIndex + 1);
             if (gottaFetch)
             {
-                string? content = isSwipe ? null : characterMessage.Content;
+                string? content = isSwipe ? null : MentionRegex().Replace(characterMessage.Content, "", 1);
+                
                 await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
                 {
                     msg.Content = content;
@@ -162,7 +166,7 @@ namespace CharacterEngineDiscord.Handlers
                 var newResponse = new AvailableCharacterResponse()
                 {
                     MessageUuId = characterResponse.CharacterMessageUuid!,
-                    Text = isSwipe ? characterResponse.Text : content + characterResponse.Text,
+                    Text = isSwipe ? characterResponse.Text : content + " " + characterResponse.Text,
                     ImageUrl = characterResponse.ImageRelPath
                 };
 
@@ -196,13 +200,17 @@ namespace CharacterEngineDiscord.Handlers
                 responseText = responseText[0..1994] + "[...]";
 
             // Send (update) message
+            string newContent = $"{caller.Mention} {responseText}".Replace("{{user}}", $"**{caller.Nickname ?? caller.GlobalName ?? caller.Username}**");
+            if (newContent.Length > 2000) newContent = newContent[0..1994] + "[max]";
+
             await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
             {
-                msg.Content = $"{caller.Mention} {responseText}".Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{caller.Nickname ?? caller.GlobalName ?? caller.Username}**");
+                msg.Content = newContent;
                 msg.Embeds = embeds;
                 msg.AllowedMentions = AllowedMentions.All;
             });
 
+            // If message was swiped, "forget" last option
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
             {
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
@@ -216,7 +224,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private static async Task<CharacterResponse> GetOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipe)
         {
-            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: isSwipe); // if not swipe, last message should persist
+            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: isSwipe); // if not swipe, last message should persist
             var openAiResponse = await CallChatOpenAiAsync(openAiParams, client);
 
             if (openAiResponse is null || openAiResponse.IsFailure)

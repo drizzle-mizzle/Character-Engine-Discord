@@ -3,6 +3,7 @@ using CharacterEngineDiscord.Models.OpenAI;
 using Discord;
 using Newtonsoft.Json;
 using System.Dynamic;
+using System.Text.RegularExpressions;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -80,6 +81,9 @@ namespace CharacterEngineDiscord.Services
 
             return text;
         }
+
+        [GeneratedRegex("\\<(.*?)\\>")]
+        public static partial Regex MentionRegex();
 
     }
 }

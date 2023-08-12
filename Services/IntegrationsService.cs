@@ -111,18 +111,19 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool removeLastMessage)
+        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe)
         {
-            string jailbreakPrompt = $"{characterWebhook.UniversalJailbreakPrompt}.  " +
-                                     $"{{{{char}}}}'s name: {characterWebhook.Character.Name}.  " +
-                                     $"{{{{char}}}} calls {{{{user}}}} by {{{{user}}}} or any name introduced by {{{{user}}}}.  " +
-                                     $"{characterWebhook.Character.Definition}";
+            string jailbreakPrompt = characterWebhook.UniversalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
+            string fullJailbreakPrompt = $"{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")}.  " +
+                                         $"Character's name: {characterWebhook.Character.Name}.  " +
+                                         $"Character calls {{{{user}}}} by any name introduced by {{{{user}}}}.  " +
+                                         $"{characterWebhook.Character.Definition?.Replace("{{char}}", $"{characterWebhook.Character.Name}")}";
 
             // ALWAYS add jailbreak prompt to the payload
-            var messages = new List<OpenAiMessage> { new("system", jailbreakPrompt) };
+            var messages = new List<OpenAiMessage> { new("system", fullJailbreakPrompt) };
             
             // Count~ tokens
-            float currentAmountOfTokens = jailbreakPrompt.Length / 3.6f;
+            float currentAmountOfTokens = fullJailbreakPrompt.Length / 3.6f;
 
             // Create a separate list and fill it with the dialog history in reverse order.
             // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
@@ -141,11 +142,13 @@ namespace CharacterEngineDiscord.Services
                 currentAmountOfTokens += tokensInThisMessage;
             }
 
-            // Needed for "swipe"
-            if (removeLastMessage)
-                oldMessages.RemoveAt(0);
-
             oldMessages.Reverse(); // restore natural order
+
+            if (isSwipe)
+                oldMessages.RemoveAt(oldMessages.Count-1);
+            else
+                oldMessages.Add(new("user", "(continue character response from the point where it stopped)"));
+
             messages.AddRange(oldMessages); // add history message to the payload
 
             // Build request payload
@@ -153,7 +156,7 @@ namespace CharacterEngineDiscord.Services
             {
                 ApiEndpoint = characterWebhook.PersonalOpenAiApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value!,
                 ApiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
-                UniversalJailbreakPrompt = jailbreakPrompt,
+                UniversalJailbreakPrompt = fullJailbreakPrompt,
                 Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
                 FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.9f,
                 PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.9f,
@@ -237,8 +240,8 @@ namespace CharacterEngineDiscord.Services
             {
                 var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
 
-                string? caiHistoryId, openAiModel, openAiEndpoint, jailbreakPrompt;
-                caiHistoryId = openAiModel = openAiEndpoint = jailbreakPrompt = null;
+                string? caiHistoryId, openAiModel, openAiEndpoint;
+                caiHistoryId = openAiModel = openAiEndpoint = null;
 
                 float? openAiFreqPenalty, openAiPresPenalty, openAiTemperature;
                 openAiFreqPenalty = openAiPresPenalty = openAiTemperature = null;
@@ -265,11 +268,6 @@ namespace CharacterEngineDiscord.Services
                     openAiPresPenalty = 0.9f;
                     openAiTemperature = 1.05f;
                     openAiMaxTokens = 200;
-                    jailbreakPrompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value;
-                }
-                else
-                {
-                    jailbreakPrompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value;
                 }
 
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
@@ -283,6 +281,7 @@ namespace CharacterEngineDiscord.Services
                     CrutchEnabled = type is not IntegrationType.CharacterAI,
                     ResponseDelay = 1,
                     MessagesFormat = null,
+                    UniversalJailbreakPrompt = null,
                     IntegrationType = type,
                     ReplyChance = 0,
                     CaiActiveHistoryId = caiHistoryId,
@@ -291,7 +290,6 @@ namespace CharacterEngineDiscord.Services
                     OpenAiPresencePenalty = openAiPresPenalty,
                     OpenAiTemperature = openAiTemperature,
                     OpenAiMaxTokens = openAiMaxTokens,
-                    UniversalJailbreakPrompt = jailbreakPrompt,
                     CharacterId = character.Id,
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,

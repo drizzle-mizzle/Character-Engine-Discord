@@ -111,10 +111,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var embed = new EmbedBuilder().WithColor(Color.Orange);
-            if (title is not null) embed.WithTitle(title);
-            if (desc is not null) embed.WithDescription(desc);
-            if (imageUrl is not null) embed.WithImageUrl(imageUrl);
+            var embedB = new EmbedBuilder().WithColor(Color.Orange);
+            if (title is not null) embedB.WithTitle(title);
+            if (desc is not null) embedB.WithDescription(desc);
+            if (imageUrl is not null) embedB.WithImageUrl(imageUrl);
+            var embed = embedB.Build();
 
             var channelIds = _db.Channels.Select(c => c.Id).ToList();
             var channels = new List<IMessageChannel>();
@@ -129,7 +130,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             foreach (var channel in channels)
             {
-                try { await channel.SendMessageAsync(embed: embed.Build()); }
+                try { await channel.SendMessageAsync(embed: embed); }
                 catch { continue; }
             }
                 

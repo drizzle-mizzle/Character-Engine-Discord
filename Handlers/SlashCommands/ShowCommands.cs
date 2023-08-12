@@ -171,15 +171,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            int amount = Math.Min(characterWebhook.OpenAiHistoryMessages.Count, 30);
+            int amount = Math.Min(characterWebhook.OpenAiHistoryMessages.Count, 15);
             var embed = new EmbedBuilder().WithColor(Color.Green).WithTitle($"{OK_SIGN_DISCORD} Last {amount} messages from the dialog with {characterWebhook.Character.Name}");
 
             var chunks = new List<string>();
             for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
             {
                 var message = characterWebhook.OpenAiHistoryMessages[i];
-                int l = Math.Min(message.Content.Length, 200);
-                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l].Replace("\n", "  ")}{(l == 200 ? "..." : "")}*\n");
+                int l = Math.Min(message.Content.Length, 250);
+                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l].Replace("\n", "  ")}{(l == 250 ? "..." : "")}*\n");
+                if (amount == 0) break;
             }
             chunks.Reverse();
 
@@ -187,19 +188,23 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             int resultIndex = 0;
             foreach (var chunk in chunks)
             {
+                // if string becomes too big, start new
                 if ((result.ElementAt(resultIndex).Length + chunk.Length) > 1024)
                 {
                     resultIndex++;
                     result.Add(chunk);
                     continue;
                 }
-                
+                // else, append to it
                 result[resultIndex] += chunk;
             }
 
             for (int i = 0; i < Math.Min(result.Count, 5); i++)
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", result[i]);
-
+            {
+                string newLine = result[i].Length > 1024 ? result[i][0..1018] + "[...]" : result[i];
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", newLine);
+            }
+                
             await FollowupAsync(embed: embed.Build());
         }
 
@@ -264,7 +269,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
 
                 title = "Default jailbreak prompt";
-                prompt = channel.Guild.GuildJailbreakPrompt ?? "";
+                prompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             }
             else
             {
@@ -277,7 +282,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
 
                 title = $"{characterWebhook.Character.Name}'s jailbreak prompt";
-                prompt = characterWebhook.UniversalJailbreakPrompt ?? "";
+                prompt = (characterWebhook.UniversalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!).Replace("{{char}}", $"{characterWebhook.Character.Name}");
             }
 
             var embed = new EmbedBuilder().WithTitle($"**{title}**")
@@ -286,7 +291,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var promptChunked = prompt.Chunk(1024);
 
             foreach (var chunk in promptChunked)
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", new string(chunk));
+                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{new string(chunk)}```");
 
             await FollowupAsync(embed: embed.Build());
         }
