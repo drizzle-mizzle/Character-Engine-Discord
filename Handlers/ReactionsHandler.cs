@@ -64,7 +64,7 @@ namespace CharacterEngineDiscord.Handlers
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
             if (characterWebhook is null) return;
 
-            if (reaction.Emote.Name == STOP_BTN.Name)
+            if (reaction.Emote?.Name == STOP_BTN.Name)
             {
                 characterWebhook.SkipNextBotMessage = true;
                 await db.SaveChangesAsync();
@@ -87,7 +87,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 characterWebhook.CurrentSwipeIndex--;
                 await db.SaveChangesAsync();
-                await SwipeMessageAsync(originalMessage, characterWebhook.Id, userReacted);
+                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
@@ -95,41 +95,57 @@ namespace CharacterEngineDiscord.Handlers
 
                 characterWebhook.CurrentSwipeIndex++;
                 await db.SaveChangesAsync();
-                await SwipeMessageAsync(originalMessage, characterWebhook.Id, userReacted);
+                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
+            }
+            else if (reaction.Emote?.Name == PROCEED_BTN.Name)
+            {   // proceed generation
+                if (await _integration.UserIsBanned(reaction, _client)) return;
+
+                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
             }
         }
 
-        private async Task SwipeMessageAsync(IUserMessage characterMessage, ulong characterWebhookId, SocketGuildUser caller)
+        private async Task UpdateCharacterMessage(IUserMessage characterMessage, ulong characterWebhookId, SocketGuildUser caller, bool isSwipe)
         {
             var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
-            //Move it to the end of the queue
+            // Move it to the end of the queue
             _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
             _integration.RemoveEmojiRequestQueue.Add(characterMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
-            if (webhookClient is null) return;
+            if (webhookClient is null)
+            {
+                try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
+                catch (Exception e)
+                {
+                    await characterMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message: `{e.Message}`".ToInlineEmbed(Color.Red));
+                    return;
+                }
+                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+            }
 
             Embed? quoteEmbed = characterMessage.Embeds?.FirstOrDefault() as Embed;
 
             // Check if fetching a new message, or just swiping among already available ones
-            var availableCharacterResponses = _integration.AvailableCharacterResponses[characterWebhookId];
-            if (availableCharacterResponses.Count < characterWebhook.CurrentSwipeIndex + 1) // fetch new
+            bool gottaFetch = !isSwipe || (_integration.AvailableCharacterResponses[characterWebhookId].Count < characterWebhook.CurrentSwipeIndex + 1);
+            if (gottaFetch)
             {
+                string? content = isSwipe ? null : characterMessage.Content;
                 await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
                 {
-                    msg.Content = null;
-                    msg.Embeds = new List<Embed> { WAIT_MESSAGE.ToInlineEmbed(Color.Teal) };
+                    msg.Content = content;
+                    msg.Embeds = new List<Embed> { WAIT_MESSAGE };
                     msg.AllowedMentions = AllowedMentions.None;
                 });
 
                 CharacterResponse characterResponse;
                 if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                    characterResponse = await SwipeCaiCharaterResponseAsync(characterWebhook, _integration.CaiClient);
+                    characterResponse = await GetCaiCharaterResponseAsync(characterWebhook, _integration.CaiClient);
                 else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                    characterResponse = await SwipeOpenAiResponseAsync(characterWebhook, _integration.HttpClient);
+                    characterResponse = await GetOpenAiResponseAsync(characterWebhook, _integration.HttpClient, isSwipe: isSwipe);
                 else return;
                 
                 if (!characterResponse.IsSuccessful)
@@ -143,12 +159,19 @@ namespace CharacterEngineDiscord.Handlers
                 }
 
                 // Add to the storage
-                _integration.AvailableCharacterResponses[characterWebhookId].Add(new()
+                var newResponse = new AvailableCharacterResponse()
                 {
                     MessageUuId = characterResponse.CharacterMessageUuid!,
-                    Text = characterResponse.Text,
+                    Text = isSwipe ? characterResponse.Text : content + characterResponse.Text,
                     ImageUrl = characterResponse.ImageRelPath
-                });
+                };
+
+                if (isSwipe)
+                    _integration.AvailableCharacterResponses[characterWebhookId].Add(newResponse);
+                else
+                    _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex] = newResponse;
+
+                characterWebhook.LastRequestTokensUsage = characterResponse.TokensUsed;
             }
 
             AvailableCharacterResponse newCharacterMessage;
@@ -167,7 +190,7 @@ namespace CharacterEngineDiscord.Handlers
             if (imageUrl is not null && await TryGetImageAsync(imageUrl, _integration.HttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
-            // Add text to message
+            // Add text to the message
             string responseText = newCharacterMessage.Text ?? " ";
             if (responseText.Length > 2000)
                 responseText = responseText[0..1994] + "[...]";
@@ -191,9 +214,9 @@ namespace CharacterEngineDiscord.Handlers
             //if (tm is not null) tm.IsTranslated = false;
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client)
+        private static async Task<CharacterResponse> GetOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipe)
         {
-            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: true);
+            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: isSwipe); // if not swipe, last message should persist
             var openAiResponse = await CallChatOpenAiAsync(openAiParams, client);
 
             if (openAiResponse is null || openAiResponse.IsFailure)
@@ -201,24 +224,25 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = openAiResponse?.ErrorReason ?? "Something went wrong!",
+                    TokensUsed = 0,
                     IsSuccessful = false,
                     CharacterMessageUuid = null, UserMessageId = null, ImageRelPath = null,
                 };
             }
             else
             {
-                characterWebhook.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
                 return new()
                 {
                     Text = openAiResponse.Message!,
                     IsSuccessful = true,
+                    TokensUsed = openAiResponse.Usage ?? 0,
                     CharacterMessageUuid = openAiResponse.MessageId,
-                    UserMessageId = null, ImageRelPath = null,
+                    UserMessageId = null, ImageRelPath = null
                 };
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCaiCharaterResponseAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
+        private static async Task<CharacterResponse> GetCaiCharaterResponseAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
         {
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             if (string.IsNullOrWhiteSpace(caiToken))
@@ -226,6 +250,7 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!",
+                    TokensUsed = 0,
                     IsSuccessful = false,
                     CharacterMessageUuid = null, ImageRelPath = null, UserMessageId = null
                 };
@@ -239,6 +264,7 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = caiResponse.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD),
+                    TokensUsed = 0,
                     IsSuccessful = false,
                     CharacterMessageUuid = null, UserMessageId = null, ImageRelPath = null,
                 };
@@ -248,6 +274,7 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = caiResponse.Response!.Text,
+                    TokensUsed = 0,
                     IsSuccessful = true,
                     CharacterMessageUuid = caiResponse.Response.UuId,
                     UserMessageId = caiResponse.LastUserMsgUuId,

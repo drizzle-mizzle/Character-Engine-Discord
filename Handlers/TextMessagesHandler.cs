@@ -10,6 +10,8 @@ using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
+using System;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -106,10 +108,12 @@ namespace CharacterEngineDiscord.Handlers
                     text = text.Remove(start, end - start).Trim();
                 else
                 {
-                    string refText = userMessage.ReferencedMessage.Content;
-                    int refL = Math.Min(refText.Length, 350);
+                    string refContent = userMessage.ReferencedMessage.Content;
 
-                    text = text.Replace("{{ref_msg_text}}", refText[0..refL] + (refL == 350 ? "..." : "")).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
+                    if (refContent.StartsWith("<")) refContent = MentionRegex().Replace(refContent, "", 1);
+                    int refL = Math.Min(refContent.Length, 350);
+
+                    text = text.Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 350 ? "..." : "")).Replace("{{ref_msg_user}}", userMessage.ReferencedMessage.Author.Username).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
                 }
             }
 
@@ -124,7 +128,11 @@ namespace CharacterEngineDiscord.Handlers
 
             await db.Entry(characterWebhook).ReloadAsync();
             try { await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName); }
-            finally { await db.SaveChangesAsync(); }
+            finally
+            {
+                characterWebhook.LastCallTime = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
         }
 
         private async Task TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName)
@@ -172,8 +180,11 @@ namespace CharacterEngineDiscord.Handlers
             List<Embed>? embeds = new();
             if (characterWebhook.ReferencesEnabled && userMessage.Content is not null)
             {
-                int l = Math.Min(userMessage.Content.Length, 40);
-                embeds.Add(new EmbedBuilder().WithFooter($"> {userMessage.Content[0..l]}{(l == 40 ? "..." : "")}").Build());
+                int l = Math.Min(userMessage.Content.Length, 36);
+                string quote = userMessage.Content;
+                if (quote.StartsWith("<")) quote = MentionRegex().Replace(quote, "", 1);
+
+                embeds.Add(new EmbedBuilder().WithFooter($"> {quote[0..l]}{(l == 36 ? "..." : "")}").Build());
             }
             if (characterResponse.ImageRelPath is not null)
             {
@@ -198,27 +209,33 @@ namespace CharacterEngineDiscord.Handlers
             bool isWebhook = userMessage.Author.IsWebhook;
             bool isBotMessage = isWebhook || userMessage.Author.IsBot;
             if (isBotMessage) return;
-            if (!characterWebhook.SwipesEnabled) return;
 
-            try { await AddSwipesAsync(userMessage.Channel, messageId, characterWebhook.Channel.Guild.BtnsRemoveDelay); }
+            try {
+                if (characterWebhook.SwipesEnabled)
+                    await AddSwipesAsync(userMessage.Channel, messageId);
+                if (characterWebhook.CrutchEnabled)
+                    await AddCrutchBtnAsync(userMessage.Channel, messageId);
+
+                _ = Task.Run(async () => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+            }
             catch
             {
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
             }
         }
 
-        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(ulong cwId, SocketUserMessage userMessage, string text)
+        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(ulong characterWebhookId, SocketUserMessage userMessage, string text)
         {
             var db = new StorageContext();
-            var cw = await db.CharacterWebhooks.FindAsync(cwId);
-            if (cw is null) return null;
+            var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
+            if (characterWebhook is null) return null;
 
-            cw.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = characterWebhook.Id }); // remember user message (will be included in payload)
 
-            var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
+            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook, removeLastMessage: false);
             if (openAiRequestParams.Messages.Count < 2)
             {
-                cw.OpenAiHistoryMessages.Remove(cw.OpenAiHistoryMessages.Last());
+                characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`".ToInlineEmbed(Color.Red));
                 return null;
             }
@@ -227,24 +244,25 @@ namespace CharacterEngineDiscord.Handlers
 
             if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
-                cw.OpenAiHistoryMessages.Remove(cw.OpenAiHistoryMessages.Last());
+                characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse?.ErrorReason ?? "Something went wrong!"}`".ToInlineEmbed(Color.Red));
                 return null;
             }
 
             // Remember character message
-            cw.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = openAiResponse.Message!, CharacterWebhookId = cw.Id });
-            cw.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
+            characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = openAiResponse.Message!, CharacterWebhookId = characterWebhook.Id });
+            characterWebhook.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
 
             // Clear old messages, 40-60 is a good balance between response speed and needed context size, also it's usually pretty close to the GPT-3.5 token limit
-            if (cw.OpenAiHistoryMessages.Count > 60)
-                cw.OpenAiHistoryMessages.RemoveRange(0, 20);
+            if (characterWebhook.OpenAiHistoryMessages.Count > 60)
+                characterWebhook.OpenAiHistoryMessages.RemoveRange(0, 20);
 
             await db.SaveChangesAsync();
 
             return new()
             {
                 Text = openAiResponse.Message!,
+                TokensUsed = openAiResponse.Usage ?? 0,
                 CharacterMessageUuid = openAiResponse.MessageId,
                 IsSuccessful = true,
                 UserMessageId = null, ImageRelPath = null,
@@ -270,6 +288,7 @@ namespace CharacterEngineDiscord.Handlers
             return new()
             {
                 Text = caiResponse.Response!.Text,
+                TokensUsed = 0,
                 IsSuccessful = true,
                 CharacterMessageUuid = caiResponse.Response.UuId,
                 UserMessageId = caiResponse.LastUserMsgUuId,
@@ -339,18 +358,23 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId, int lifespan)
+        private async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId)
         {
             var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
-            _ = Task.Run(async () => await RemoveSwipesAsync(channel, messageId, lifespan));
+        }
+
+        private async Task AddCrutchBtnAsync(ISocketMessageChannel channel, ulong messageId)
+        {
+            var message = await channel.GetMessageAsync(messageId);
+            await message.AddReactionAsync(PROCEED_BTN);
         }
 
         /// <summary>
         /// Task that will delete all emoji-buttons from the message after some time
         /// </summary>
-        private async Task RemoveSwipesAsync(ISocketMessageChannel channel, ulong messageId, int delay)
+        private async Task RemoveButtonsAsync(ISocketMessageChannel channel, ulong messageId, int delay)
         {
             try
             {
@@ -374,7 +398,7 @@ namespace CharacterEngineDiscord.Handlers
                 }
 
                 var message = await channel.GetMessageAsync(messageId);
-                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT };
+                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, PROCEED_BTN };
                 foreach (var btn in btns)
                     await message.RemoveReactionAsync(btn, _client.CurrentUser);
             }

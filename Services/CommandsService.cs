@@ -179,9 +179,8 @@ namespace CharacterEngineDiscord.Services
             {
                 ulong uChannelId = ulong.Parse(channelId!);
                 var channel = await client.GetChannelAsync(uChannelId);
-                var textChannel = channel as ITextChannel;
-                if (textChannel is null) return;
-                
+                if (channel is not ITextChannel textChannel) return;
+
                 var embed = new EmbedBuilder().WithTitle(title).WithColor(color);
 
                 if (content is not null)
@@ -191,7 +190,7 @@ namespace CharacterEngineDiscord.Services
                         if (content.Length > 1010)
                         {
                             embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```cs\n{content[0..1009]}...```");
-                            content = content[1010..];
+                            content = content[1009..];
                         }
                         else
                         {

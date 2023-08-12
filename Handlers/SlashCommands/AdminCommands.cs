@@ -150,6 +150,53 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
+        [SlashCommand("stats-for-server", "-")]
+        public async Task AdminGuildStats(string? guildId = null)
+        {
+            await DeferAsync();
+
+            ulong uGuildId;
+            if (guildId is null)
+            {
+                uGuildId = Context.Guild.Id;
+            }
+            else
+            {
+                if (!ulong.TryParse(guildId, out uGuildId))
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong ID".ToInlineEmbed(Color.Red));
+                    return;
+                }
+            }
+            
+            var guild = _client.GetGuild(uGuildId);
+            var allCharacters = _db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
+
+            if (allCharacters is null || !allCharacters.Any())
+            {
+                await FollowupAsync(embed: $"No records".ToInlineEmbed(Color.Orange));
+                return;
+            }
+
+            int charactersCount = allCharacters.Count();
+            bool defOpenAiToken = allCharacters.First().Channel.Guild.GuildOpenAiApiToken is null;
+            bool defCaiToken = allCharacters.First().Channel.Guild.GuildCaiUserToken is null;
+            DateTime lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime).First().LastCallTime;
+
+            string desc = $"**Owner:** `{guild.Owner.Username}`\n" +
+                          $"**Characters:** `{charactersCount}`\n" +
+                          $"**Last character call:** `{lastUsed.ToLongDateString()}`\n" +
+                          $"**Uses default OpenAI token:** `{defOpenAiToken}`\n" +
+                          $"**Uses default cAI token:** `{defCaiToken}`";
+
+            var embed = new EmbedBuilder().WithTitle(guild.Name)
+                                          .WithColor(Color.Magenta)
+                                          .WithDescription(desc)
+                                          .WithImageUrl(guild.IconUrl)
+                                          .Build();
+            await FollowupAsync(embed: embed);
+        }
+
         [SlashCommand("shutdown", "Shutdown")]
         public async Task AdminShutdownAsync()
         {
@@ -173,7 +220,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _client.SetStatusAsync(status);
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
         }
-
 
 
         ////////////////////

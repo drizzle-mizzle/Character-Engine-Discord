@@ -22,6 +22,7 @@ namespace CharacterEngineDiscord.Models.Database
         public required string CallPrefix { get; set; }
         public required bool ReferencesEnabled { get; set; }
         public required bool SwipesEnabled { get; set; }
+        public required bool CrutchEnabled { get; set; }
         public required int ResponseDelay { get; set; }
         public required IntegrationType IntegrationType { get; set; }
         public required string? MessagesFormat { get; set; }

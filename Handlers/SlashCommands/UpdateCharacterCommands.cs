@@ -117,7 +117,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("toggle-swipes", "Enable/disable swipes")]
+        [SlashCommand("toggle-swipes", "Enable/disable swipe buttons")]
         public async Task ToggleSwipes(string webhookIdOrPrefix, bool enable)
         {
             await DeferAsync();
@@ -131,6 +131,31 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.SwipesEnabled = enable;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("toggle-crutch", "Enable/disable proceed genetaion button")]
+        public async Task ToggleCrutch(string webhookIdOrPrefix, bool enable)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for CharacterAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.CrutchEnabled = enable;
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -155,7 +180,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var image = await TryDownloadImgAsync(avatarUrl, _integration.HttpClient);
             if (image is null && characterWebhook.IntegrationType is IntegrationType.CharacterAI)
             {
-                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png"));
+                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
             }
 
             await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
@@ -192,6 +217,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("set-random-reply-chance", "Change random replies chance")]
+        public async Task SetRandomReplyChance(string webhookIdOrPrefix, float chance)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            characterWebhook.ReplyChance = chance;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
         [SlashCommand("set-max-tokens", "Change amount of tokens for ChatGPT responses")]
         public async Task SetMaxTokens(string webhookIdOrPrefix, int tokens)
         {
@@ -208,6 +252,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (tokens > 1000 || tokens < 0)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Availabe values: `0..1000`".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -236,26 +286,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            characterWebhook.OpenAiTemperature = temperature;
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
-        }
-
-        [SlashCommand("set-random-reply-chance", "Change random replies chance")]
-        public async Task SetRandomReplyChance(string webhookIdOrPrefix, float chance)
-        {
-            await DeferAsync();
-
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
-
-            if (characterWebhook is null)
+            if (temperature > 2 || temperature < 0)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Availabe values: `0..2`".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            characterWebhook.OpenAiTemperature = chance;
+            characterWebhook.OpenAiTemperature = temperature;
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -277,6 +314,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (presencePenalty > 2.0 || presencePenalty < -2.0)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Availabe values: `-2..2`".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -302,6 +345,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (frequencyPenalty > 2.0 || frequencyPenalty < -2.0)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Availabe values: `-2..2`".ToInlineEmbed(Color.Red));
                 return;
             }
 

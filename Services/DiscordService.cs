@@ -106,7 +106,7 @@ namespace CharacterEngineDiscord.Services
                     await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
-                string log = $"Sever name: {guild.Name}\n" +
+                string log = $"Sever name: {guild.Name} ({guild.Id})\n" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                              $"Members: {guild.MemberCount}\n" +
                              $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
@@ -166,10 +166,17 @@ namespace CharacterEngineDiscord.Services
             var intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
 
             // Create client
-            var clientConfig = new DiscordSocketConfig { MessageCacheSize = 5, GatewayIntents = intents };
-            var client = new DiscordSocketClient(clientConfig);
+            var clientConfig = new DiscordSocketConfig
+            {
+                MessageCacheSize = 100,
+                GatewayIntents = intents,
+                SuppressUnknownDispatchWarnings = true,
+                ConnectionTimeout = 30000,
+                DefaultRetryMode = RetryMode.AlwaysRetry,
+                AlwaysDownloadDefaultStickers = true,
+            };
 
-            // Bind event handlers
+            var client = new DiscordSocketClient(clientConfig);
             client.Log += (msg) => Task.Run(() => Log($"{msg}\n"));
 
             return client;

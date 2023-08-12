@@ -112,25 +112,35 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
                 ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string? title = character.Title;
-            if (string.IsNullOrWhiteSpace(title)) title = "No title";
-            title = (title.Length > 800 ? title[0..800] + "[...]" : title).Replace("\n\n", "\n");
-            title = $"Swipes enabled: {characterWebhook.SwipesEnabled}\n" +
-                    $"ResponseDelay: {characterWebhook.ResponseDelay}s\n" +
-                    $"Reply chance: {characterWebhook.ReplyChance}\n" +
-                    $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
-                    $"Webhook ID: *`{characterWebhook.Id}`*\n\n\"{title}\"";
-            
-            string? desc = character.Description;
-            if (string.IsNullOrWhiteSpace(desc)) desc = "No description";
+            string api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
+                                         $"OpenAI ({characterWebhook.OpenAiModel})" :
+                                         characterWebhook.IntegrationType.ToString();
 
-            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
-            desc = $"\n\n{desc}\n\n*Original link: {link}\n" +
+            string? info = character.Title;
+            if (string.IsNullOrWhiteSpace(info)) info = "No title";
+            info = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
+                   $"Webhook ID: *`{characterWebhook.Id}`*\n" +
+                   $"API: *`{api}`*\n" +
+                   $"Quotes enabled: *`{characterWebhook.ReferencesEnabled}`*\n" +
+                   $"Swipes enabled: *`{characterWebhook.SwipesEnabled}`*\n" +
+                   $"Proceed button enabled: *`{characterWebhook.CrutchEnabled}`*\n" +
+                   $"ResponseDelay: *`{characterWebhook.ResponseDelay}s`*\n" +
+                   $"Reply chance: *`{characterWebhook.ReplyChance}`*\n" +
+                   $"Hunted users: *`{characterWebhook.HuntedUsers.Count}`*\n" +
+                   $"\n\"{info.Replace("\n\n", "\n")}\"";
+
+            if (info.Length > 4096) info = info[0..4090] + "[...]";
+            
+            string? characterDesc = character.Description;
+            if (string.IsNullOrWhiteSpace(characterDesc)) characterDesc = "No description";
+
+            characterDesc = (characterDesc.Length > 800 ? characterDesc[0..800] + "[...]" : characterDesc).Replace("\n\n", "\n");
+            characterDesc = $"\n\n{characterDesc}\n\n*Original link: {link}\n" +
                    $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
 
             var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **{character.Name}**").WithColor(Color.Gold);
-            emb.WithDescription(title);
-            emb.AddField("Description", desc);
+            emb.WithDescription(info);
+            emb.AddField("Description", characterDesc);
             emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
             emb.WithFooter($"Created by {character.AuthorName}");
 

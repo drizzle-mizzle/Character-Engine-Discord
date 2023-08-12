@@ -82,7 +82,7 @@ namespace CharacterEngineDiscord.Handlers
                     {
                         await component.Message.ModifyAsync(msg =>
                         {
-                            msg.Embed = WAIT_MESSAGE.ToInlineEmbed(Color.Teal);
+                            msg.Embed = WAIT_MESSAGE;
                             msg.Components = null;
                         });
                     }

@@ -6,6 +6,7 @@
         public required string? CharacterMessageUuid { get; set; }
         public required string? UserMessageId { get; set; }
         public required string? ImageRelPath { get; set; }
+        public required int TokensUsed { get; set; }
         public required bool IsSuccessful { get; set; }
         public bool IsFailure { get => !IsSuccessful; }
     }

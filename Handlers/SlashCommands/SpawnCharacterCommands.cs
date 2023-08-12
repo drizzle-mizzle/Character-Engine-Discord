@@ -72,7 +72,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE);
 
                 var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.HttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE);
 
                 var response = await SearchChubCharactersAsync(new()
                 {
@@ -121,7 +121,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE);
 
                 var caiCharacter = await _integration.CaiClient.GetInfoAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var character = CharacterFromCaiCharacterInfo(caiCharacter);
@@ -130,7 +130,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: WAIT_MESSAGE.ToInlineEmbed(Color.Teal));
+                await FollowupAsync(embed: WAIT_MESSAGE);
 
                 var response = await _integration.CaiClient.SearchAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var searchQueryData = SearchQueryDataFromCaiResponse(response);

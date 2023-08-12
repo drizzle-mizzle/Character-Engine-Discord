@@ -111,7 +111,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool removeLastMessage = false)
+        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool removeLastMessage)
         {
             string jailbreakPrompt = $"{characterWebhook.UniversalJailbreakPrompt}.  " +
                                      $"{{{{char}}}}'s name: {characterWebhook.Character.Name}.  " +
@@ -217,7 +217,7 @@ namespace CharacterEngineDiscord.Services
 
             if (image is null && type is IntegrationType.CharacterAI)
             {
-                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_cai_avatar.png"));
+                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
             }
 
             IWebhook? channelWebhook = null;
@@ -280,6 +280,7 @@ namespace CharacterEngineDiscord.Services
                     CallPrefix = callPrefix,
                     ReferencesEnabled = false,
                     SwipesEnabled = true,
+                    CrutchEnabled = type is not IntegrationType.CharacterAI,
                     ResponseDelay = 1,
                     MessagesFormat = null,
                     IntegrationType = type,
@@ -418,7 +419,7 @@ namespace CharacterEngineDiscord.Services
             int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
             if (_watchDog[currUserId].Value == rateLimit - 2)
-                await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
+                await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} {context.User.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
                 await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
@@ -427,7 +428,7 @@ namespace CharacterEngineDiscord.Services
                 _watchDog.Remove(currUserId);
 
                 await TryToReportInLogsChannel(context.Client, title: $":eyes: Notification",
-                                                               desc: $"Server: **{context.Guild?.Name}** ({context.Guild?.Id})\nUser **{context.Message?.Author?.Username}** ({context.Message?.Author?.Id}) hit the rate limit and was blocked",
+                                                               desc: $"Server: **{context.Guild?.Name} ({context.Guild?.Id})** owned by **{context.Guild?.Owner?.Username} ({context.Guild?.OwnerId})**\nUser **{context.Message?.Author?.Username} ({context.Message?.Author?.Id})** hit the rate limit and was blocked",
                                                                content: null,
                                                                color: Color.LightOrange,
                                                                error: false);
@@ -462,7 +463,7 @@ namespace CharacterEngineDiscord.Services
             int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
             if (_watchDog[currUserId].Value == rateLimit - 1)
-                await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
+                await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value?.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
             else if (_watchDog[currUserId].Value > rateLimit)
             {
                 await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 0 });
@@ -472,7 +473,7 @@ namespace CharacterEngineDiscord.Services
 
                 var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
                 await TryToReportInLogsChannel(client, title: $":eyes: Notification",
-                                                       desc: $"Server: **{currentChannel?.Guild?.Name}** ({currentChannel?.Guild?.Id})\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
+                                                       desc: $"Server: **{currentChannel?.Guild?.Name} ({currentChannel?.Guild?.Id})** owned by **{currentChannel?.Guild?.Owner?.Username} ({currentChannel?.Guild?.OwnerId})**\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
                                                        content: null,
                                                        color: Color.LightOrange,
                                                        error: false);
