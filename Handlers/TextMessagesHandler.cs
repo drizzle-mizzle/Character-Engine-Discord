@@ -235,7 +235,7 @@ namespace CharacterEngineDiscord.Handlers
 
             characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = characterWebhook.Id }); // remember user message (will be included in payload)
 
-            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: false);
+            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook);
             if (openAiRequestParams.Messages.Count < 2)
             {
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());

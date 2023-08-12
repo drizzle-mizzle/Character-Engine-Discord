@@ -111,7 +111,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe)
+        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false, bool isContinue = false)
         {
             string jailbreakPrompt = characterWebhook.UniversalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             string fullJailbreakPrompt = $"{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")}.  " +
@@ -146,7 +146,7 @@ namespace CharacterEngineDiscord.Services
 
             if (isSwipe)
                 oldMessages.RemoveAt(oldMessages.Count-1);
-            else
+            else if (isContinue)
                 oldMessages.Add(new("user", "(continue character response from the point where it stopped)"));
 
             messages.AddRange(oldMessages); // add history message to the payload

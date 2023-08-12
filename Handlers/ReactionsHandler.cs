@@ -149,7 +149,7 @@ namespace CharacterEngineDiscord.Handlers
                 if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                     characterResponse = await GetCaiCharaterResponseAsync(characterWebhook, _integration.CaiClient);
                 else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                    characterResponse = await GetOpenAiResponseAsync(characterWebhook, _integration.HttpClient, isSwipe: isSwipe);
+                    characterResponse = await GetOpenAiResponseAsync(characterWebhook, _integration.HttpClient, isSwipeOrContinue: isSwipe);
                 else return;
                 
                 if (!characterResponse.IsSuccessful)
@@ -222,9 +222,11 @@ namespace CharacterEngineDiscord.Handlers
             //if (tm is not null) tm.IsTranslated = false;
         }
 
-        private static async Task<CharacterResponse> GetOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipe)
+        
+        /// <param name="isSwipeOrContinue">true = swipe, false = continue</param>
+        private static async Task<CharacterResponse> GetOpenAiResponseAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipeOrContinue)
         {
-            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: isSwipe); // if not swipe, last message should persist
+            var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: isSwipeOrContinue, isContinue: !isSwipeOrContinue);
             var openAiResponse = await CallChatOpenAiAsync(openAiParams, client);
 
             if (openAiResponse is null || openAiResponse.IsFailure)
