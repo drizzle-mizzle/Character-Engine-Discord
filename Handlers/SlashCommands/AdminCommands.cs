@@ -201,17 +201,67 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .WithDescription(desc)
                                           .WithImageUrl(guild.IconUrl)
                                           .Build();
+
             await FollowupAsync(embed: embed);
         }
 
         [SlashCommand("shutdown", "Shutdown")]
         public async Task AdminShutdownAsync()
         {
-            await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange));
+            await DeferAsync();
 
-            try { _integration?.CaiClient?.KillBrowser(); }
-            catch (Exception e) { LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() }); }
-            finally { Environment.Exit(0); }
+            if (_integration.CaiClient is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange));
+
+            try { _integration.CaiClient.KillBrowser(); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red));
+                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
+                return;
+            }
+
+            Environment.Exit(0);
+        }
+
+        [SlashCommand("relaunch-puppeteer", "-")]
+        public async Task RelaunchBrowser()
+        {
+            await DeferAsync();
+
+            if (_integration.CaiClient is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting Puppeteer down...".ToInlineEmbed(Color.LightOrange));
+
+            try { _integration.CaiClient.KillBrowser(); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red));
+                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
+                return;
+            }
+
+            await FollowupAsync(embed: SuccessEmbed());
+            await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple));
+
+            try { await _integration.CaiClient.LaunchBrowserAsync(killDuplicates: true); }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));
+                LogException(new[] { "Failed to launch Puppeteer processes.\n", e.ToString() });
+                return;
+            }
+
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("set-game", "Set game status")]
