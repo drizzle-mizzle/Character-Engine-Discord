@@ -6,6 +6,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 using System;
+using CharacterEngineDiscord.Migrations;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -151,7 +152,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("stats-for-server", "-")]
+        [SlashCommand("server-stats", "-")]
         public async Task AdminGuildStats(string? guildId = null)
         {
             await DeferAsync();
@@ -171,8 +172,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             
             var guild = _client.GetGuild(uGuildId);
-            var allCharacters = _db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
+            if (guild is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Guild not found".ToInlineEmbed(Color.Red));
+                return;
+            }
 
+            var allCharacters = _db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
             if (allCharacters is null || !allCharacters.Any())
             {
                 await FollowupAsync(embed: $"No records".ToInlineEmbed(Color.Orange));
@@ -182,11 +188,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             int charactersCount = allCharacters.Count();
             bool defOpenAiToken = allCharacters.First().Channel.Guild.GuildOpenAiApiToken is null;
             bool defCaiToken = allCharacters.First().Channel.Guild.GuildCaiUserToken is null;
-            DateTime lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime).First().LastCallTime;
+            DateTime? lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime)?.FirstOrDefault()?.LastCallTime;
 
             string desc = $"**Owner:** `{guild.Owner.Username}`\n" +
                           $"**Characters:** `{charactersCount}`\n" +
-                          $"**Last character call:** `{lastUsed.ToLongDateString()}`\n" +
+                          $"**Last character call:** `{(lastUsed is null ? "?" : lastUsed.GetValueOrDefault())}`\n" +
                           $"**Uses default OpenAI token:** `{defOpenAiToken}`\n" +
                           $"**Uses default cAI token:** `{defCaiToken}`";
 
@@ -242,7 +248,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 var guild = guilds.ElementAt(i);
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
-                string val = $"{(guild.Description is string desc ? $"Description: \"{desc}\"\n" : "")}" +
+                string val = $"ID: {guild.Id}\n" +
+                             $"{(guild.Description is string desc ? $"Description: \"{desc[0..Math.Min(200, desc.Length-1)]}\"\n" : "")}" +
                              $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                              $"Members: {guild.MemberCount}";
                 embed.AddField(guild.Name, val);
