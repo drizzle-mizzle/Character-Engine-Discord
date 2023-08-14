@@ -38,10 +38,9 @@ namespace CharacterEngineDiscord.Handlers
 
             _interactions.InteractionExecuted += (info, context, result) =>
             {
-                Task.Run(async () =>
-                {
-                    if (!result.IsSuccess) await HandleInteractionException(context, result);
-                });
+                if (!result.IsSuccess)
+                    Task.Run(async () => await HandleInteractionException(context, result));
+                
                 return Task.CompletedTask;
             };
         }
