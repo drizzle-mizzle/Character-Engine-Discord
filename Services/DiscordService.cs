@@ -39,17 +39,10 @@ namespace CharacterEngineDiscord.Services
             await new StorageContext().Database.MigrateAsync();
 
             _client.Ready += CreateSlashCommandsAsync;
+            _client.Log += (msg) => Task.Run(() => Log($"{msg}\n"));
+
             _client.JoinedGuild += OnGuildJoinAsync;
-            _client.LeftGuild += (guild) =>
-            {
-                LogRed($"Left guild: {guild.Name} | Members: {guild?.MemberCount}\n");
-                return Task.CompletedTask;
-            };
-            _client.Log += (msg) =>
-            {
-                Log($"{msg}\n");
-                return Task.CompletedTask;
-            };
+            _client.LeftGuild += (guild) => Task.Run(() => LogRed($"Left guild: {guild.Name} | Members: {guild?.MemberCount}\n"));
 
             await Task.Run(SetupIntegrationAsync);
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
@@ -83,9 +76,9 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        private async Task OnGuildJoinAsync(SocketGuild guild)
+        private Task OnGuildJoinAsync(SocketGuild guild)
         {
-            try
+            Task.Run(async () => { try
             {
                 var db = new StorageContext();
                 bool guildIsBlocked = (await db.BlockedGuilds.FindAsync(guild.Id)) is not null;
@@ -107,17 +100,15 @@ namespace CharacterEngineDiscord.Services
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
                 string log = $"Sever name: {guild.Name} ({guild.Id})\n" +
-                             $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
-                             $"Members: {guild.MemberCount}\n" +
-                             $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
+                                $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
+                                $"Members: {guild.MemberCount}\n" +
+                                $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
                 LogGreen(log);
 
                 await TryToReportInLogsChannel(_client, "New server", log, null, Color.Green, false);
-            }
-            catch (Exception e)
-            {
-                LogException(new[] { e });
-            }
+            } catch (Exception e) { LogException(new[] { e }); }});
+
+            return Task.CompletedTask;
         }
 
         internal static ServiceProvider CreateServices()
@@ -142,23 +133,27 @@ namespace CharacterEngineDiscord.Services
             catch (Exception e) { LogException(new[] { e }); }
         }
 
-        private async Task CreateSlashCommandsAsync()
+        private Task CreateSlashCommandsAsync()
         {
-            Log("Registering commands to guilds...\n");
-            foreach (var guild in _client.Guilds)
+            Task.Run(async () =>
             {
-                LogGreen(".");
-                try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); }
-                catch (Exception e)
+                Log("Registering commands to guilds...\n");
+                foreach (var guild in _client.Guilds)
                 {
-                    LogException(new[] { e });
-                    await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Exception", $"Failed to register commands in guild:\n{e}", null, Color.Green, error: false);
-                    continue;
+                    LogGreen(".");
+                    try { await _interactions.RegisterCommandsToGuildAsync(guild.Id); }
+                    catch (Exception e)
+                    {
+                        LogException(new[] { e });
+                        await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Exception", $"Failed to register commands in guild:\n{e}", null, Color.Green, error: false);
+                        continue;
+                    }
                 }
-            }
+                Log("\n");
+                await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
+            });
 
-            Log("\n");
-            await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
+            return Task.CompletedTask;
         }
 
         private static DiscordSocketClient CreateDiscordClient()
