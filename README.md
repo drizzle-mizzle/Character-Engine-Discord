@@ -6,11 +6,11 @@ Universal frontend for the various LLM APIs in the form of Discord bot.
 <div align="center"><br>
   <img width="540" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/6c81e1d0-e48b-4e35-b5d6-0dc21a9ef1d6"/>
   <br>
-  <b><sup>
-    If you liked this project, you can show it by pressing this shiny little button: <sub><sub><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/fe5331b5-8264-460d-aeef-9d73724fa16b"/><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/dc1200b4-9871-4b6d-9100-b7b3067276bd"/>⭐</sub></sub>
+  <sup><b>
+    ⭐If you liked this project, you can show it by pressing this shiny little star button: </sup><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/fe5331b5-8264-460d-aeef-9d73724fa16b"/><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/dc1200b4-9871-4b6d-9100-b7b3067276bd"/>
     <br>
-    [ <a href="https://discord.gg/JtVzgJ8Znh">Join Discord Server</a> ]
-  </b></sup>
+    <sup>[ <a href="https://discord.gg/JtVzgJ8Znh">Join my Discord server</a> ]</sup>
+  </sup></b>
 </div>
     
 ##
