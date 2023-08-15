@@ -127,7 +127,7 @@ namespace CharacterEngineDiscord.Handlers
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
 
-                    string characterMessage = $"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{component.User.Mention}**")}";
+                    string characterMessage = $"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
                     if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
 
                     await webhookClient.SendMessageAsync(characterMessage);

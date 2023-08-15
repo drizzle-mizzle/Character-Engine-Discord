@@ -9,12 +9,14 @@ using Discord.WebSocket;
 using System.Text.RegularExpressions;
 using System.Web;
 using Discord.Rest;
+using System.Data.Entity.Core.Mapping;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace CharacterEngineDiscord.Services
 {
     public static partial class CommandsService
     {
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext? _db = null)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext? _db = null)
         {
             var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, _db);
             var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
@@ -27,6 +29,25 @@ namespace CharacterEngineDiscord.Services
 
             return characterWebhook;
         }
+
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, StorageContext _db)
+        {
+            var channel = await _db.Channels.FindAsync(channelId);
+            if (channel is null) return null;
+
+            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+
+            if (characterWebhook is null)
+            {
+                bool ok = ulong.TryParse(webhookIdOrPrefix.Trim(), out var cwId);
+                characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == (ok ? cwId : 0));
+            }
+
+            return characterWebhook;
+        }
+
+        internal static string GetBestName(this SocketGuildUser user)
+            => user.Nickname ?? user.DisplayName ?? user.Username;
 
         internal static bool IsHoster(this SocketGuildUser? user)
         {
@@ -167,7 +188,7 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
-        public static async Task TryToReportInLogsChannel(DiscordSocketClient client, string title, string desc, string? content, Color color, bool error)
+        public static async Task TryToReportInLogsChannel(IDiscordClient client, string title, string desc, string? content, Color color, bool error)
         {
             string? channelId = null;
 
@@ -175,12 +196,18 @@ namespace CharacterEngineDiscord.Services
             if (channelId.IsEmpty()) channelId = ConfigFile.DiscordLogsChannelID.Value;
             if (channelId.IsEmpty()) return;
 
+            if (!ulong.TryParse(channelId, out var uChannelId)) return;
+
+            var channel = await client.GetChannelAsync(uChannelId);
+            if (channel is not ITextChannel textChannel) return;
+
+            await ReportInLogsChannel(textChannel, title, desc, content, color, error);
+        }
+
+        public static async Task ReportInLogsChannel(ITextChannel channel, string title, string desc, string? content, Color color, bool error)
+        { 
             try
             {
-                ulong uChannelId = ulong.Parse(channelId!);
-                var channel = await client.GetChannelAsync(uChannelId);
-                if (channel is not ITextChannel textChannel) return;
-
                 var embed = new EmbedBuilder().WithTitle(title).WithColor(color);
 
                 if (content is not null)
@@ -200,7 +227,7 @@ namespace CharacterEngineDiscord.Services
                     }
                 }
 
-                await textChannel.SendMessageAsync(embed: embed.WithDescription(desc).Build());
+                await channel.SendMessageAsync(embed: embed.WithDescription(desc).Build());
             }
             catch (Exception e)
             {

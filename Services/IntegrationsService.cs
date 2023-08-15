@@ -207,23 +207,19 @@ namespace CharacterEngineDiscord.Services
         {
             // Create basic call prefix from two first letters in the character name
             int l = Math.Min(2, unsavedCharacter.Name.Length-1);
-            string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch " (with spacebar)
+            string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch"
 
             IIntegrationChannel? discordChannel;
             discordChannel = context.Channel as IIntegrationChannel;
-            discordChannel ??= (await context.Interaction.GetOriginalResponseAsync()).Channel as IIntegrationChannel;
             if (discordChannel is null) return null;
 
             // replacing with Russian 'о' and 'с', as name "discord" is not allowed for webhooks
             string name = unsavedCharacter.Name.ToLower().Contains("discord") ? unsavedCharacter.Name.Replace('o', 'о').Replace('c', 'с') : unsavedCharacter.Name;
+
             var image = await TryDownloadImgAsync(unsavedCharacter.AvatarUrl, integration.HttpClient);
+            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
-            if (image is null && type is IntegrationType.CharacterAI)
-            {
-                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-            }
-
-            IWebhook? channelWebhook = null;
+            IWebhook? channelWebhook;
             try
             {
                 channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
@@ -231,9 +227,8 @@ namespace CharacterEngineDiscord.Services
             catch (Exception e)
             {
                 await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red));
+                return null;
             }
-
-            if (channelWebhook is null) return null;
 
             var db = new StorageContext();
             try
@@ -304,6 +299,7 @@ namespace CharacterEngineDiscord.Services
             catch (Exception e)
             {
                 LogException(new[] { e });
+                await TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
                 await channelWebhook.DeleteAsync();
 
                 return null;

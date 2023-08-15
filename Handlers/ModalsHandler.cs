@@ -91,7 +91,7 @@ namespace CharacterEngineDiscord.Handlers
             string webhookIdOrPrefix = modal.Data.CustomId.Split('~').Last();
 
             var context = new InteractionContext(_client, modal, modal.Channel);
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, context, db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, context, db);
 
             if (characterWebhook is null)
             {

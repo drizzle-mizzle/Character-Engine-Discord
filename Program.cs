@@ -21,7 +21,7 @@ namespace CharacterEngineDiscord
             await Task.Delay(-1);
         }
 
-        private void CreateLogsFile()
+        private static void CreateLogsFile()
         {
             if (ConfigFile.LogFileEnabled.Value.ToBool())
             {

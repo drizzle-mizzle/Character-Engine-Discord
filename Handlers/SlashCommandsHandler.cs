@@ -58,6 +58,15 @@ namespace CharacterEngineDiscord.Handlers
         {
             try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
             catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{result.ErrorReason}`".ToInlineEmbed(Color.Red)); }
+
+            var channel = context.Channel;
+            var guild = context.Guild;
+            await TryToReportInLogsChannel(_client, title: "Exception",
+                                                    desc: $"In Guild `{guild.Name} ({guild.Id})`, Channel: `{channel.Name} ({channel.Id})`\n" +
+                                                          $"User: {context.User.Username}",
+                                                    content: $"{result.ErrorReason}\n\n{result.Error.GetValueOrDefault()}",
+                                                    color: Color.Red,
+                                                    error: true);
         }
 
         private async Task HandleSlashCommandException(SocketSlashCommand command, Exception e)

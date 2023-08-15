@@ -17,13 +17,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class ManagerCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
-        //private readonly DiscordSocketClient _client;
+        private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public ManagerCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
-            //_client = services.GetRequiredService<DiscordSocketClient>();
+            _client = services.GetRequiredService<DiscordSocketClient>();
             _db = new StorageContext();
         }
 
@@ -43,6 +43,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task ClearChannelWebhooks()
         {
             await ClearWebhooksAsync(all: false);
+        }
+
+        [SlashCommand("copy-character-from-channel", "As it says")]
+        public async Task CopyCharacter(IChannel channel, string webhookIdOrPrefix)
+        {
+            await CopyCharacterAsync(channel, webhookIdOrPrefix);
         }
 
         [SlashCommand("set-channel-random-reply-chance", "Set random character replies chance for this channel")]
@@ -239,7 +245,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
             {
@@ -351,7 +357,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
             {
@@ -408,7 +414,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
             {
@@ -439,7 +445,94 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            await webhookClient.SendMessageAsync(text: $"{Context.User.Mention} {characterWebhook.Character.Greeting}");
+            string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
+            if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+            await webhookClient.SendMessageAsync(characterMessage);
+        }
+
+        private async Task CopyCharacterAsync(IChannel iChannel, string webhookIdOrPrefix)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, iChannel.Id, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            if (Context.Channel is not IIntegrationChannel discordChannel)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to copy the character".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            string name = characterWebhook.Character.Name.ToLower().Contains("discord") ? characterWebhook.Character.Name.Replace('o', 'о').Replace('c', 'с') : characterWebhook.Character.Name;
+            var image = await TryDownloadImgAsync(characterWebhook.Character.AvatarUrl, _integration.HttpClient);
+            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+
+            IWebhook channelWebhook;
+            try
+            {
+                channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
+            }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            try
+            {
+                _db.CharacterWebhooks.Add(new()
+                {
+                    Id = channelWebhook.Id,
+                    WebhookToken = channelWebhook.Token,
+                    ChannelId = (await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id)).Id,
+                    LastCallTime = DateTime.Now,
+                    ReplyChance = 0,
+                    ResponseDelay = 1,
+                    CallPrefix = characterWebhook.CallPrefix,
+                    CharacterId = characterWebhook.CharacterId,
+                    CrutchEnabled = characterWebhook.CrutchEnabled,
+                    IntegrationType = characterWebhook.IntegrationType,
+                    MessagesFormat = characterWebhook.MessagesFormat,
+                    OpenAiFreqPenalty = characterWebhook.OpenAiFreqPenalty,
+                    OpenAiMaxTokens = characterWebhook.OpenAiMaxTokens,
+                    OpenAiModel = characterWebhook.OpenAiModel,
+                    OpenAiPresencePenalty = characterWebhook.OpenAiPresencePenalty,
+                    OpenAiTemperature = characterWebhook.OpenAiTemperature,
+                    ReferencesEnabled = characterWebhook.ReferencesEnabled,
+                    SwipesEnabled = characterWebhook.SwipesEnabled,
+                    UniversalJailbreakPrompt = characterWebhook.UniversalJailbreakPrompt,
+                    PersonalCaiUserAuthToken = characterWebhook.PersonalCaiUserAuthToken,
+                    PersonalOpenAiApiEndpoint = characterWebhook.PersonalOpenAiApiEndpoint,
+                    PersonalOpenAiApiToken = characterWebhook.PersonalOpenAiApiToken,
+                    CaiActiveHistoryId = null
+                });
+
+                if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
+                    _db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+
+                await _db.SaveChangesAsync();
+
+                var webhookClient = new DiscordWebhookClient(channelWebhook.Id, channelWebhook.Token);
+                _integration.WebhookClients.Add(channelWebhook.Id, webhookClient);
+
+                string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
+                if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+                await FollowupAsync(embed: SuccessEmbed());
+                await webhookClient.SendMessageAsync(characterMessage);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+                await TryToReportInLogsChannel(_client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+                await channelWebhook.DeleteAsync();
+            }
         }
 
         private async Task HuntUserAsync(string webhookIdOrPrefix, IUser? user, string? userIdOrCharacterPrefix, float chanceOfResponse)
@@ -452,7 +545,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
             {
@@ -473,7 +566,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
                 else
                 {
-                    var characterToHunt = await TryToFindCharacterWebhookAsync(userIdOrCharacterPrefix, Context, _db);
+                    var characterToHunt = await TryToFindCharacterWebhookInChannelAsync(userIdOrCharacterPrefix, Context, _db);
                     userToHuntId = characterToHunt?.Id;
                     username = characterToHunt?.Character.Name;
                 }
@@ -508,7 +601,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var characterWebhook = await TryToFindCharacterWebhookAsync(webhookIdOrPrefix, Context, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
             {
@@ -529,7 +622,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
                 else
                 {
-                    var characterToUnhunt = await TryToFindCharacterWebhookAsync(userIdOrCharacterPrefix, Context, _db);
+                    var characterToUnhunt = await TryToFindCharacterWebhookInChannelAsync(userIdOrCharacterPrefix, Context, _db);
                     huntedUserId = characterToUnhunt?.Id;
                     username = characterToUnhunt?.Character.Name;
                 }

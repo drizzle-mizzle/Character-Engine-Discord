@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -98,7 +97,7 @@ namespace CharacterEngineDiscord.Handlers
                 await db.SaveChangesAsync();
                 await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
-            else if (reaction.Emote?.Name == PROCEED_BTN.Name)
+            else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
             {   // proceed generation
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
@@ -106,41 +105,39 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task UpdateCharacterMessage(IUserMessage characterMessage, ulong characterWebhookId, SocketGuildUser caller, bool isSwipe)
+        private async Task UpdateCharacterMessage(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser caller, bool isSwipe)
         {
             var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
             // Move it to the end of the queue
-            if (_integration.RemoveEmojiRequestQueue.ContainsKey(characterMessage.Id))
-                _integration.RemoveEmojiRequestQueue.Remove(characterMessage.Id);
+            _integration.RemoveEmojiRequestQueue.Remove(characterOriginalMessage.Id);
+            _integration.RemoveEmojiRequestQueue.Add(characterOriginalMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
-            _integration.RemoveEmojiRequestQueue.Add(characterMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
-
+            // Make sure webhook does exist
             _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
             if (webhookClient is null)
             {
                 try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
                 catch (Exception e)
                 {
-                    await characterMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message: `{e.Message}`".ToInlineEmbed(Color.Red));
+                    await characterOriginalMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message: `{e.Message}`".ToInlineEmbed(Color.Red));
                     return;
                 }
                 _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
             }
 
-            Embed? quoteEmbed = characterMessage.Embeds?.FirstOrDefault() as Embed;
+            // Remember quote
+            Embed? quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault() as Embed;
 
             // Check if fetching a new message, or just swiping among already available ones
             bool gottaFetch = !isSwipe || (_integration.AvailableCharacterResponses[characterWebhookId].Count < characterWebhook.CurrentSwipeIndex + 1);
             if (gottaFetch)
             {
-                string? content = isSwipe ? null : MentionRegex().Replace(characterMessage.Content, "", 1);
-                
-                await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+                await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
                 {
-                    msg.Content = content;
+                    if (isSwipe) msg.Content = null;
                     msg.Embeds = new List<Embed> { WAIT_MESSAGE };
                     msg.AllowedMentions = AllowedMentions.None;
                 });
@@ -154,7 +151,7 @@ namespace CharacterEngineDiscord.Handlers
                 
                 if (!characterResponse.IsSuccessful)
                 {
-                    await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+                    await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
                     {
                         msg.Embeds = new List<Embed> { characterResponse.Text.ToInlineEmbed(Color.Red) };
                         msg.AllowedMentions = AllowedMentions.All;
@@ -165,24 +162,24 @@ namespace CharacterEngineDiscord.Handlers
                 // Add to the storage
                 var newResponse = new AvailableCharacterResponse()
                 {
-                    MessageUuId = characterResponse.CharacterMessageUuid!,
-                    Text = isSwipe ? characterResponse.Text : content + " " + characterResponse.Text,
-                    ImageUrl = characterResponse.ImageRelPath
+                    MessageId = characterResponse.CharacterMessageUuid!,
+                    Text = isSwipe ? characterResponse.Text : MentionRegex().Replace(characterOriginalMessage.Content, "") + " " + characterResponse.Text,
+                    ImageUrl = characterResponse.ImageRelPath,
+                    TokensUsed = characterResponse.TokensUsed
                 };
 
                 if (isSwipe)
                     _integration.AvailableCharacterResponses[characterWebhookId].Add(newResponse);
                 else
                     _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex] = newResponse;
-
-                characterWebhook.LastRequestTokensUsage = characterResponse.TokensUsed;
             }
 
             AvailableCharacterResponse newCharacterMessage;
             try { newCharacterMessage = _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex]; }
             catch { return; }
 
-            characterWebhook.LastCharacterMsgUuId = newCharacterMessage.MessageUuId;
+            characterWebhook.LastCharacterMsgUuId = newCharacterMessage.MessageId;
+            characterWebhook.LastRequestTokensUsage = newCharacterMessage.TokensUsed;
 
             // Add image or/and quote to the message
             var embeds = new List<Embed>();
@@ -200,10 +197,10 @@ namespace CharacterEngineDiscord.Handlers
                 responseText = responseText[0..1994] + "[...]";
 
             // Send (update) message
-            string newContent = $"{caller.Mention} {responseText}".Replace("{{user}}", $"**{caller.Nickname ?? caller.GlobalName ?? caller.Username}**");
+            string newContent = $"{caller.Mention} {responseText}".Replace("{{user}}", $"**{caller.GetBestName()}**");
             if (newContent.Length > 2000) newContent = newContent[0..1994] + "[max]";
 
-            await webhookClient.ModifyMessageAsync(characterMessage.Id, msg =>
+            await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
             {
                 msg.Content = newContent;
                 msg.Embeds = embeds;
@@ -214,7 +211,7 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
             {
                 characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
-                characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = responseText, CharacterWebhookId = characterWebhookId });    
+                db.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = responseText, CharacterWebhookId = characterWebhookId });    
             }
 
             await db.SaveChangesAsync();

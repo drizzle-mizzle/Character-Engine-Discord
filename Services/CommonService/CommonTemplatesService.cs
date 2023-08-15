@@ -12,6 +12,6 @@ namespace CharacterEngineDiscord.Services
         internal static Emoji ARROW_RIGHT = new("\u27A1");
         internal static Emoji STOP_BTN = new("\u26D4");
         internal static Emoji TRANSLATE_BTN = new("\uD83D\uDD24");
-        internal static Emoji PROCEED_BTN = new("\ud83e\ude7c");
+        internal static Emoji CRUTCH_BTN = new("\ud83e\ude7c");
     }
 }

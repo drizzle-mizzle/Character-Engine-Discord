@@ -92,7 +92,7 @@ namespace CharacterEngineDiscord.Services
                 catch (Exception e)
                 {
                     LogException(new[] { e });
-                    await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Failed to register commands in guild", $"Guild: {guild.Name}\nOwner: {guild.Owner?.DisplayName ?? guild.Owner?.GlobalName}", e.ToString(), Color.Red, error: true);
+                    await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Failed to register commands in guild", $"Guild: {guild.Name}\nOwner: {guild.Owner?.GetBestName()}", e.ToString(), Color.Red, error: true);
                 }
 
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
@@ -151,6 +151,7 @@ namespace CharacterEngineDiscord.Services
                 }
                 Log("\n");
                 await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
+                LogGreen("Commands registered successfuly\n");
             });
 
             return Task.CompletedTask;

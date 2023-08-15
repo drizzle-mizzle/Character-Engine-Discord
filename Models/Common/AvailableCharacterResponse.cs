@@ -2,8 +2,9 @@
 {
     internal class AvailableCharacterResponse
     {
-        public required string? MessageUuId { get; set; }
+        public required string? MessageId { get; set; }
         public required string? Text { get; set; }
         public required string? ImageUrl { get; set; }
+        public required int TokensUsed { get; set; }
     }
 }

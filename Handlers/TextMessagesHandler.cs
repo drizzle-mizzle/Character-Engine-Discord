@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Discord.Rest;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -46,9 +47,12 @@ namespace CharacterEngineDiscord.Handlers
 
             var context = new SocketCommandContext(_client, userMessage);
             if (context.Guild is null) return;
+            if (context.Channel is not IGuildChannel guildChannel) return;
+            if (context.User is not SocketGuildUser guildUser) return;
+            if (guildUser.GetPermissions(guildChannel).SendMessages is false) return;
 
             // Get stored channel and its' characters
-            var characterWebhooks = await DetermineCalledCharacterWebhook(userMessage, context.Channel.Id);
+            var characterWebhooks = await DetermineCalledCharacterWebhook(userMessage, guildChannel.Id);
 
             if (characterWebhooks.Count == 0) return;
             if (await _integration.UserIsBanned(context)) return;
@@ -57,7 +61,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 int delay = characterWebhook.ResponseDelay;
 
-                if ((userMessage.Author.IsWebhook || userMessage.Author.IsBot) && delay < 10)
+                if ((guildUser.IsWebhook || guildUser.IsBot) && delay < 10)
                 {
                     delay = 10;
                 }
@@ -75,7 +79,7 @@ namespace CharacterEngineDiscord.Handlers
 
             string userName;
             if (userMessage.Author is SocketGuildUser guildUser)
-                userName = guildUser.Nickname ?? guildUser.DisplayName ?? guildUser.Username;
+                userName = guildUser.GetBestName();
             else if (userMessage.Author.IsWebhook)
                 userName = userMessage.Author.Username;
             else return;
@@ -113,7 +117,7 @@ namespace CharacterEngineDiscord.Handlers
 
                     if (refContent.StartsWith("<")) refContent = MentionRegex().Replace(refContent, "", 1);
 
-                    string refName = userMessage.ReferencedMessage.Author is SocketGuildUser refGuildUser ? (refGuildUser.Nickname ?? refGuildUser.DisplayName ?? refGuildUser.Username) : userMessage.Author.Username;
+                    string refName = userMessage.ReferencedMessage.Author is SocketGuildUser refGuildUser ? (refGuildUser.GetBestName()) : userMessage.Author.Username;
                     int refL = Math.Min(refContent.Length, 200);
 
                     text = text.Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 200 ? "..." : "")).Replace("{{ref_msg_user}}", refName).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
@@ -149,8 +153,9 @@ namespace CharacterEngineDiscord.Handlers
             _integration.AvailableCharacterResponses[characterWebhook.Id].Add(new()
             {
                 Text = characterResponse.Text,
-                MessageUuId = characterResponse.CharacterMessageUuid,
-                ImageUrl = characterResponse.ImageRelPath
+                MessageId = characterResponse.CharacterMessageUuid,
+                ImageUrl = characterResponse.ImageRelPath,
+                TokensUsed = characterResponse.TokensUsed
             });
 
             characterWebhook.CurrentSwipeIndex = 0;
@@ -339,39 +344,40 @@ namespace CharacterEngineDiscord.Handlers
                     if (!characterWebhooks.Contains(h)) characterWebhooks.Add(h);
             }
 
-            // Add some random character
+            // Add some random character (1) by channel's random reply chance
             if (channel.RandomReplyChance > chance)
             {
-                var randomCharacters1 = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
-                if (randomCharacters1.Count > 0)
+                var characters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
+                if (characters.Count > 0)
                 {
-                    var rc = randomCharacters1[@Random.Next(randomCharacters1.Count)];
-                    if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
+                    var someRandomCharacter = characters[@Random.Next(characters.Count)];
+                    if (!characterWebhooks.Contains(someRandomCharacter))
+                        characterWebhooks.Add(someRandomCharacter);
                 }
             }
 
-            // Add certain random characters
-            var randomCharacters2 = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
-            if (randomCharacters2.Count > 0)
+            // Add certain random characters by their personal random reply chance
+            var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
+            if (randomCharacters.Count > 0)
             {
-                foreach (var rc in randomCharacters2)
+                foreach (var rc in randomCharacters)
                     if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
             }
 
             return characterWebhooks;
         }
 
-        private async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId)
+        private static async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId)
         {
             var message = await channel.GetMessageAsync(messageId);
             await message.AddReactionAsync(ARROW_LEFT);
             await message.AddReactionAsync(ARROW_RIGHT);
         }
 
-        private async Task AddCrutchBtnAsync(ISocketMessageChannel channel, ulong messageId)
+        private static async Task AddCrutchBtnAsync(ISocketMessageChannel channel, ulong messageId)
         {
             var message = await channel.GetMessageAsync(messageId);
-            await message.AddReactionAsync(PROCEED_BTN);
+            await message.AddReactionAsync(CRUTCH_BTN);
         }
 
         /// <summary>
@@ -401,7 +407,7 @@ namespace CharacterEngineDiscord.Handlers
                 }
 
                 var message = await channel.GetMessageAsync(messageId);
-                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, PROCEED_BTN };
+                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
                 foreach (var btn in btns)
                     await message.RemoveReactionAsync(btn, _client.CurrentUser);
             }
