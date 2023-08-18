@@ -64,12 +64,12 @@ namespace CharacterEngineDiscord.Handlers
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
             if (characterWebhook is null) return;
 
-            if (reaction.Emote?.Name == STOP_BTN.Name)
-            {
-                characterWebhook.SkipNextBotMessage = true;
-                await db.SaveChangesAsync();
-                return;
-            }
+            //if (reaction.Emote?.Name == STOP_BTN.Name)
+            //{
+            //    characterWebhook.SkipNextBotMessage = true;
+            //    await db.SaveChangesAsync();
+            //    return;
+            //}
 
             //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
             //{
@@ -116,8 +116,7 @@ namespace CharacterEngineDiscord.Handlers
             _integration.RemoveEmojiRequestQueue.Add(characterOriginalMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
             // Make sure webhook does exist
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
-            if (webhookClient is null)
+            if (!_integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient))
             {
                 try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
                 catch (Exception e)

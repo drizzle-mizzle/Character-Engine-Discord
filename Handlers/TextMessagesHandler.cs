@@ -44,6 +44,7 @@ namespace CharacterEngineDiscord.Handlers
             if (sm is not SocketUserMessage userMessage) return;
             if (userMessage.Author.Id == _client.CurrentUser.Id) return;
             if (string.IsNullOrWhiteSpace(userMessage.Content)) return;
+            if (userMessage.Content.Trim().StartsWith("~ignore")) return;
 
             var context = new SocketCommandContext(_client, userMessage);
             if (context.Guild is null) return;
@@ -336,9 +337,8 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Add characters who hunt the user
-            bool messageIsFromCharacterToUser = userMessage.Author.IsWebhook && userMessage.Content.StartsWith("<");
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
-            if (hunters is not null && hunters.Count > 0 && !messageIsFromCharacterToUser)
+            if (hunters is not null && hunters.Count > 0)
             {
                 foreach (var h in hunters)
                     if (!characterWebhooks.Contains(h)) characterWebhooks.Add(h);

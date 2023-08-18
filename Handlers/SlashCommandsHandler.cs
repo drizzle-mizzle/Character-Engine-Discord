@@ -61,9 +61,18 @@ namespace CharacterEngineDiscord.Handlers
 
             var channel = context.Channel;
             var guild = context.Guild;
-            await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    desc: $"In Guild `{guild.Name} ({guild.Id})`, Channel: `{channel.Name} ({channel.Id})`\n" +
-                                                          $"User: {context.User.Username}",
+
+            if (Equals(result.Error.GetValueOrDefault(), "UnmetPrecondition")) return;
+
+            var originalResponse = await context.Interaction.GetOriginalResponseAsync();
+            var owner = (await guild.GetOwnerAsync()) as SocketGuildUser;
+
+            await TryToReportInLogsChannel(_client, title: "Command Exception",
+                                                    desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
+                                                          $"Owner: {owner?.GetBestName()} ({owner?.Username})\n" +
+                                                          $"Channel: `{channel.Name} ({channel.Id})`\n" +
+                                                          $"User: {context.User.Username}\n" +
+                                                          $"Command: `{originalResponse.Interaction.Name} ({originalResponse.Interaction.Id})`",
                                                     content: $"{result.ErrorReason}\n\n{result.Error.GetValueOrDefault()}",
                                                     color: Color.Red,
                                                     error: true);

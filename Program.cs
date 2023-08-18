@@ -1,5 +1,4 @@
-﻿using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Services;
+﻿using CharacterEngineDiscord.Services;
 using System.Diagnostics;
 using static CharacterEngineDiscord.Services.CommonService;
 
@@ -12,7 +11,18 @@ namespace CharacterEngineDiscord
 
         private async Task MainAsync()
         {
-            AppDomain.CurrentDomain.UnhandledException += RestartApplication;
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
+                sw.WriteLine($"{new string('~', Console.WindowWidth)}\nSender: {s}\nError:\n{e}\n");
+                sw.Close();
+
+                if (e.IsTerminating)
+                {
+                    RestartApplication();
+                }
+            };
+
             Log("Working directory: ");
             LogYellow(EXE_DIR + '\n');
             CreateLogsFile();
@@ -23,15 +33,12 @@ namespace CharacterEngineDiscord
 
         private static void CreateLogsFile()
         {
-            if (ConfigFile.LogFileEnabled.Value.ToBool())
-            {
-                string logstxt = $"{EXE_DIR}{SC}logs.txt";
-                if (File.Exists(logstxt)) return;
-                else File.Create(logstxt).Close();
-            }
+            string logstxt = $"{EXE_DIR}{SC}logs.txt";
+            if (File.Exists(logstxt)) return;
+            else File.Create(logstxt).Close();
         }
 
-        private static void RestartApplication(object sender, UnhandledExceptionEventArgs e)
+        private static void RestartApplication()
         {
             string precompiledPath = $"{EXE_DIR}{SC}Character-Engine-Discord";
 
