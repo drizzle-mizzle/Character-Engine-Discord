@@ -9,11 +9,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Text.RegularExpressions;
-using System.Threading.Channels;
-using System;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Discord.Rest;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -47,18 +42,18 @@ namespace CharacterEngineDiscord.Handlers
             if (userMessage.Content.Trim().StartsWith("~ignore")) return;
 
             var context = new SocketCommandContext(_client, userMessage);
+
             if (context.Guild is null) return;
             if (context.Channel is not IGuildChannel guildChannel) return;
-            if (context.User is not SocketGuildUser guildUser) return;
+            if (context.User is not IGuildUser guildUser) return;
             if (guildUser.GetPermissions(guildChannel).SendMessages is false) return;
 
-            // Get stored channel and its' characters
-            var characterWebhooks = await DetermineCalledCharacterWebhook(userMessage, guildChannel.Id);
+            var calledCharacters = await DetermineCalledCharacterWebhook(userMessage, guildChannel.Id);
 
-            if (characterWebhooks.Count == 0) return;
+            if (calledCharacters.Count == 0) return;
             if (await _integration.UserIsBanned(context)) return;
 
-            foreach (var characterWebhook in characterWebhooks)
+            foreach (var characterWebhook in calledCharacters)
             {
                 int delay = characterWebhook.ResponseDelay;
 
