@@ -63,7 +63,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     string? token = channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
                     if (!string.IsNullOrWhiteSpace(token)) break;
 
-                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed( Color.Red));
+                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!\n" +
+                                                $"Command: `/set-server-openai-api-token token:YOUR_TOKEN gpt-model:gpt-3.5-turbo`").ToInlineEmbed(Color.Red));
                     return;
                 default: return;
             }
@@ -114,7 +115,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed( Color.Red));
+                await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!\n" +
+                                            $"How to get CharacterAI auth token: [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides#get-characterai-user-auth-token)\n" +
+                                            $"Command: `/set-server-cai-user-token token:YOUR_TOKEN`").ToInlineEmbed(Color.Red));
                 return;
             }
 
