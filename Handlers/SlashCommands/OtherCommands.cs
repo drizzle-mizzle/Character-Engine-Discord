@@ -43,8 +43,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("help-messages-format", "Info about messages format")]
         public async Task MessagesFormatHelp()
         {
-            var embed = new EmbedBuilder().WithTitle("Messages format")
-                                          .WithColor(Color.Gold)
+            var embed = new EmbedBuilder().WithTitle("Messages format").WithColor(Color.Gold)
                                           .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
                                           .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
                                                                 "`/update messages-format` - Change the format of messages for certain character\n" +
