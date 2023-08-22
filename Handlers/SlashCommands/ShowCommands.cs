@@ -288,7 +288,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var embed = new EmbedBuilder().WithTitle($"**{title}**")
                                           .WithColor(Color.Gold);
 
-            var promptChunked = prompt.Chunk(1024);
+            var promptChunked = prompt.Chunk(1016);
 
             foreach (var chunk in promptChunked)
                 embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{new string(chunk)}```");
