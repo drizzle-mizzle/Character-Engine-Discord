@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 using System;
 using CharacterEngineDiscord.Migrations;
+using System.Diagnostics;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -23,6 +24,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _integration = services.GetRequiredService<IntegrationsService>();
             _client = services.GetRequiredService<DiscordSocketClient>();
             _db = new StorageContext();
+        }
+
+        [SlashCommand("status", "-")]
+        public async Task AdminStatus()
+        {
+            await DeferAsync();
+            var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+            string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
+                          $"Blocked: `{_db.BlockedUsers.Where(bu => bu.GuildId == null).Count()} user(s)` | `{_db.BlockedGuilds.Count()} guild(s)`\n" +
+                          $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.RemoveEmojiRequestQueue.Count}e/{_integration.SearchQueries.Count}sq`";
+
+            await FollowupAsync(embed: text.ToInlineEmbed(Color.Green, false));
         }
 
         [SlashCommand("list-servers", "-")]
@@ -107,7 +120,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("shout-out", "Send a message in each channel where bot was ever called")]
+        [SlashCommand("broadcast", "Send a message in each channel where bot was ever called")]
         public async Task AdminShoutOut(string title, string? desc = null, string? imageUrl = null)
         {
             await DeferAsync();
@@ -121,19 +134,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var channelIds = _db.Channels.Select(c => c.Id).ToList();
             var channels = new List<IMessageChannel>();
 
-            foreach (var channelId in channelIds)
+            await Parallel.ForEachAsync(channelIds, async (channelId, ct) =>
             {
                 IMessageChannel? mc;
                 try { mc = (await _client.GetChannelAsync(channelId)) as IMessageChannel; }
-                catch { continue; }
+                catch { return; }
                 if (mc is not null) channels.Add(mc);
-            }
+            });
 
-            foreach (var channel in channels)
+            await Parallel.ForEachAsync(channels, async (channel, ct) =>
             {
                 try { await channel.SendMessageAsync(embed: embed); }
-                catch { continue; }
-            }
+                catch { return; }
+            });
                 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
@@ -143,11 +156,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            foreach (var guild in _client.Guilds)
-            {
-                if (guild.Id == Context.Guild.Id) continue;
-                await guild.LeaveAsync();
-            }
+            var guilds = _client.Guilds.Where(g => g.Id != Context.Guild.Id);
+            await Parallel.ForEachAsync(guilds, async (guild, ct) => await guild.LeaveAsync());
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }

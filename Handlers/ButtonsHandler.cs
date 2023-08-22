@@ -110,7 +110,7 @@ namespace CharacterEngineDiscord.Handlers
                     {
                         return;
                     }
-                        
+
                     if (character is null)
                     {
                         await component.Message.ModifyAsync(msg => msg.Embed = FailedToSetCharacterEmbed());
@@ -123,7 +123,7 @@ namespace CharacterEngineDiscord.Handlers
                     if (characterWebhook is null) return;
 
                     var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                    _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+                    _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
 
@@ -132,7 +132,9 @@ namespace CharacterEngineDiscord.Handlers
 
                     await webhookClient.SendMessageAsync(characterMessage);
 
-                    _integration.SearchQueries.Remove(searchQuery);
+                    lock (_integration.SearchQueries)
+                        _integration.SearchQueries.Remove(searchQuery);
+
                     return;
                 default:
                     return;

@@ -153,7 +153,7 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook is null) return;
             
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-            _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+            _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
             await modal.FollowupAsync(embed: SpawnCharacterEmbed(characterWebhook));
             await webhookClient.SendMessageAsync($"{modal.User.Mention} {characterWebhook.Character.Greeting}");

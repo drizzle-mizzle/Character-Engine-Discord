@@ -15,6 +15,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
+using System.Collections.Concurrent;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -77,6 +78,21 @@ namespace CharacterEngineDiscord.Services
             }
 
             Environment.SetEnvironmentVariable("READY", "1", EnvironmentVariableTarget.Process);
+        }
+
+        public DiscordWebhookClient? GetWebhookClient(ulong webhookId, string webhookToken)
+        {
+            if (!WebhookClients.TryGetValue(webhookId, out DiscordWebhookClient? client))
+            {
+                try
+                {
+                    client = new DiscordWebhookClient(webhookId, webhookToken);
+                    WebhookClients.TryAdd(webhookId, client);
+                }
+                catch { return null; }
+            }
+
+            return client;
         }
 
         /// <summary>
@@ -308,31 +324,28 @@ namespace CharacterEngineDiscord.Services
 
         internal static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
         {
-            var characters = new List<Models.Database.Character>();
-            
-            foreach (var c in response.Characters)
+            var characters = new ConcurrentBag<Character>();
+
+            Parallel.ForEach(response.Characters, c =>
             {
                 var cc = CharacterFromCaiCharacterInfo(c);
-                if (cc is null) continue;
+                if (cc is not null) characters.Add(cc);
+            });
 
-                characters.Add(cc);
-            }
-
-            return new(characters, response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
+            return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
         internal static SearchQueryData SearchQueryDataFromChubResponse(ChubSearchResponse response)
         {
-            var characters = new List<Models.Database.Character>();
-            foreach (var c in response.Characters)
+            var characters = new ConcurrentBag<Character>();
+
+            Parallel.ForEach(response.Characters, c =>
             {
                 var cc = CharacterFromChubCharacterInfo(c);
-                if (cc is null) continue;
+                if (cc is not null) characters.Add(cc);
+            });
 
-                characters.Add(cc);
-            }
-
-            return new(characters, response.OriginalQuery, IntegrationType.OpenAI) { ErrorReason = response.ErrorReason };
+            return new(characters.ToList(), response.OriginalQuery, IntegrationType.OpenAI) { ErrorReason = response.ErrorReason };
         }
 
         internal static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)

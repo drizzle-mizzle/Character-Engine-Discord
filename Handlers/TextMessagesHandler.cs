@@ -57,10 +57,8 @@ namespace CharacterEngineDiscord.Handlers
             {
                 int delay = characterWebhook.ResponseDelay;
 
-                if ((guildUser.IsWebhook || guildUser.IsBot) && delay < 10)
-                {
-                    delay = 10;
-                }
+                if (guildUser.IsWebhook || guildUser.IsBot)
+                    delay = Math.Max(10, delay);
 
                 await Task.Delay(delay * 1000);
                 await TryToCallCharacterAsync(characterWebhook.Id, userMessage);
@@ -130,7 +128,17 @@ namespace CharacterEngineDiscord.Handlers
             if (characterResponse is null) return;
 
             await db.Entry(characterWebhook).ReloadAsync();
-            try { await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName); }
+
+            characterWebhook.CurrentSwipeIndex = 0;
+            characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
+            characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
+            characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
+
+            try
+            {
+                var messageId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
+                characterWebhook.LastCharacterDiscordMsgId = messageId;
+            }
             finally
             {
                 characterWebhook.LastCallTime = DateTime.UtcNow;
@@ -138,38 +146,30 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName)
+        /// <returns>Message ID</returns>
+        private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName)
         {
-            // Ensure webhook is being tracked
-            if (!_integration.AvailableCharacterResponses.ContainsKey(characterWebhook.Id))
-                _integration.AvailableCharacterResponses.Add(characterWebhook.Id, new());
+            var availResponses = _integration.AvailableCharacterResponses;
+            availResponses.TryAdd(characterWebhook.Id, new());
 
-            // Forget the choises from last message and remember new one
-            _integration.AvailableCharacterResponses[characterWebhook.Id].Clear();
-            _integration.AvailableCharacterResponses[characterWebhook.Id].Add(new()
+            lock (availResponses[characterWebhook.Id])
             {
-                Text = characterResponse.Text,
-                MessageId = characterResponse.CharacterMessageUuid,
-                ImageUrl = characterResponse.ImageRelPath,
-                TokensUsed = characterResponse.TokensUsed
-            });
+                // Forget all choises from the last message and remember a new one
+                availResponses[characterWebhook.Id].Clear();
+                availResponses[characterWebhook.Id].Add(new()
+                {
+                    Text = characterResponse.Text,
+                    MessageId = characterResponse.CharacterMessageUuid,
+                    ImageUrl = characterResponse.ImageRelPath,
+                    TokensUsed = characterResponse.TokensUsed
+                });
+            }
 
-            characterWebhook.CurrentSwipeIndex = 0;
-            characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
-            characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
-            characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
-
-            // Ensure webhook client does exist
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient);
+            var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
-                catch (Exception e)
-                {
-                    await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
-                    return;
-                }
-                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message".ToInlineEmbed(Color.Red));
+                return 0;
             }
 
             // Reformat message
@@ -196,35 +196,19 @@ namespace CharacterEngineDiscord.Handlers
                 if (canGetImage) embeds.Add(new EmbedBuilder().WithImageUrl(characterResponse.ImageRelPath).Build());
             }
 
-            // Send message
-            ulong messageId;
+            // Sending message
             try
             {
-                messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
-                characterWebhook.LastCharacterDiscordMsgId = messageId;
+                ulong messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
+                bool isUserMessage = !(userMessage.Author.IsWebhook || userMessage.Author.IsBot);
+                if (isUserMessage) await TryToAddButtonsAsync(characterWebhook, userMessage, messageId);
+
+                return messageId;
             }
             catch (Exception e)
             {
                 await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `{e.Message}`".ToInlineEmbed(Color.Red));
-                return;
-            }
-
-            // Add swipe buttons
-            bool isWebhook = userMessage.Author.IsWebhook;
-            bool isBotMessage = isWebhook || userMessage.Author.IsBot;
-            if (isBotMessage) return;
-
-            try {
-                if (characterWebhook.SwipesEnabled)
-                    await AddSwipesAsync(userMessage.Channel, messageId);
-                if (characterWebhook.CrutchEnabled)
-                    await AddCrutchBtnAsync(userMessage.Channel, messageId);
-
-                _ = Task.Run(async () => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
-            }
-            catch
-            {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
+                return 0;
             }
         }
 
@@ -375,6 +359,23 @@ namespace CharacterEngineDiscord.Handlers
             await message.AddReactionAsync(CRUTCH_BTN);
         }
 
+        private async Task TryToAddButtonsAsync(CharacterWebhook characterWebhook, SocketUserMessage userMessage, ulong messageId)
+        {
+            try
+            {
+                if (characterWebhook.SwipesEnabled)
+                    await AddSwipesAsync(userMessage.Channel, messageId);
+                if (characterWebhook.CrutchEnabled)
+                    await AddCrutchBtnAsync(userMessage.Channel, messageId);
+
+                _ = Task.Run(async () => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+            }
+            catch
+            {
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
+            }
+        }
+
         /// <summary>
         /// Task that will delete all emoji-buttons from the message after some time
         /// </summary>
@@ -383,7 +384,7 @@ namespace CharacterEngineDiscord.Handlers
             try
             {
                 // Add request to the end of the line
-                _integration.RemoveEmojiRequestQueue.Add(messageId, delay);
+                _integration.RemoveEmojiRequestQueue.TryAdd(messageId, delay);
 
                 // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
                 while (_integration.RemoveEmojiRequestQueue[messageId] > 0)
@@ -403,16 +404,13 @@ namespace CharacterEngineDiscord.Handlers
 
                 var message = await channel.GetMessageAsync(messageId);
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
-                foreach (var btn in btns)
-                    await message.RemoveReactionAsync(btn, _client.CurrentUser);
+
+                await Parallel.ForEachAsync(btns, async (btn, ct)
+                    => await message.RemoveReactionAsync(btn, _client.CurrentUser));
             }
             finally
             {
-                if (_integration.RemoveEmojiRequestQueue.ContainsKey(messageId))
-                {
-                    try { _integration.RemoveEmojiRequestQueue.Remove(messageId); }
-                    catch (Exception e) { LogException(new[] { e }); }
-                }
+                _integration.RemoveEmojiRequestQueue.Remove(messageId);
             }
         }
 

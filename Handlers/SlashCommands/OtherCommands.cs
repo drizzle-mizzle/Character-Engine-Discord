@@ -5,7 +5,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -27,6 +27,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task BaicsHelp()
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
+                                          .WithDescription($"Only server owner can execute bot commands by default. If you want allow other users to manage bot settings, give them **{ConfigFile.DiscordBotRole.Value}** role. More settings can be found in `Server settings -> Integrations`.")
                                           .AddField("How to use", "1. Use one of the `/spawn` commands to create a character.\n" +
                                                                   "2. Modify it with one of the `/update` commands using a given prefix or webhook ID.\n" +
                                                                   "3. Call character by mentioning its prefix or with reply on one of its messages.\n" +

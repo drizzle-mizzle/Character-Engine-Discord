@@ -19,6 +19,7 @@ namespace CharacterEngineDiscord.Services
         private DiscordSocketClient _client = null!;
         private IntegrationsService _integration = null!;
         private InteractionService _interactions = null!;
+        private bool _firstLaunch = true;
 
         internal async Task SetupDiscordClient()
         {
@@ -66,14 +67,22 @@ namespace CharacterEngineDiscord.Services
             {
                 while (true)
                 {
-                    await TryToReportInLogsChannel(_client, "Uptime Status", desc: $"Running - {DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime()}",
-                                                                             content: null, color: Color.DarkGreen, error: false);
-                    
                     var db = new StorageContext();
+
+                    var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+                    int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
+                    string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
+                                  $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
+                                  $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.RemoveEmojiRequestQueue.Count}e/{_integration.SearchQueries.Count}sq`";
+
+                    _integration.AvailableCharacterResponses.Clear();
+                    _integration.WebhookClients.Clear();
+
                     var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
                     db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
                     await db.SaveChangesAsync();
 
+                    await TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
                     await Task.Delay(3_600_000); // 1 hour
                 }
             }
@@ -87,14 +96,19 @@ namespace CharacterEngineDiscord.Services
 
         private async Task OnClientReadyAsync()
         {
+            if (!_firstLaunch) return;
+
             Log("Registering commands to guilds...\n");
-            foreach (var guild in _client.Guilds)
+            await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
             {
                 if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
                 else LogRed(".");
-            }
+            });
+
             LogGreen("\nCommands registered successfuly\n");
             await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
+
+            _firstLaunch = false;
         }
 
         private async Task OnGuildJoinAsync(SocketGuild guild)

@@ -161,7 +161,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-            _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+            _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
             await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
 
@@ -173,15 +173,20 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task FinishSearchAsync(SearchQueryData searchQueryData)
         {
-            var query = await BuildAndSendSelectionMenuAsync(Context, searchQueryData);
-            if (query is null) return;
+            var newSQ = await BuildAndSendSelectionMenuAsync(Context, searchQueryData);
+            if (newSQ is null) return;
 
-            // Stop tracking last query in this channel
-            var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == query.ChannelId);
-            if (lastSQ is not null) _integration.SearchQueries.Remove(lastSQ);
+            var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == newSQ.ChannelId);
 
-            // Start tracking this one
-            _integration.SearchQueries.Add(query);
+            lock (_integration.SearchQueries)
+            {
+                // Stop tracking last query in this channel
+                if (lastSQ is not null)
+                    _integration.SearchQueries.Remove(lastSQ);
+
+                // Start tracking this one
+                _integration.SearchQueries.Add(newSQ);
+            }
         }
 
         private async Task RespondWithCustomCharModalasync()

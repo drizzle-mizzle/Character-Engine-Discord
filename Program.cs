@@ -11,16 +11,14 @@ namespace CharacterEngineDiscord
 
         private async Task MainAsync()
         {
-            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            AppDomain.CurrentDomain.UnhandledException += (s, args) =>
             {
                 var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
-                sw.WriteLine($"{new string('~', Console.WindowWidth)}\nSender: {s}\nError:\n{e}\n");
+                string text = $"{new string('~', Console.WindowWidth)}\n" +
+                              $"Sender: {s.GetType()}\n" +
+                              $"Error:\n{(Exception)args.ExceptionObject}";
+                sw.WriteLine(text);
                 sw.Close();
-
-                if (e.IsTerminating)
-                {
-                    RestartApplication();
-                }
             };
 
             Log("Working directory: ");
@@ -36,45 +34,6 @@ namespace CharacterEngineDiscord
             string logstxt = $"{EXE_DIR}{SC}logs.txt";
             if (File.Exists(logstxt)) return;
             else File.Create(logstxt).Close();
-        }
-
-        private static void RestartApplication()
-        {
-            string precompiledPath = $"{EXE_DIR}{SC}Character-Engine-Discord";
-
-            bool isPrecompiledWindows = File.Exists(precompiledPath + ".exe");
-            if (isPrecompiledWindows)
-            {
-                Process.Start(precompiledPath + ".exe");
-                return;
-            }
-
-            bool isPrecompiledLinux = File.Exists(precompiledPath);
-            if (isPrecompiledLinux)
-            {
-                Process.Start(precompiledPath);
-                return;
-            }
-
-            string buildPath = $"{EXE_DIR}{SC}bin{SC}Debug{SC}net7.0";
-            string? os = Directory.GetDirectories(buildPath).FirstOrDefault();
-            if (os is null) return;
-
-            buildPath += $"{SC}{os}{SC}Character-Engine-Discord";
-
-            bool isBuiltWindows = File.Exists(buildPath + ".exe");
-            if (isBuiltWindows)
-            {
-                Process.Start(buildPath + ".exe");
-                return;
-            }
-
-            bool isBuiltLinux = File.Exists(buildPath);
-            if (isBuiltLinux)
-            {
-                Process.Start(buildPath);
-                return;
-            }
         }
     }
 }

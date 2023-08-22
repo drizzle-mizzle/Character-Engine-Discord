@@ -125,9 +125,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                    $"Swipes enabled: *`{characterWebhook.SwipesEnabled}`*\n" +
                    $"Proceed button enabled: *`{characterWebhook.CrutchEnabled}`*\n" +
                    $"ResponseDelay: *`{characterWebhook.ResponseDelay}s`*\n" +
-                   $"Reply chance: *`{characterWebhook.ReplyChance}`*\n" +
-                   $"Hunted users: *`{characterWebhook.HuntedUsers.Count}`*\n" +
-                   $"\n\"{info.Replace("\n\n", "\n")}\"";
+                   $"Reply chance: *`{characterWebhook.ReplyChance}%`*\n" +
+                   $"Hunted users: *`{characterWebhook.HuntedUsers.Count}`*\n\n" +
+                   $"**Tagline**\n*\"{info.Replace("\n\n", "\n")}\"*";
 
             if (info.Length > 4096) info = info[0..4090] + "[...]";
             

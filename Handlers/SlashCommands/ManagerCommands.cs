@@ -253,12 +253,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var webhookClient);
-
+            var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong...".ToInlineEmbed(Color.Red));
+                return;
             }
 
             await webhookClient.SendMessageAsync(text);
@@ -365,8 +364,22 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var discordWebhook = await ((SocketTextChannel)Context.Channel).GetWebhookAsync(characterWebhook.Id);
-            await discordWebhook.DeleteAsync();
+            if (Context.Channel is not ITextChannel textChannel)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Something went wrong".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            try
+            {
+                var discordWebhook = await textChannel.GetWebhookAsync(characterWebhook.Id);
+                await discordWebhook.DeleteAsync();
+            }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to delete webhook: `{e.Message}`".ToInlineEmbed(Color.Red));
+                return;
+            }
 
             _db.CharacterWebhooks.Remove(characterWebhook);
             await _db.SaveChangesAsync();
@@ -414,6 +427,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
+            if (_integration.CaiClient is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red));
+                return;
+            }
+
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
             if (characterWebhook is null)
@@ -426,23 +445,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
                 var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-
-                characterWebhook.CaiActiveHistoryId = await _integration.CaiClient!.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
+                var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
+                characterWebhook.CaiActiveHistoryId = newHisoryId;
             }
             else
             {
                 characterWebhook.OpenAiHistoryMessages.Clear();
-                await _db.OpenAiHistoryMessages.AddAsync(new() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+                var firstGreetingMessage = new OpenAiHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
+                await _db.OpenAiHistoryMessages.AddAsync(firstGreetingMessage);
             }
 
             await _db.SaveChangesAsync();
             await FollowupAsync(embed: SuccessEmbed());
 
-            _integration.WebhookClients.TryGetValue(characterWebhook.Id, out var webhookClient);
+            var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character greeting message".ToInlineEmbed(Color.Red));
+                return;
             }
 
             string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
@@ -519,7 +539,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 await _db.SaveChangesAsync();
 
                 var webhookClient = new DiscordWebhookClient(channelWebhook.Id, channelWebhook.Token);
-                _integration.WebhookClients.Add(channelWebhook.Id, webhookClient);
+                _integration.WebhookClients.TryAdd(channelWebhook.Id, webhookClient);
 
                 string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
                 if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";

@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -105,33 +106,34 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
+        /// <summary>
+        /// Super complicated shit, but I don't want to refactor it...
+        /// </summary>
         private async Task UpdateCharacterMessage(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser caller, bool isSwipe)
         {
+            var availResponses = _integration.AvailableCharacterResponses;
+            if (!availResponses.ContainsKey(characterWebhookId)) return;
+
             var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
+            var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+            if (webhookClient is null)
+            {
+                await characterOriginalMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message".ToInlineEmbed(Color.Red));
+                return;
+            }
+
             // Move it to the end of the queue
             _integration.RemoveEmojiRequestQueue.Remove(characterOriginalMessage.Id);
-            _integration.RemoveEmojiRequestQueue.Add(characterOriginalMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
-
-            // Make sure webhook does exist
-            if (!_integration.WebhookClients.TryGetValue(characterWebhook.Id, out DiscordWebhookClient? webhookClient))
-            {
-                try { webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken); }
-                catch (Exception e)
-                {
-                    await characterOriginalMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message: `{e.Message}`".ToInlineEmbed(Color.Red));
-                    return;
-                }
-                _integration.WebhookClients.Add(characterWebhook.Id, webhookClient);
-            }
+            _integration.RemoveEmojiRequestQueue.TryAdd(characterOriginalMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
 
             // Remember quote
             Embed? quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault() as Embed;
 
             // Check if fetching a new message, or just swiping among already available ones
-            bool gottaFetch = !isSwipe || (_integration.AvailableCharacterResponses[characterWebhookId].Count < characterWebhook.CurrentSwipeIndex + 1);
+            bool gottaFetch = !isSwipe || (availResponses[characterWebhookId].Count < characterWebhook.CurrentSwipeIndex + 1);
             if (gottaFetch)
             {
                 await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
@@ -167,16 +169,19 @@ namespace CharacterEngineDiscord.Handlers
                     TokensUsed = characterResponse.TokensUsed
                 };
 
-                if (isSwipe)
-                    _integration.AvailableCharacterResponses[characterWebhookId].Add(newResponse);
-                else
-                    _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex] = newResponse;
+                lock (availResponses)
+                {
+                    if (isSwipe)
+                        availResponses[characterWebhookId].Add(newResponse);
+                    else
+                        availResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex] = newResponse;
+                }
             }
 
             AvailableCharacterResponse newCharacterMessage;
-            try { newCharacterMessage = _integration.AvailableCharacterResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex]; }
+            try { newCharacterMessage = availResponses[characterWebhookId][characterWebhook.CurrentSwipeIndex]; }
             catch { return; }
-
+            
             characterWebhook.LastCharacterMsgUuId = newCharacterMessage.MessageId;
             characterWebhook.LastRequestTokensUsage = newCharacterMessage.TokensUsed;
 

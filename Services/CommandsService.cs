@@ -122,6 +122,10 @@ namespace CharacterEngineDiscord.Services
             return emb.Build();
         }
 
+        /// <summary>
+        /// Creates and sends character selection menu
+        /// </summary>
+        /// <returns>SearchQuery object linked to the created selection menu</returns>
         internal static async Task<SearchQuery?> BuildAndSendSelectionMenuAsync(InteractionContext context, SearchQueryData searchQueryData)
         {
             if (!searchQueryData.IsSuccessful)
@@ -201,10 +205,10 @@ namespace CharacterEngineDiscord.Services
             var channel = await client.GetChannelAsync(uChannelId);
             if (channel is not ITextChannel textChannel) return;
 
-            await ReportInLogsChannel(textChannel, title, desc, content, color, error);
+            await ReportInLogsChannel(textChannel, title, desc, content, color);
         }
 
-        public static async Task ReportInLogsChannel(ITextChannel channel, string title, string desc, string? content, Color color, bool error)
+        public static async Task ReportInLogsChannel(ITextChannel channel, string title, string desc, string? content, Color color)
         { 
             try
             {
