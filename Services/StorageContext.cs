@@ -66,7 +66,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, BtnsRemoveDelay = 90 };
+                guild = new() { Id = guildId };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
                 return await FindOrStartTrackingGuildAsync(guildId, db);

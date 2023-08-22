@@ -73,7 +73,7 @@ namespace CharacterEngineDiscord.Services
                     int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
                     string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
                                   $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
-                                  $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.RemoveEmojiRequestQueue.Count}e/{_integration.SearchQueries.Count}sq`";
+                                  $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.SearchQueries.Count}sq`";
 
                     _integration.AvailableCharacterResponses.Clear();
                     _integration.WebhookClients.Clear();

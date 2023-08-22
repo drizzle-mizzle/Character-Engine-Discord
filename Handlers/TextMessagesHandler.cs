@@ -9,6 +9,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -136,8 +137,18 @@ namespace CharacterEngineDiscord.Handlers
 
             try
             {
-                var messageId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
+                var oldMessageId = characterWebhook.LastCharacterDiscordMsgId;
+                ulong messageId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
                 characterWebhook.LastCharacterDiscordMsgId = messageId;
+
+                // Remove buttons from the last message
+                if (oldMessageId != 0)
+                {
+                    var oldMessage = await userMessage.Channel.GetMessageAsync(oldMessageId);
+                    var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
+                    await Parallel.ForEachAsync(btns, async (btn, ct)
+                        => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+                }
             }
             finally
             {
@@ -201,7 +212,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 ulong messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
                 bool isUserMessage = !(userMessage.Author.IsWebhook || userMessage.Author.IsBot);
-                if (isUserMessage) await TryToAddButtonsAsync(characterWebhook, userMessage, messageId);
+                if (isUserMessage) await TryToAddButtonsAsync(characterWebhook, userMessage.Channel, messageId);
 
                 return messageId;
             }
@@ -346,71 +357,25 @@ namespace CharacterEngineDiscord.Handlers
             return characterWebhooks;
         }
 
-        private static async Task AddSwipesAsync(ISocketMessageChannel channel, ulong messageId)
-        {
-            var message = await channel.GetMessageAsync(messageId);
-            await message.AddReactionAsync(ARROW_LEFT);
-            await message.AddReactionAsync(ARROW_RIGHT);
-        }
-
-        private static async Task AddCrutchBtnAsync(ISocketMessageChannel channel, ulong messageId)
-        {
-            var message = await channel.GetMessageAsync(messageId);
-            await message.AddReactionAsync(CRUTCH_BTN);
-        }
-
-        private async Task TryToAddButtonsAsync(CharacterWebhook characterWebhook, SocketUserMessage userMessage, ulong messageId)
+        private static async Task TryToAddButtonsAsync(CharacterWebhook characterWebhook, ISocketMessageChannel channel, ulong messageId)
         {
             try
             {
-                if (characterWebhook.SwipesEnabled)
-                    await AddSwipesAsync(userMessage.Channel, messageId);
-                if (characterWebhook.CrutchEnabled)
-                    await AddCrutchBtnAsync(userMessage.Channel, messageId);
+                var message = await channel.GetMessageAsync(messageId);
 
-                _ = Task.Run(async () => await RemoveButtonsAsync(userMessage.Channel, messageId, delay: characterWebhook.Channel.Guild.BtnsRemoveDelay));
+                if (characterWebhook.SwipesEnabled)
+                {
+                    await message.AddReactionAsync(ARROW_LEFT);
+                    await message.AddReactionAsync(ARROW_RIGHT);
+                }
+                if (characterWebhook.CrutchEnabled)
+                {
+                    await message.AddReactionAsync(CRUTCH_BTN);
+                }
             }
             catch
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add swipe reaction-buttons to the character message.\nMake sure that bot has permission to manage reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
-            }
-        }
-
-        /// <summary>
-        /// Task that will delete all emoji-buttons from the message after some time
-        /// </summary>
-        private async Task RemoveButtonsAsync(ISocketMessageChannel channel, ulong messageId, int delay)
-        {
-            try
-            {
-                // Add request to the end of the line
-                _integration.RemoveEmojiRequestQueue.TryAdd(messageId, delay);
-
-                // Wait for remove delay to become 0. Delay can be and does being updated outside of this method.
-                while (_integration.RemoveEmojiRequestQueue[messageId] > 0)
-                {
-                    if (_integration.RemoveEmojiRequestQueue.ContainsKey(messageId))
-                    {
-                        await Task.Delay(1500);
-                        _integration.RemoveEmojiRequestQueue[messageId]--; // value contains the time that left before removing
-                    }
-                }
-
-                // Delay it until it will take the first place. Parallel attemps to remove emojis may cause Discord rate limit problems.
-                while (_integration.RemoveEmojiRequestQueue.First().Key != messageId)
-                {
-                    await Task.Delay(300);
-                }
-
-                var message = await channel.GetMessageAsync(messageId);
-                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
-
-                await Parallel.ForEachAsync(btns, async (btn, ct)
-                    => await message.RemoveReactionAsync(btn, _client.CurrentUser));
-            }
-            finally
-            {
-                _integration.RemoveEmojiRequestQueue.Remove(messageId);
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to add reaction-buttons to the character message.\nMake sure that bot has permission to add reactions in this channel, or disable this feature with `/update toggle-swipes enable:false` command.".ToInlineEmbed(Color.Red));
             }
         }
 

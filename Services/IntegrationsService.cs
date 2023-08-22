@@ -36,11 +36,6 @@ namespace CharacterEngineDiscord.Services
         internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; } = new();
 
         /// <summary>
-        /// Message ID : Delay
-        /// </summary>
-        internal Dictionary<ulong, int> RemoveEmojiRequestQueue { get; } = new();
-
-        /// <summary>
         /// Stored swiped messages (Webhook ID : AvailableCharacterResponse)
         /// </summary>
         internal Dictionary<ulong, List<AvailableCharacterResponse>> AvailableCharacterResponses { get; } = new();

@@ -12,7 +12,6 @@
         public string? GuildOpenAiApiEndpoint { get; set; } = null;
         public string? GuildOpenAiApiToken { get; set; } = null;
         public string? GuildOpenAiModel { get; set; } = null;
-        public required int BtnsRemoveDelay { get; set; }
         public virtual List<Channel> Channels { get; } = new();
         public virtual List<BlockedUser> BlockedUsers { get; } = new();
     }

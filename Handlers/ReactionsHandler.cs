@@ -125,10 +125,6 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-            // Move it to the end of the queue
-            _integration.RemoveEmojiRequestQueue.Remove(characterOriginalMessage.Id);
-            _integration.RemoveEmojiRequestQueue.TryAdd(characterOriginalMessage.Id, characterWebhook.Channel.Guild.BtnsRemoveDelay);
-
             // Remember quote
             Embed? quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault() as Embed;
 

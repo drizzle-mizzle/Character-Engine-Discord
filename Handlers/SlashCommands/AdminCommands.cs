@@ -33,7 +33,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
             string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
                           $"Blocked: `{_db.BlockedUsers.Where(bu => bu.GuildId == null).Count()} user(s)` | `{_db.BlockedGuilds.Count()} guild(s)`\n" +
-                          $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.RemoveEmojiRequestQueue.Count}e/{_integration.SearchQueries.Count}sq`";
+                          $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.SearchQueries.Count}sq`";
 
             await FollowupAsync(embed: text.ToInlineEmbed(Color.Green, false));
         }

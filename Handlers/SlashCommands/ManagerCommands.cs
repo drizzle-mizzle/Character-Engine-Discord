@@ -165,19 +165,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-server-swipes-lifespan", "Set time after that swipe reaction buttons will fade away on this server")]
-        public async Task SetSwipeRemoveDelay(int seconds)
-        {
-            await DeferAsync(ephemeral: true);
-
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-
-            guild.BtnsRemoveDelay = seconds;
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
-        }
-
         [SlashCommand("set-server-cai-user-token", "Set default CharacterAI auth token for this server")]
         public async Task SetGuildCaiToken(string token, bool hasCaiPlusSubscription)
         {
