@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -45,11 +44,11 @@ namespace CharacterEngineDiscord.Handlers
             var context = new SocketCommandContext(_client, userMessage);
 
             if (context.Guild is null) return;
-            if (context.Channel is not IGuildChannel guildChannel) return;
+            if (context.Channel is not IGuildChannel currentChannel) return;
             if (context.User is not IGuildUser guildUser) return;
-            if (guildUser.GetPermissions(guildChannel).SendMessages is false) return;
+            if (context.Guild.CurrentUser.GetPermissions(currentChannel).SendMessages is false) return;
 
-            var calledCharacters = await DetermineCalledCharacterWebhook(userMessage, guildChannel.Id);
+            var calledCharacters = await DetermineCalledCharacterWebhook(userMessage, currentChannel.Id);
 
             if (calledCharacters.Count == 0) return;
             if (await _integration.UserIsBanned(context)) return;
@@ -145,9 +144,12 @@ namespace CharacterEngineDiscord.Handlers
                 if (oldMessageId != 0)
                 {
                     var oldMessage = await userMessage.Channel.GetMessageAsync(oldMessageId);
-                    var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
-                    await Parallel.ForEachAsync(btns, async (btn, ct)
-                        => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+                    if (oldMessage is not null)
+                    {
+                        var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
+                        await Parallel.ForEachAsync(btns, async (btn, ct)
+                            => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+                    }
                 }
             }
             finally

@@ -6,11 +6,6 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
-using System.Text.RegularExpressions;
-using System.Web;
-using Discord.Rest;
-using System.Data.Entity.Core.Mapping;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace CharacterEngineDiscord.Services
 {

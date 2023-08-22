@@ -72,10 +72,9 @@ namespace CharacterEngineDiscord.Services
                     var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
                     int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
                     string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
-                                  $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
-                                  $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.SearchQueries.Count}sq`";
+                                  $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`";
 
-                    _integration.AvailableCharacterResponses.Clear();
+                    _integration.WatchDogClear();
                     _integration.WebhookClients.Clear();
 
                     var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));

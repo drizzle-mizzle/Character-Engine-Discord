@@ -485,6 +485,11 @@ namespace CharacterEngineDiscord.Services
             return false;
         }
 
+        public void WatchDogClear()
+        {
+            _watchDog.Clear();
+        }
+
         // Shortcuts
 
         internal static Embed FailedToSetCharacterEmbed()

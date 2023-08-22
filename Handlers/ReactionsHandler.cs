@@ -9,7 +9,6 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -49,13 +48,14 @@ namespace CharacterEngineDiscord.Handlers
             var user = reaction.User.Value;
             if (user is null) return;
 
-            var userReacted = (SocketGuildUser)user;
-            if (userReacted.IsBot) return;
+            var userReacted = user as SocketGuildUser;
+            if (userReacted is null || userReacted.IsBot) return;
 
             IUserMessage originalMessage;
             try { originalMessage = await rawMessage.DownloadAsync(); }
             catch { return; }
 
+            if (originalMessage is null || originalMessage.Author is null) return;
             if (!originalMessage.Author.IsWebhook) return;
 
             var db = new StorageContext();
