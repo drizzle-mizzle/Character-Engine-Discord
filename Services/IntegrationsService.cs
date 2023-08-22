@@ -15,7 +15,6 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
-using System.Collections.Concurrent;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -319,26 +318,26 @@ namespace CharacterEngineDiscord.Services
 
         internal static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
         {
-            var characters = new ConcurrentBag<Character>();
+            var characters = new List<Character>();
 
-            Parallel.ForEach(response.Characters, c =>
+            foreach(var c in response.Characters)
             {
                 var cc = CharacterFromCaiCharacterInfo(c);
                 if (cc is not null) characters.Add(cc);
-            });
+            }
 
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
         internal static SearchQueryData SearchQueryDataFromChubResponse(ChubSearchResponse response)
         {
-            var characters = new ConcurrentBag<Character>();
+            var characters = new List<Character>();
 
-            Parallel.ForEach(response.Characters, c =>
+            foreach (var c in response.Characters)
             {
                 var cc = CharacterFromChubCharacterInfo(c);
                 if (cc is not null) characters.Add(cc);
-            });
+            }
 
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.OpenAI) { ErrorReason = response.ErrorReason };
         }
