@@ -44,8 +44,24 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-cai-history-id", "Change c.ai history ID")]
-        public async Task SetCaiHistory(string webhookIdOrPrefix, string newHistoryId)
+        [SlashCommand("messages-format", "Change character messages format")]
+        public async Task SetMessagesFormat(string webhookIdOrPrefix, string newFormat)
+        {
+            await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
+        }
+
+        [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
+        public async Task SetJailbreakPrompt(string webhookIdOrPrefix)
+        {
+            var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
+                                          .WithCustomId($"upd~{webhookIdOrPrefix}")
+                                          .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
+                                          .Build();
+            await RespondWithModalAsync(modal);
+        }
+
+        [SlashCommand("avatar", "Change character avatar")]
+        public async Task SetAvatar(string webhookIdOrPrefix, string avatarUrl)
         {
             await DeferAsync();
 
@@ -57,20 +73,47 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
+            var channel = (SocketTextChannel)Context.Channel;
+            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
+
+            var image = await TryDownloadImgAsync(avatarUrl, _integration.HttpClient);
+            if (image is null && characterWebhook.IntegrationType is IntegrationType.CharacterAI)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't set history ID for non-CharacterAI integration!".ToInlineEmbed(Color.Red));
+                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+            }
+
+            await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
+
+            characterWebhook.Character.AvatarUrl = avatarUrl;
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("name", "Change character name")]
+        public async Task SetCharacterName(string webhookIdOrPrefix, string name)
+        {
+            await DeferAsync();
+
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+
+            if (characterWebhook is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            string message = $"{OK_SIGN_DISCORD} **History ID** for this channel was changed from `{characterWebhook.CaiActiveHistoryId}` to `{newHistoryId}`";
-            if (newHistoryId.Length != 43)
-                message += $".\nEntered history ID has length that is different from expected ({newHistoryId.Length}/43). Make sure it's correct.";
+            name = name.ToLower().Contains("discord") ? name.Replace('o', 'о').Replace('c', 'с') : name;
 
-            characterWebhook.CaiActiveHistoryId = newHistoryId;
+            var channel = (SocketTextChannel)Context.Channel;
+            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
+
+            await channelWebhook.ModifyAsync(cw => cw.Name = name);
+
+            characterWebhook.Character.Name = name;
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("set-api", "Change API backend")]
@@ -161,8 +204,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("avatar", "Change character avatar")]
-        public async Task SetAvatar(string webhookIdOrPrefix, string avatarUrl)
+        [SlashCommand("set-cai-history-id", "Change c.ai history ID")]
+        public async Task SetCaiHistory(string webhookIdOrPrefix, string newHistoryId)
         {
             await DeferAsync();
 
@@ -174,47 +217,20 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var channel = (SocketTextChannel)Context.Channel;
-            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
-
-            var image = await TryDownloadImgAsync(avatarUrl, _integration.HttpClient);
-            if (image is null && characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+            if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
             {
-                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-            }
-
-            await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
-
-            characterWebhook.Character.AvatarUrl = avatarUrl;
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
-        }
-
-        [SlashCommand("name", "Change character name")]
-        public async Task SetCharacterName(string webhookIdOrPrefix, string name)
-        {
-            await DeferAsync();
-
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
-
-            if (characterWebhook is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't set history ID for non-CharacterAI integration!".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            name = name.ToLower().Contains("discord") ? name.Replace('o', 'о').Replace('c', 'с') : name;
+            string message = $"{OK_SIGN_DISCORD} **History ID** for this channel was changed from `{characterWebhook.CaiActiveHistoryId}` to `{newHistoryId}`";
+            if (newHistoryId.Length != 43)
+                message += $".\nEntered history ID has length that is different from expected ({newHistoryId.Length}/43). Make sure it's correct.";
 
-            var channel = (SocketTextChannel)Context.Channel;
-            var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
-
-            await channelWebhook.ModifyAsync(cw => cw.Name = name);
-
-            characterWebhook.Character.Name = name;
+            characterWebhook.CaiActiveHistoryId = newHistoryId;
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed());
+            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
         }
 
         [SlashCommand("set-random-reply-chance", "Change random replies chance")]
@@ -358,22 +374,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
-        }
-
-        [SlashCommand("messages-format", "Change character messages format")]
-        public async Task SetMessagesFormat(string webhookIdOrPrefix, string newFormat)
-        {
-            await UpdateMessagesFormatAsync(webhookIdOrPrefix, newFormat);
-        }
-
-        [SlashCommand("jailbreak-prompt", "Change character jailbreak prompt")]
-        public async Task SetJailbreakPrompt(string webhookIdOrPrefix)
-        {
-            var modal = new ModalBuilder().WithTitle($"Update jailbreak prompt for the character")
-                                          .WithCustomId($"upd~{webhookIdOrPrefix}")
-                                          .AddTextInput("New jailbreak prompt", "new-prompt", TextInputStyle.Paragraph)
-                                          .Build();
-            await RespondWithModalAsync(modal);
         }
 
 

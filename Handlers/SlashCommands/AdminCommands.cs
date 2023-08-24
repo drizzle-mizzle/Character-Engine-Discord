@@ -44,10 +44,40 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await ListServersAsync(page);
         }
 
+        [SlashCommand("leave-all-servers", "-")]
+        public async Task AdminLeaveAllGuilds()
+        {
+            await DeferAsync();
+
+            var guilds = _client.Guilds.Where(g => g.Id != Context.Guild.Id);
+            await Parallel.ForEachAsync(guilds, async (guild, ct) => await guild.LeaveAsync());
+
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
+
         [SlashCommand("block-server", "-")]
         public async Task AdminBlockGuild(string serverId)
         {
             await BlockGuildAsync(serverId);
+        }
+
+        [SlashCommand("unblock-server", "-")]
+        public async Task AdminUnblockGuild(string serverId)
+        {
+            await DeferAsync();
+
+            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
+
+            if (blockedGuild is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            _db.BlockedGuilds.Remove(blockedGuild);
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("block-user-global", "-")]
@@ -70,25 +100,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = 0 });
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
-        }
-
-        [SlashCommand("unblock-server", "-")]
-        public async Task AdminUnblockGuild(string serverId)
-        {
-            await DeferAsync();
-
-            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
-
-            if (blockedGuild is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server not found".ToInlineEmbed(Color.Red));
-                return;
-            }
-
-            _db.BlockedGuilds.Remove(blockedGuild);
             await _db.SaveChangesAsync();
 
             await FollowupAsync(embed: SuccessEmbed());
@@ -148,17 +159,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 catch { return; }
             });
                 
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
-        }
-
-        [SlashCommand("leave-all-servers", "-")]
-        public async Task AdminLeaveAllGuilds()
-        {
-            await DeferAsync();
-
-            var guilds = _client.Guilds.Where(g => g.Id != Context.Guild.Id);
-            await Parallel.ForEachAsync(guilds, async (guild, ct) => await guild.LeaveAsync());
-
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
