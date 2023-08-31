@@ -45,11 +45,8 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
-            var user = reaction.User.Value;
-            if (user is null) return;
-
-            var userReacted = user as SocketGuildUser;
-            if (userReacted is null || userReacted.IsBot) return;
+            var user = reaction.User.GetValueOrDefault();
+            if (user is null || user is not SocketGuildUser userReacted || userReacted.IsBot) return;
 
             IUserMessage originalMessage;
             try { originalMessage = await rawMessage.DownloadAsync(); }
@@ -200,12 +197,19 @@ namespace CharacterEngineDiscord.Handlers
             string newContent = $"{caller.Mention} {responseText}".Replace("{{user}}", $"**{caller.GetBestName()}**");
             if (newContent.Length > 2000) newContent = newContent[0..1994] + "[max]";
 
-            await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
+            try
             {
-                msg.Content = newContent;
-                msg.Embeds = embeds;
-                msg.AllowedMentions = AllowedMentions.All;
-            });
+                await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
+                {
+                    msg.Content = newContent;
+                    msg.Embeds = embeds;
+                    msg.AllowedMentions = AllowedMentions.All;
+                });
+            }
+            catch
+            {
+                return;
+            }
 
             // If message was swiped, "forget" last option
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)

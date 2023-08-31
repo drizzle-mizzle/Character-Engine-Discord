@@ -86,11 +86,7 @@ namespace CharacterEngineDiscord.Handlers
                             msg.Components = null;
                         });
                     }
-                    catch (Exception e)
-                    {
-                        await component.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to handle button: {e.Message}\nMake sure that bot has all needed permissions in the current channel.".ToInlineEmbed(Color.Red));
-                        return;
-                    }
+                    catch { return; }
 
                     int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
                     string characterId = searchQuery.SearchQueryData.Characters[index].Id;
@@ -106,10 +102,7 @@ namespace CharacterEngineDiscord.Handlers
                         var chubCharacter = await GetChubCharacterInfo(characterId, _integration.HttpClient);
                         character = CharacterFromChubCharacterInfo(chubCharacter);
                     }
-                    else
-                    {
-                        return;
-                    }
+                    else { return; }
 
                     if (character is null)
                     {
@@ -141,14 +134,10 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             try
-            {
-                // Only if left/right/up/down is selected, either this line will never be reached
+            {   // Only if left/right/up/down is selected, either this line will never be reached
                 await component.Message.ModifyAsync(c => c.Embed = BuildCharactersList(searchQuery)).ConfigureAwait(false);
             }
-            catch (Exception e)
-            {
-                await component.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to handle button: {e.Message}\nMake sure that bot has all needed permissions in the current channel.".ToInlineEmbed(Color.Red));
-            }
+            catch { return; }
         }
 
 

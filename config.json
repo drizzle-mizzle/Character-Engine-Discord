@@ -4,7 +4,6 @@
     "db_connection_string": "",
     "db_enable_logging": false,
     "enable_file_logging": false,
-    "no_permission_file": "nopower.gif",
 
     "discord_bot_token": "YOUR_BOT_TOKEN",
     "discord_bot_manager_role": "Manage Character",
@@ -12,6 +11,7 @@
     "hoster_discord_id": null,
     "discord_logs_channel_id": null,
     "discord_error_logs_channel_id": null,
+    "no_permission_file": "nopower.gif",
     "rate_limit": 15,
     "max_characters_per_channel": 15,
 

@@ -71,15 +71,22 @@ namespace CharacterEngineDiscord.Services
 
                     var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
                     int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
-                    string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
+                    string text = $"Running: `{time.Days}d/{time.Hours}h`\n" +
                                   $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`";
+
+                    
+                    var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
+                    db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+                    await db.SaveChangesAsync();
 
                     _integration.WatchDogClear();
                     _integration.WebhookClients.Clear();
 
-                    var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
-                    db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
-                    await db.SaveChangesAsync();
+                    if (_integration.CaiClient is not null)
+                    {
+                        _integration.CaiClient.KillBrowser();
+                        await _integration.CaiClient.LaunchBrowserAsync(killDuplicates: true);
+                    }
 
                     await TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
                     await Task.Delay(3_600_000); // 1 hour

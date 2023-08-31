@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
-            string text = $"Running: `{time.Days} day(s)` & `{time.Hours} hour(s)` & `{time.Minutes} minute(s)`\n" +
+            string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
                           $"Blocked: `{_db.BlockedUsers.Where(bu => bu.GuildId == null).Count()} user(s)` | `{_db.BlockedGuilds.Count()} guild(s)`\n" +
                           $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.SearchQueries.Count}sq`";
 
@@ -260,7 +260,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await FollowupAsync(embed: SuccessEmbed());
             await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple));
 
             try { await _integration.CaiClient.LaunchBrowserAsync(killDuplicates: true); }

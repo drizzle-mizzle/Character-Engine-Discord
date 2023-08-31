@@ -133,6 +133,7 @@ namespace CharacterEngineDiscord.Handlers
             characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
             characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
             characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
+            characterWebhook.LastCallTime = DateTime.UtcNow;
 
             try
             {
@@ -154,7 +155,6 @@ namespace CharacterEngineDiscord.Handlers
             }
             finally
             {
-                characterWebhook.LastCallTime = DateTime.UtcNow;
                 await db.SaveChangesAsync();
             }
         }
