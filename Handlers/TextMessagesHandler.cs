@@ -127,35 +127,30 @@ namespace CharacterEngineDiscord.Handlers
 
             if (characterResponse is null) return;
 
-            await db.Entry(characterWebhook).ReloadAsync();
+            _ = Task.Run(async () => await TryToRemoveButtonsAsync(characterWebhook.LastCharacterDiscordMsgId, userMessage));
 
+            await db.Entry(characterWebhook).ReloadAsync();
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
             characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
             characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
             characterWebhook.LastCallTime = DateTime.UtcNow;
+            characterWebhook.LastCharacterDiscordMsgId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
 
-            try
+            await db.SaveChangesAsync();
+        }
+
+        private async Task TryToRemoveButtonsAsync(ulong oldMessageId, SocketUserMessage userMessage)
+        {
+            if (oldMessageId != 0)
             {
-                var oldMessageId = characterWebhook.LastCharacterDiscordMsgId;
-                ulong messageId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
-                characterWebhook.LastCharacterDiscordMsgId = messageId;
-
-                // Remove buttons from the last message
-                if (oldMessageId != 0)
+                var oldMessage = await userMessage.Channel.GetMessageAsync(oldMessageId);
+                if (oldMessage is not null)
                 {
-                    var oldMessage = await userMessage.Channel.GetMessageAsync(oldMessageId);
-                    if (oldMessage is not null)
-                    {
-                        var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
-                        await Parallel.ForEachAsync(btns, async (btn, ct)
-                            => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
-                    }
+                    var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
+                    await Parallel.ForEachAsync(btns, async (btn, ct)
+                        => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
                 }
-            }
-            finally
-            {
-                await db.SaveChangesAsync();
             }
         }
 
