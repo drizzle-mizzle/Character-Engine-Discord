@@ -61,7 +61,6 @@ namespace CharacterEngineDiscord.Services
                 CaiClient = new(
                     userToken: ConfigFile.DefaultCaiUserAuthToken.Value!,
                     caiPlusMode: ConfigFile.DefaultCaiPlusMode.Value.ToBool(),
-                    browserType: ConfigFile.PuppeteerBrowserType.Value!,
                     customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
                     customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
                 );

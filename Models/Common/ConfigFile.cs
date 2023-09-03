@@ -24,7 +24,6 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField CaiEnabled { get; } = new("use_character_ai");
         public static ConfigField DefaultCaiUserAuthToken { get; } = new("character_ai_default_user_auth_token");
         public static ConfigField DefaultCaiPlusMode { get; } = new("character_ai_default_plus_mode");
-        public static ConfigField PuppeteerBrowserType { get; } = new("puppeteer_browser_type");
         public static ConfigField PuppeteerBrowserDir { get; } = new("puppeteer_browser_directory");
         public static ConfigField PuppeteerBrowserExe { get; } = new("puppeteer_browser_executable_path");
 

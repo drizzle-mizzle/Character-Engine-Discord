@@ -19,7 +19,6 @@
     "use_character_ai": true,
     "character_ai_default_user_auth_token": null,
     "character_ai_default_plus_mode": false,
-    "puppeteer_browser_type": "chrome", // the only option for now, firefox is not tested yet
     "puppeteer_browser_directory": null,
     "puppeteer_browser_executable_path": null,
 
