@@ -119,16 +119,14 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Get character response
-            CharacterResponse? characterResponse = null;
-            if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                characterResponse = await CallOpenAiCharacterAsync(characterWebhookId, userMessage, text);
-            else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await CallCaiCharacterAsync(characterWebhookId, userMessage, text);
-
+            CharacterResponse? characterResponse = (characterWebhook.IntegrationType is IntegrationType.OpenAI) ?
+                                                        await CallOpenAiCharacterAsync(characterWebhookId, userMessage, text) :
+                                                   (characterWebhook.IntegrationType is IntegrationType.CharacterAI) ?
+                                                        await CallCaiCharacterAsync(characterWebhookId, userMessage, text) : null;
             if (characterResponse is null) return;
 
             _ = Task.Run(async () => await TryToRemoveButtonsAsync(characterWebhook.LastCharacterDiscordMsgId, userMessage));
-
+            
             await db.Entry(characterWebhook).ReloadAsync();
             characterWebhook.CurrentSwipeIndex = 0;
             characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
