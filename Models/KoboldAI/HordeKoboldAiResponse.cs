@@ -1,12 +1,12 @@
 ﻿using CharacterEngineDiscord.Services;
+using Newtonsoft.Json.Linq;
+using System.Net.Mime;
 
-namespace CharacterEngineDiscord.Models.OpenAI
+namespace CharacterEngineDiscord.Models.KoboldAI
 {
-    public class OpenAiChatResponse : IOpenAiResponse
+    public class HordeKoboldAiResponse : IKoboldAiResponse
     {
-        public string? Message { get; }
         public string? MessageId { get; }
-        public int? Usage { get; }
         public int Code { get; }
         public bool IsSuccessful { get; }
         public bool IsFailure { get => !IsSuccessful; }
@@ -14,10 +14,10 @@ namespace CharacterEngineDiscord.Models.OpenAI
 
         private string _responseContent = null!;
 
-        public OpenAiChatResponse(HttpResponseMessage response)
+        public HordeKoboldAiResponse(HttpResponseMessage response)
         {
             Code = (int)response.StatusCode;
-
+            
             if (response.IsSuccessStatusCode)
             {
                 try
@@ -25,21 +25,16 @@ namespace CharacterEngineDiscord.Models.OpenAI
                     ReadResponseContentAsync(response.Content).Wait();
                     dynamic contentParsed = _responseContent.ToDynamicJsonString()!;
 
-                    // Getting character message
-                    string? characterMessage = contentParsed.choices?.First?["message"]?["content"];
-                    string? characterMessageID = contentParsed.id; // getting stats
-                    int? usage = contentParsed.usage?.total_tokens;
+                    string? messageId = contentParsed.id;                    
 
-                    if (characterMessage is null || characterMessageID is null)
+                    if (messageId is null)
                     {
                         IsSuccessful = false;
                         ErrorReason = $"Something went wrong.";
                         return;
                     }
 
-                    Message = characterMessage;
-                    MessageId = characterMessageID;
-                    Usage = usage;
+                    MessageId = messageId;
 
                     IsSuccessful = true;
                 }

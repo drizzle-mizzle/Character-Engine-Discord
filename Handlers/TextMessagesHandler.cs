@@ -9,10 +9,13 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using Microsoft.EntityFrameworkCore;
+using CharacterEngineDiscord.Models.KoboldAI;
+using Newtonsoft.Json.Linq;
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal partial class TextMessagesHandler
+    internal class TextMessagesHandler
     {
         private readonly IServiceProvider _services;
         private readonly DiscordSocketClient _client;
@@ -28,7 +31,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleMessageAsync(message); }
-                    catch (Exception e) { await HandleTextMessageException(message, e); }
+                    catch (Exception e) { HandleTextMessageException(message, e); }
                 });
                 return Task.CompletedTask;
             };
@@ -36,40 +39,51 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleMessageAsync(SocketMessage sm)
         {
-            if (sm is not SocketUserMessage userMessage) return;
-            if (userMessage.Author.Id == _client.CurrentUser.Id) return;
-            if (string.IsNullOrWhiteSpace(userMessage.Content)) return;
-            if (userMessage.Content.Trim().StartsWith("~ignore")) return;
+            var userMessage = sm as SocketUserMessage;
+            bool invalidInput = userMessage is null || Equals(userMessage.Author.Id, _client.CurrentUser.Id) || userMessage.Content.StartsWith("~ignore");
+            if (invalidInput) return;
 
             var context = new SocketCommandContext(_client, userMessage);
-
             if (context.Guild is null) return;
-            if (context.Channel is not IGuildChannel currentChannel) return;
-            if (context.User is not IGuildUser guildUser) return;
-            if (context.Guild.CurrentUser.GetPermissions(currentChannel).SendMessages is false) return;
+            if (context.Channel is not IGuildChannel guildChannel) return;
+            if (context.Guild.CurrentUser.GetPermissions(guildChannel).SendMessages is false) return;
 
-            var calledCharacters = await DetermineCalledCharacterWebhook(userMessage, currentChannel.Id);
+            ulong channelId;
+            bool isThread = false;
+            if (guildChannel is IThreadChannel tc)
+            {
+                channelId = tc.CategoryId ?? 0; // parent channel of the thread
+                isThread = true;
+            }
+            else
+            {
+                channelId = guildChannel.Id;
+            }
 
-            if (calledCharacters.Count == 0) return;
-            if (await _integration.UserIsBanned(context)) return;
+            var calledCharacters = await DetermineCalledCharacterWebhook(userMessage!, channelId);
+            if (calledCharacters.Count == 0 || await _integration.UserIsBanned(context)) return;
 
             foreach (var characterWebhook in calledCharacters)
             {
                 int delay = characterWebhook.ResponseDelay;
-
-                if (guildUser.IsWebhook || guildUser.IsBot)
+                if (context.User.IsWebhook || context.User.IsBot)
+                {
                     delay = Math.Max(10, delay);
+                }
 
                 await Task.Delay(delay * 1000);
-                await TryToCallCharacterAsync(characterWebhook.Id, userMessage);
+                await TryToCallCharacterAsync(characterWebhook.Id, userMessage!, isThread);
             }
         }
 
-        private async Task TryToCallCharacterAsync(ulong characterWebhookId, SocketUserMessage userMessage)
+        private async Task TryToCallCharacterAsync(ulong characterWebhookId, SocketUserMessage userMessage, bool isThread)
         {
             var db = new StorageContext();
+            
+            // Prevalidations
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
+            if (characterWebhook.IntegrationType is IntegrationType.Empty) return;
 
             string userName;
             if (userMessage.Author is SocketGuildUser guildUser)
@@ -78,103 +92,86 @@ namespace CharacterEngineDiscord.Handlers
                 userName = userMessage.Author.Username;
             else return;
 
-            // Ensure character can be called
-            bool canProceed = false;
-            if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                canProceed = await CanCallOpenAiCharacter(characterWebhook, userMessage);
-            else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                canProceed = await CanCallCaiCharacter(characterWebhook, userMessage, _integration);
-            else
-                await userMessage.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} You have to set backend API for this integration. Use `/update set-api` command.".ToInlineEmbed(Color.Orange));
-
-            if (!canProceed) return;
+            bool canNotProceed = !await EnsureCharacterCanBeCalledAsync(characterWebhook, userMessage.Channel);
+            if (canNotProceed) return;
 
             // Reformat message
             string text = userMessage.Content ?? "";
             if (text.StartsWith("<")) text = MentionRegex().Replace(text, "", 1);
 
-            var format = characterWebhook.MessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
-            text = format.Replace("{{user}}", $"{userName}")
-                         .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
-                         .Replace("\\n", "\n");
-
-            if (text.Contains("{{ref_msg_text}}"))
-            {
-                int start = text.IndexOf("{{ref_msg_begin}}");
-                int end = text.IndexOf("{{ref_msg_end}}") + "{{ref_msg_end}}".Length;
-
-                if (string.IsNullOrWhiteSpace(userMessage.ReferencedMessage?.Content))
-                    text = text.Remove(start, end - start).Trim();
-                else
-                {
-                    string refContent = userMessage.ReferencedMessage.Content;
-
-                    if (refContent.StartsWith("<")) refContent = MentionRegex().Replace(refContent, "", 1);
-
-                    string refName = userMessage.ReferencedMessage.Author is SocketGuildUser refGuildUser ? (refGuildUser.GetBestName()) : userMessage.Author.Username;
-                    int refL = Math.Min(refContent.Length, 200);
-
-                    text = text.Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 200 ? "..." : "")).Replace("{{ref_msg_user}}", refName).Replace("{{ref_msg_begin}}", "").Replace("{{ref_msg_end}}", "");
-                }
-            }
+            var formatTemplate = characterWebhook.PersonalMessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+            text = formatTemplate.Replace("{{user}}", $"{userName}")
+                                 .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
+                                 .Replace("\\n", "\n")
+                                 .AddRefQuote(userMessage.ReferencedMessage);
 
             // Get character response
-            CharacterResponse? characterResponse = (characterWebhook.IntegrationType is IntegrationType.OpenAI) ?
-                                                        await CallOpenAiCharacterAsync(characterWebhookId, userMessage, text) :
-                                                   (characterWebhook.IntegrationType is IntegrationType.CharacterAI) ?
-                                                        await CallCaiCharacterAsync(characterWebhookId, userMessage, text) : null;
-            if (characterResponse is null) return;
+            CharacterResponse characterResponse = null!;
+            if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
+                characterResponse = await CallOpenAiCharacterAsync(characterWebhook, text);
+            else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+                characterResponse = await CallCaiCharacterAsync(characterWebhook, text);
+            else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
+                return;//characterResponse = await CallKoboldAiCharacterAsync(characterWebhook, text);
+            else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
+                return;// characterResponse = await CallHordeKoboldAiCharacterAsync(characterWebhook, text);
 
-            _ = Task.Run(async () => await TryToRemoveButtonsAsync(characterWebhook.LastCharacterDiscordMsgId, userMessage));
-            
-            await db.Entry(characterWebhook).ReloadAsync();
+            if (characterResponse.IsFailure)
+            {
+                await userMessage.ReplyAsync(embed: characterResponse.Text.ToInlineEmbed(Color.Red));
+                return;
+            }
+
+            var messageId = TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName, isThread);
+            TryToRemoveButtons(characterWebhook.LastCharacterDiscordMsgId, userMessage.Channel);
+
             characterWebhook.CurrentSwipeIndex = 0;
-            characterWebhook.LastCharacterMsgUuId = characterResponse.CharacterMessageUuid;
-            characterWebhook.LastUserMsgUuId = characterResponse.UserMessageId;
+            characterWebhook.LastCharacterMsgId = characterResponse.CharacterMessageId;
+            characterWebhook.LastUserMsgId = characterResponse.UserMessageId;
             characterWebhook.LastDiscordUserCallerId = userMessage.Author.Id;
             characterWebhook.LastCallTime = DateTime.UtcNow;
-            characterWebhook.LastCharacterDiscordMsgId = await TryToSendCharacterMessageAsync(characterWebhook, characterResponse, userMessage, userName);
-
-            await db.SaveChangesAsync();
-        }
-
-        private async Task TryToRemoveButtonsAsync(ulong oldMessageId, SocketUserMessage userMessage)
-        {
-            if (oldMessageId != 0)
+            characterWebhook.MessagesSent++;
+            characterWebhook.Channel.Guild.MessagesSent++;
+            characterWebhook.LastCharacterDiscordMsgId = await messageId;
+            
+            try
             {
-                var oldMessage = await userMessage.Channel.GetMessageAsync(oldMessageId);
-                if (oldMessage is not null)
-                {
-                    var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
-                    await Parallel.ForEachAsync(btns, async (btn, ct)
-                        => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
-                }
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException e)
+            {
+                foreach(var entry in e.Entries)
+                    entry.Reload();
+
+                db.SaveChanges();
             }
         }
 
-        /// <returns>Message ID</returns>
-        private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName)
+        
+        /// <returns>Message ID or 0 if sending failed</returns>
+        private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName, bool isThread)
         {
-            var availResponses = _integration.AvailableCharacterResponses;
-            availResponses.TryAdd(characterWebhook.Id, new());
+            _integration.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
+            var convo = _integration.Conversations[characterWebhook.Id];
 
-            lock (availResponses[characterWebhook.Id])
+            lock (convo)
             {
                 // Forget all choises from the last message and remember a new one
-                availResponses[characterWebhook.Id].Clear();
-                availResponses[characterWebhook.Id].Add(new()
+                convo.AvailableMessages.Clear();
+                convo.AvailableMessages.Add(new()
                 {
                     Text = characterResponse.Text,
-                    MessageId = characterResponse.CharacterMessageUuid,
+                    MessageId = characterResponse.CharacterMessageId,
                     ImageUrl = characterResponse.ImageRelPath,
                     TokensUsed = characterResponse.TokensUsed
                 });
+                convo.LastUpdated = DateTime.UtcNow;
             }
 
             var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message".ToInlineEmbed(Color.Red));
+                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `channel webhook was not found`".ToInlineEmbed(Color.Red));
                 return 0;
             }
 
@@ -188,24 +185,32 @@ namespace CharacterEngineDiscord.Handlers
 
             // Fill embeds
             List<Embed>? embeds = new();
-            if (characterWebhook.ReferencesEnabled && userMessage.Content is not null)
+
+            if (characterWebhook.ReferencesEnabled && !string.IsNullOrWhiteSpace(userMessage.Content))
             {
-                int l = Math.Min(userMessage.Content.Length, 36);
+                int l = Math.Min(userMessage.Content.Length, 50);
                 string quote = userMessage.Content;
                 if (quote.StartsWith("<")) quote = MentionRegex().Replace(quote, "", 1);
 
-                embeds.Add(new EmbedBuilder().WithFooter($"> {quote[0..l]}{(l == 36 ? "..." : "")}").Build());
+                embeds.Add(new EmbedBuilder().WithFooter($"> {quote[0..l]}{(l == 50 ? "..." : "")}").Build());
             }
+
             if (characterResponse.ImageRelPath is not null)
             {
-                bool canGetImage = await TryGetImageAsync(characterResponse.ImageRelPath, _integration.HttpClient);
+                bool canGetImage = await ImageIsAvailable(characterResponse.ImageRelPath, _integration.ImagesHttpClient);
                 if (canGetImage) embeds.Add(new EmbedBuilder().WithImageUrl(characterResponse.ImageRelPath).Build());
             }
 
             // Sending message
             try
             {
-                ulong messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
+                ulong messageId;
+                if (isThread)
+                    messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds, threadId: userMessage.Channel.Id);
+                else
+                    messageId = await webhookClient.SendMessageAsync(characterMessage, embeds: embeds);
+
+                _integration.MessagesSent++;
                 bool isUserMessage = !(userMessage.Author.IsWebhook || userMessage.Author.IsBot);
                 if (isUserMessage) await TryToAddButtonsAsync(characterWebhook, userMessage.Channel, messageId);
 
@@ -218,77 +223,331 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task<CharacterResponse?> CallOpenAiCharacterAsync(ulong characterWebhookId, SocketUserMessage userMessage, string text)
+
+        // Calls
+
+        private async Task<CharacterResponse> CallCaiCharacterAsync(CharacterWebhook cw, string text)
         {
-            var db = new StorageContext();
-            var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
-            if (characterWebhook is null) return null;
-
-            characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = characterWebhook.Id }); // remember user message (will be included in payload)
-
-            var openAiRequestParams = BuildChatOpenAiRequestPayload(characterWebhook);
-            if (openAiRequestParams.Messages.Count < 2)
-            {
-                characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`".ToInlineEmbed(Color.Red));
-                return null;
-            }
-
-            var openAiResponse = await CallChatOpenAiAsync(openAiRequestParams, _integration.HttpClient);
-
-            if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
-            {
-                characterWebhook.OpenAiHistoryMessages.Remove(characterWebhook.OpenAiHistoryMessages.Last());
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{openAiResponse?.ErrorReason ?? "Something went wrong!"}`".ToInlineEmbed(Color.Red));
-                return null;
-            }
-
-            // Remember character message
-            characterWebhook.OpenAiHistoryMessages.Add(new() { Role = "assistant", Content = openAiResponse.Message!, CharacterWebhookId = characterWebhook.Id });
-            characterWebhook.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
-
-            // Clear old messages, 40-60 is a good balance between response speed and needed context size, also it's usually pretty close to the GPT-3.5 token limit
-            if (characterWebhook.OpenAiHistoryMessages.Count > 60)
-                characterWebhook.OpenAiHistoryMessages.RemoveRange(0, 20);
-
-            await db.SaveChangesAsync();
-
-            return new()
-            {
-                Text = openAiResponse.Message!,
-                TokensUsed = openAiResponse.Usage ?? 0,
-                CharacterMessageUuid = openAiResponse.MessageId,
-                IsSuccessful = true,
-                UserMessageId = null, ImageRelPath = null,
-            };
-        }
-
-        private async Task<CharacterResponse?> CallCaiCharacterAsync(ulong cwId, SocketUserMessage userMessage, string text)
-        {
-            var db = new StorageContext();
-            var cw = await db.CharacterWebhooks.FindAsync(cwId);
-            if (cw is null) return null;
-
             var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
             var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
-            var caiResponse = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.CaiActiveHistoryId!, text, primaryMsgUuId: cw.LastCharacterMsgUuId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var caiResponse = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.ActiveHistoryID!, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+
+            string message;
+            bool success;
 
             if (!caiResponse.IsSuccessful)
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to fetch character response: ```\n{caiResponse.ErrorReason}\n```".ToInlineEmbed(Color.Red));
-                return null;
+                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: ```\n{caiResponse.ErrorReason}\n```";
+                success = false;
+            }
+            else
+            {
+                message = caiResponse.Response!.Text;
+                success = true;
             }
 
             return new()
             {
-                Text = caiResponse.Response!.Text,
-                TokensUsed = 0,
-                IsSuccessful = true,
-                CharacterMessageUuid = caiResponse.Response.UuId,
+                Text = message,
+                IsSuccessful = success,
+                CharacterMessageId = caiResponse.Response?.UuId,
+                ImageRelPath = caiResponse.Response?.ImageRelPath,
                 UserMessageId = caiResponse.LastUserMsgUuId,
-                ImageRelPath = caiResponse.Response.ImageRelPath,
+                TokensUsed = 0,
             };
         }
+
+        private async Task<CharacterResponse> CallOpenAiCharacterAsync(CharacterWebhook cw, string text)
+        {            
+            cw.StoredHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
+
+            if (openAiRequestParams.Messages.Count < 2)
+            {
+                return new()
+                {
+                    Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`",
+                    TokensUsed = 0,
+                    IsSuccessful = false
+                };
+            }
+
+            string message;
+            bool success;
+            int tokens = 0;
+            string? charMsgId = null;
+
+            var openAiResponse = await SendOpenAiRequestAsync(openAiRequestParams, _integration.CommonHttpClient);
+
+            if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
+            {
+                string desc = (openAiResponse?.ErrorReason is null || openAiResponse.ErrorReason.Contains("IP")) ? "Something went wrong" : openAiResponse.ErrorReason;
+                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{desc}`";
+                success = false;
+            }
+            else
+            {
+                // Remember character message
+                cw.StoredHistoryMessages.Add(new() { Role = "assistant", Content = openAiResponse.Message!, CharacterWebhookId = cw.Id });
+                cw.LastRequestTokensUsage = openAiResponse.Usage ?? 0;
+
+                // Clear old messages, 80-100 is a good balance between response speed and needed context size, also it's usually pretty close to the GPT-3.5 token limit
+                if (cw.StoredHistoryMessages.Count > 100)
+                    cw.StoredHistoryMessages.RemoveRange(0, 20);
+
+                message = openAiResponse.Message!;
+                success = true;
+                tokens = openAiResponse.Usage ?? 0;
+                charMsgId = openAiResponse.MessageId;
+            }
+
+            return new()
+            {
+                Text = message,
+                TokensUsed = tokens,
+                CharacterMessageId = charMsgId,
+                IsSuccessful = success
+            };
+        }
+
+        private async Task<CharacterResponse> CallKoboldAiCharacterAsync(CharacterWebhook cw, string text)
+        {
+            cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            var koboldAiRequestParams = BuildKoboldAiRequestPayload(cw);
+
+            if (koboldAiRequestParams.Messages.Count < 2)
+            {
+                return new()
+                {
+                    Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`",
+                    TokensUsed = 0,
+                    IsSuccessful = false
+                };
+            }
+
+            string message;
+            bool success;
+
+            var kobkoldAiResponse = await SendKoboldAiRequestAsync(koboldAiRequestParams, _integration.CommonHttpClient, continueRequest: false);
+
+            if (kobkoldAiResponse is null || kobkoldAiResponse.IsFailure || kobkoldAiResponse.Message.IsEmpty())
+            {
+                string desc = kobkoldAiResponse?.ErrorReason ?? "Something went wrong";
+                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{desc}`";
+                success = false;
+            }
+            else
+            {   // Remember character message
+                cw.StoredHistoryMessages.Add(new() { Role = "\nYou: ", Content = kobkoldAiResponse.Message!, CharacterWebhookId = cw.Id });
+
+                if (cw.StoredHistoryMessages.Count > 100)
+                    cw.StoredHistoryMessages.RemoveRange(0, 20);
+
+                message = kobkoldAiResponse.Message!;
+                success = true;
+            }
+
+            return new()
+            {
+                Text = message,
+                IsSuccessful = success,
+                TokensUsed = 0
+            };
+        }
+
+        private async Task<CharacterResponse> CallHordeKoboldAiCharacterAsync(CharacterWebhook cw, string text)
+        {
+            cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            var hordeRequestParams = BuildHordeKoboldAiRequestPayload(cw);
+
+            if (hordeRequestParams.KoboldAiSettings.Messages.Count < 2)
+            {
+                return new()
+                {
+                    Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`",
+                    TokensUsed = 0,
+                    IsSuccessful = false
+                };
+            }
+
+            string message;
+            bool success;
+
+            var hordeResponse = await SendHordeKoboldAiRequestAsync(hordeRequestParams, _integration.CommonHttpClient, continueRequest: false);
+
+            if (hordeResponse is null || hordeResponse.IsFailure || hordeResponse.MessageId.IsEmpty())
+            {
+                string desc = hordeResponse?.ErrorReason ?? "Something went wrong";
+                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{desc}`";
+                success = false;
+            }
+            else
+            {   // Remember character message
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.MessageId, _integration.CommonHttpClient, 0);
+                if (hordeResult.IsSuccessful)
+                {
+                    cw.StoredHistoryMessages.Add(new() { Role = "\nYou: ", Content = hordeResult.Message!.Value.Content, CharacterWebhookId = cw.Id });
+
+                    if (cw.StoredHistoryMessages.Count > 100)
+                        cw.StoredHistoryMessages.RemoveRange(0, 20);
+
+                    message = hordeResult.Message.Value.Content;
+                    success = true;
+                }
+                else
+                {
+                    message = hordeResult.ErrorReason!;
+                    success = false;
+                }
+            }
+
+            return new()
+            {
+                Text = message,
+                IsSuccessful = success,
+                TokensUsed = 0
+            };
+        }
+
+        private static async Task<HordeKoboldAiResult> TryToAwaitForHordeRequestResultAsync(string? messageId, HttpClient httpClient, int attemptCount)
+        {
+            string url = $"https://horde.koboldai.net/api/v2/generate/text/status/{messageId}";
+
+            try
+            {
+                var response = await httpClient.GetAsync(url);
+                string content = await response.Content.ReadAsStringAsync();
+                dynamic contentParsed = content.ToDynamicJsonString()!;
+
+                if ($"{contentParsed.done}".ToBool())
+                {
+                    var generations = (JArray)contentParsed.generations;
+                    string text = (generations.First() as dynamic).text;
+
+                    return new()
+                    {
+                        IsSuccessful = true,
+                        Message = new("\nYou: ", text)
+                    };
+                }
+                else if (!$"{contentParsed.is_possible}".ToBool() || $"{contentParsed.faulted}".ToBool())
+                {
+                    return new()
+                    {
+                        IsSuccessful = false,
+                        ErrorReason = "Request failed. Try again later or change the model."
+                    };
+                }
+                else
+                {
+                    if (attemptCount > 20) // 2 min max
+                    {
+                        return new()
+                        {
+                            IsSuccessful = false,
+                            ErrorReason = "Timed out"
+                        };
+                    }
+                    else
+                    {
+                        await Task.Delay(6000);
+                        return await TryToAwaitForHordeRequestResultAsync(messageId, httpClient, attemptCount + 1);
+                    }
+                }
+            }
+            catch
+            {
+                return new()
+                {
+                    IsSuccessful = false,
+                    ErrorReason = "Something went wrong"
+                };
+            }
+        }
+
+
+        // Ensure
+
+        private static async Task<bool> EnsureCharacterCanBeCalledAsync(CharacterWebhook characterWebhook, ISocketMessageChannel channel)
+        {
+            bool result;
+            if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+                result = await EnsureCaiCharacterCanBeCalledAsync(characterWebhook, channel);
+            else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
+                result = await EnsureOpenAiCharacterCanBeCalledAsync(characterWebhook, channel);
+            else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
+                result = await EnsureKoboldAiCharacterCanBeCalledAsync(characterWebhook, channel);
+            else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
+                result = await EnsureHordeKoboldAiCharacterCanBeCalledAsync(characterWebhook, channel);
+            else
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to set a backend API for this integration. Use `/update set-api` command.".ToInlineEmbed(Color.Orange));
+                result = false;
+            }
+
+            return result;
+        }
+
+        private static async Task<bool> EnsureCaiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
+        {
+            if (!ConfigFile.CaiEnabled.Value.ToBool())
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is not available".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+
+            if (string.IsNullOrWhiteSpace(caiToken))
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            return true;
+        }
+
+        private static async Task<bool> EnsureOpenAiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
+        {
+            string? openAiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
+
+            if (string.IsNullOrWhiteSpace(openAiToken))
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            return true;
+        }
+
+        private static async Task<bool> EnsureKoboldAiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
+        {
+            string? koboldAiApiEndpoint = cw.PersonalApiEndpoint ?? cw.Channel.Guild.GuildKoboldAiApiEndpoint;
+
+            if (string.IsNullOrWhiteSpace(koboldAiApiEndpoint))
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an KoboldAI API endpoint for your server first!".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            return true;
+        }
+
+        private static async Task<bool> EnsureHordeKoboldAiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
+        {
+            string? hordeApiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildHordeApiToken;
+
+            if (string.IsNullOrWhiteSpace(hordeApiToken))
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an KoboldAI API endpoint for your server first!".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            return true;
+        }
+
+
+        // Other
 
         private static readonly Random @Random = new();
         private static async Task<List<CharacterWebhook>> DetermineCalledCharacterWebhook(SocketUserMessage userMessage, ulong channelId)
@@ -321,7 +580,7 @@ namespace CharacterEngineDiscord.Handlers
                 if (cw is not null) characterWebhooks.Add(cw);
             }
 
-            // Add characters who hunt the user
+            // Add characters who hunt the userchrome://vivaldi-webui/startpage?section=Speed-dials&background-color=#23234f
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
             if (hunters is not null && hunters.Count > 0)
             {
@@ -374,50 +633,38 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<bool> CanCallCaiCharacter(CharacterWebhook cw, SocketUserMessage userMessage, IntegrationsService integration)
+        private void TryToRemoveButtons(ulong oldMessageId, ISocketMessageChannel channel)
         {
-            if (integration.CaiClient is null)
+            Task.Run(async () =>
             {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is not available".ToInlineEmbed(Color.Red));
-                return false;
-            }
+                if (oldMessageId == 0) return;
 
-            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+                var oldMessage = await channel.GetMessageAsync(oldMessageId);
+                if (oldMessage is null) return;
 
-            if (string.IsNullOrWhiteSpace(caiToken))
-            {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
-                return false;
-            }
-
-            return true;
+                var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN };
+                await Parallel.ForEachAsync(btns, async (btn, ct)
+                    => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+            });
         }
 
-        private static async Task<bool> CanCallOpenAiCharacter(CharacterWebhook cw, SocketUserMessage userMessage)
-        {
-            string? openAiToken = cw.PersonalOpenAiApiToken ?? cw.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
-
-            if (string.IsNullOrWhiteSpace(openAiToken))
-            {
-                await userMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!".ToInlineEmbed(Color.Red));
-                return false;
-            }
-
-            return true;
-        }
-
-        private async Task HandleTextMessageException(SocketMessage message, Exception e)
+        private void HandleTextMessageException(SocketMessage message, Exception e)
         {
             LogException(new[] { e });
+
+            if (e.Message.Contains("Missing Permissions")) return;
+
             var channel = message.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
-            await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                          $"User: {message.Author?.Username}\n" +
-                                                          $"Message: {message.Content}",
-                                                    content: e.ToString(),
-                                                    color: Color.Red,
-                                                    error: true);
+            TryToReportInLogsChannel(_client, title: "Message Exception",
+                                              desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
+                                                    $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
+                                                    $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                    $"User: {message.Author.Username}" + (message.Author.IsWebhook ? " (webhook)" : message.Author.IsBot ? " (bot)" : "") +
+                                                    $"\nMessage: {message.Content[0..Math.Min(message.Content.Length, 1000)]}",
+                                              content: e.ToString(),
+                                              color: Color.Red,
+                                              error: true);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngineDiscord.Models.Database
 {
-    public class OpenAiHistoryMessage
+    public class StoredHistoryMessage
     {
         public ulong Id { get; set; }
         public required string Role { get; set; }

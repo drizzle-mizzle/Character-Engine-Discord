@@ -33,13 +33,15 @@ namespace CharacterEngineDiscord.Handlers
                         LogException(new[] { e });
                         var channel = modal.Channel as SocketGuildChannel;
                         var guild = channel?.Guild;
-                        await TryToReportInLogsChannel(_client, title: "Exception",
-                                                                desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                                      $"User: {modal.User?.Username}\n" +
-                                                                      $"Modal ID: {modal.Data.CustomId}",
-                                                                content: e.ToString(),
-                                                                color: Color.Red,
-                                                                error: true);
+                        TryToReportInLogsChannel(_client, title: "Modal Exception",
+                                                          desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
+                                                                $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
+                                                                $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                                $"User: `{modal.User.Username}`\n" +
+                                                                $"Modal ID: `{modal.Data.CustomId}`",
+                                                          content: e.ToString(),
+                                                          color: Color.Red,
+                                                          error: true);
                     }
                 });
                 return Task.CompletedTask;
@@ -54,16 +56,13 @@ namespace CharacterEngineDiscord.Handlers
             var modalId = modal.Data.CustomId;
             
             // Update call prefix command
-            if (modalId.StartsWith("upd"))
-            {
+            if (modalId.StartsWith("upd")) {
                 await UpdateCharacterAsync(modal);
-            } else if (modalId.StartsWith("guild"))
-            {
+            } // New jailbreak prompt
+            else if (modalId.StartsWith("guild")) {
                 await UpdateGuildAsync(modal);
-            }
-            // Spawn custom character command
-            else if (modalId == "spawn")
-            {
+            } // Spawn custom character command
+            else if (modalId == "spawn") {
                 await SpawnCustomCharacterAsync(modal);
             }
         }
@@ -95,7 +94,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if (characterWebhook is null)
             {
-                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Orange));
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Character with the given call prefix or webhook ID was not found in the current channel".ToInlineEmbed(Color.Orange));
                 return;
             }
 
@@ -108,7 +107,7 @@ namespace CharacterEngineDiscord.Handlers
             string? newJailbreakPrompt = modal.Data.Components.FirstOrDefault(c => c.CustomId == "new-prompt")?.Value;
             if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
 
-            characterWebhook.UniversalJailbreakPrompt = newJailbreakPrompt;
+            characterWebhook.PersonalJailbreakPrompt = newJailbreakPrompt;
             await db.SaveChangesAsync();
 
             await modal.FollowupAsync(embed: SuccessEmbed());
@@ -149,7 +148,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var context = new InteractionContext(_client, modal, modal.Channel);
-            var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration);
+            var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration, false);
             if (characterWebhook is null) return;
             
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);

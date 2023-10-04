@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("How to use", "1. Use one of the `/spawn` commands to create a character.\n" +
                                                                   "2. Modify it with one of the `/update` commands using a given prefix or webhook ID.\n" +
                                                                   "3. Call character by mentioning its prefix or with reply on one of its messages.\n" +
-                                                                  "4. If you want to start the chat with a character from the beginning, use `/reset-character` commands.\n" +
+                                                                  "4. If you want to start the chat with a character from the beginning, use `/reset-character` command.\n" +
                                                                   "5. Read [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides) and [wiki/Commands](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Commands) to know more.")
                                           .AddField("API", "By default, bot will use its owner's credentials (if those are present) for accessing all needed servcies like **CharacterAI** or **OpenAI**\n" +
                                                            "To use your own API keys and cAI accounts, change it with `/set-server-[ type ]-token` command.\n" +
@@ -48,7 +48,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                           .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
                                           .AddField("Commands", "`/show messages-format` - Check the current format of messages for this server or certain character\n" +
                                                                 "`/update messages-format` - Change the format of messages for certain character\n" +
-                                                                "`/set-default-messages-format` - Change the format of messages for all **new** characters on this server")
+                                                                "`/set-server-messages-format` - Change the format of messages for all **new** characters on this server")
                                           .AddField("Placeholders", "You can use these placeholders in your formats to manipulate the data that being inserted in your messages:\n" +
                                                                     "**`{{msg}}`** - **Required** placeholder that contains the message itself.\n" +
                                                                     "**`{{user}}`** - Placeholder that contains the user's Discord name *(server nickname > display name > username)*.\n" +

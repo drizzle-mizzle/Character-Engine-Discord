@@ -3,6 +3,7 @@ using System;
 using CharacterEngineDiscord.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,13 +11,15 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    partial class StorageContextModelSnapshot : ModelSnapshot
+    [Migration("20230916203125_MsgSent")]
+    partial class MsgSent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "7.0.11")
+                .HasAnnotation("ProductVersion", "7.0.10")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true);
@@ -124,7 +127,7 @@ namespace CharacterEngineDiscord.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ActiveHistoryID")
+                    b.Property<string>("CaiActiveHistoryId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CallPrefix")
@@ -144,39 +147,6 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("CurrentSwipeIndex")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("FromChub")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("GenerationContextSizeTokens")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<float?>("GenerationFreqPenaltyOrRepetitionSlope")
-                        .HasColumnType("REAL");
-
-                    b.Property<int?>("GenerationMaxTokens")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<float?>("GenerationPresenceOrRepetitionPenalty")
-                        .HasColumnType("REAL");
-
-                    b.Property<float?>("GenerationTailfreeSampling")
-                        .HasColumnType("REAL");
-
-                    b.Property<float?>("GenerationTemperature")
-                        .HasColumnType("REAL");
-
-                    b.Property<float?>("GenerationTopA")
-                        .HasColumnType("REAL");
-
-                    b.Property<int?>("GenerationTopK")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<float?>("GenerationTopP")
-                        .HasColumnType("REAL");
-
-                    b.Property<float?>("GenerationTypicalSampling")
-                        .HasColumnType("REAL");
-
                     b.Property<int>("IntegrationType")
                         .HasColumnType("INTEGER");
 
@@ -186,7 +156,7 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<ulong>("LastCharacterDiscordMsgId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("LastCharacterMsgId")
+                    b.Property<string>("LastCharacterMsgUuId")
                         .HasColumnType("TEXT");
 
                     b.Property<ulong>("LastDiscordUserCallerId")
@@ -195,25 +165,37 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<int>("LastRequestTokensUsage")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("LastUserMsgId")
+                    b.Property<string>("LastUserMsgUuId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MessagesFormat")
                         .HasColumnType("TEXT");
 
                     b.Property<ulong>("MessagesSent")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("PersonalApiEndpoint")
+                    b.Property<float?>("OpenAiFreqPenalty")
+                        .HasColumnType("REAL");
+
+                    b.Property<int?>("OpenAiMaxTokens")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OpenAiModel")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("PersonalApiModel")
+                    b.Property<float?>("OpenAiPresencePenalty")
+                        .HasColumnType("REAL");
+
+                    b.Property<float?>("OpenAiTemperature")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("PersonalCaiUserAuthToken")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("PersonalApiToken")
+                    b.Property<string>("PersonalOpenAiApiEndpoint")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("PersonalJailbreakPrompt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PersonalMessagesFormat")
+                    b.Property<string>("PersonalOpenAiApiToken")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ReferencesEnabled")
@@ -230,6 +212,9 @@ namespace CharacterEngineDiscord.Migrations
 
                     b.Property<bool>("SwipesEnabled")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("UniversalJailbreakPrompt")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("WebhookToken")
                         .IsRequired()
@@ -256,16 +241,7 @@ namespace CharacterEngineDiscord.Migrations
                     b.Property<string>("GuildCaiUserToken")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("GuildHordeApiToken")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GuildHordeModel")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("GuildJailbreakPrompt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GuildKoboldAiApiEndpoint")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GuildMessagesFormat")
@@ -279,9 +255,6 @@ namespace CharacterEngineDiscord.Migrations
 
                     b.Property<string>("GuildOpenAiModel")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("MessagesSent")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -310,7 +283,7 @@ namespace CharacterEngineDiscord.Migrations
                     b.ToTable("HuntedUsers");
                 });
 
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.StoredHistoryMessage", b =>
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.OpenAiHistoryMessage", b =>
                 {
                     b.Property<ulong>("Id")
                         .ValueGeneratedOnAdd()
@@ -331,7 +304,7 @@ namespace CharacterEngineDiscord.Migrations
 
                     b.HasIndex("CharacterWebhookId");
 
-                    b.ToTable("StoredHistoryMessages");
+                    b.ToTable("OpenAiHistoryMessages");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.BlockedUser", b =>
@@ -384,10 +357,10 @@ namespace CharacterEngineDiscord.Migrations
                     b.Navigation("CharacterWebhook");
                 });
 
-            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.StoredHistoryMessage", b =>
+            modelBuilder.Entity("CharacterEngineDiscord.Models.Database.OpenAiHistoryMessage", b =>
                 {
                     b.HasOne("CharacterEngineDiscord.Models.Database.CharacterWebhook", "CharacterWebhook")
-                        .WithMany("StoredHistoryMessages")
+                        .WithMany("OpenAiHistoryMessages")
                         .HasForeignKey("CharacterWebhookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -409,7 +382,7 @@ namespace CharacterEngineDiscord.Migrations
                 {
                     b.Navigation("HuntedUsers");
 
-                    b.Navigation("StoredHistoryMessages");
+                    b.Navigation("OpenAiHistoryMessages");
                 });
 
             modelBuilder.Entity("CharacterEngineDiscord.Models.Database.Guild", b =>

@@ -7,9 +7,7 @@ using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
-using Discord.Rest;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -37,13 +35,20 @@ namespace CharacterEngineDiscord.Services
             _services.GetRequiredService<TextMessagesHandler>();
             _services.GetRequiredService<ModalsHandler>();
 
-            await new StorageContext().Database.MigrateAsync();
+            BindEvents();
+            SetupIntegrationAsync();
 
-            _client.Log += (msg) => Task.Run(() => Log($"{msg}\n"));
-            _client.LeftGuild += (guild) => Task.Run(() => LogRed($"Left guild: {guild.Name} | Members: {guild?.MemberCount}\n"));
-            _client.JoinedGuild += (guild) =>
+            await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
+            await _client.StartAsync();
+
+            await RunJobsAsync();
+        }
+
+        private void BindEvents()
+        {
+            _client.Log += (msg) =>
             {
-                Task.Run(async () => await OnGuildJoinAsync(guild));
+                Log($"{msg}\n");
                 return Task.CompletedTask;
             };
 
@@ -53,50 +58,76 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
-            await Task.Run(SetupIntegrationAsync);
-            await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
-            await _client.StartAsync();
-            
-            await RunJobsAsync();
-        }
+            _client.JoinedGuild += (guild) =>
+            {
+                Task.Run(async () => await OnGuildJoinAsync(guild));
+                return Task.CompletedTask;
+            };
 
+            _client.LeftGuild += OnGuildLeft;
+        }
 
         private async Task RunJobsAsync()
         {
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
-                    var db = new StorageContext();
-
-                    var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
-                    int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
-                    string text = $"Running: `{time.Days}d/{time.Hours}h`\n" +
-                                  $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`";
-
-                    
-                    var blockedUsersToUnblock = db.BlockedUsers.Where(bu => bu.Hours != 0 && (bu.From.AddHours(bu.Hours) <= DateTime.UtcNow));
-                    db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
-                    await db.SaveChangesAsync();
-
-                    _integration.WatchDogClear();
-                    _integration.WebhookClients.Clear();
-
-                    if (_integration.CaiClient is not null)
-                    {
-                        _integration.CaiClient.KillBrowser();
-                        await _integration.CaiClient.LaunchBrowserAsync(killDuplicates: true);
-                    }
-
-                    await TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
-                    await Task.Delay(3_600_000); // 1 hour
+                    DoJobs();
+                }
+                catch (Exception e)
+                {
+                    LogException(new[] { e });
+                    TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
+                }
+                finally
+                {
+                    await Task.Delay(1_800_000); // 30 min
                 }
             }
-            catch (Exception e)
+        }
+
+        private void DoJobs()
+        {
+            var db = new StorageContext();
+
+            var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+            int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
+
+            string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
+                          $"Messages sent: `{_integration.MessagesSent}`\n" +
+                          $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`";
+
+            TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
+            UnblockUsers();
+            ClearTempsAndRelaunchCai();
+        }
+
+        private static void UnblockUsers()
+        {
+            var db = new StorageContext();
+
+            var blockedUsersToUnblock = db.BlockedUsers.Where(user => user.Hours != 0 && (user.From.AddHours(user.Hours) <= DateTime.UtcNow));
+            db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
+
+            db.SaveChanges();
+        }
+
+        private void ClearTempsAndRelaunchCai()
+        {
+            if (_firstLaunch) return;
+
+            _integration.WatchDogClear();
+            _integration.WebhookClients.Clear();
+
+            var oldConvosToStopTrack = _integration.Conversations.Where(c => (DateTime.UtcNow - c.Value.LastUpdated).Hours > 5);
+            foreach (var convo in oldConvosToStopTrack)
+                _integration.Conversations.Remove(convo.Key);
+
+            if (_integration.CaiClient is not null)
             {
-                LogException(new[] { e });
-                await TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
-                _ = Task.Run(RunJobsAsync);
+                _integration.CaiClient.KillBrowser();
+                _integration.CaiClient.LaunchBrowser(killDuplicates: true);
             }
         }
 
@@ -104,15 +135,17 @@ namespace CharacterEngineDiscord.Services
         {
             if (!_firstLaunch) return;
 
-            Log("Registering commands to guilds...\n");
+            Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
             await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
             {
                 if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
                 else LogRed(".");
             });
 
-            LogGreen("\nCommands registered successfuly\n");
-            await TryToReportInLogsChannel(_client, "Notification", "Commands registered successfuly\n", null, Color.Green, error: false);
+            LogGreen("\nCommands registered successfully\n");
+            TryToReportInLogsChannel(_client, "Notification", "Commands registered successfully\n", null, Color.Green, error: false);
+            
+            await _client.SetGameAsync(GetLastGameStatus());
 
             _firstLaunch = false;
         }
@@ -134,13 +167,24 @@ namespace CharacterEngineDiscord.Services
                                 $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                                 $"Members: {guild.MemberCount}\n" +
                                 $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
-                LogGreen(log);
-
-                await TryToReportInLogsChannel(_client, "New server", log, null, Color.Green, false);
+                LogGreen("\nJoined server\n" + log);
+                TryToReportInLogsChannel(_client, "New server", log, null, Color.Gold, false);
             }
             catch { return; }
         }
 
+        private Task OnGuildLeft(SocketGuild guild)
+        {
+            string log = $"Sever name: {guild.Name} ({guild.Id})\n" +
+                         $"Owner: {guild.Owner.Username}\n" +
+                         $"Members: {guild.MemberCount}\n" +
+                         $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
+
+            LogRed("\nLeft server\n" + log);
+            TryToReportInLogsChannel(_client, "Left server", log, null, Color.Orange, false);
+
+            return Task.CompletedTask;
+        }
 
         internal static ServiceProvider CreateServices()
         {
@@ -158,12 +202,6 @@ namespace CharacterEngineDiscord.Services
             return services.BuildServiceProvider();
         }
 
-        private async Task SetupIntegrationAsync()
-        {
-            try { await _integration.Initialize(); }
-            catch (Exception e) { LogException(new[] { e }); }
-        }
-
         private async Task<bool> TryToCreateSlashCommandsAndRoleAsync(SocketGuild guild, bool silent)
         {                
             try
@@ -179,7 +217,6 @@ namespace CharacterEngineDiscord.Services
                 if (!silent)
                 {
                     LogException(new[] { e });
-                    await TryToReportInLogsChannel(_client, $"{WARN_SIGN_DISCORD} Exception", $"Failed to register commands in guild:\n{e}", null, Color.Green, error: false);
                 }
 
                 return false;
@@ -202,6 +239,18 @@ namespace CharacterEngineDiscord.Services
             };
 
             return new DiscordSocketClient(clientConfig);
+        }
+
+        private void SetupIntegrationAsync()
+        {
+            try { _integration.Initialize(); }
+            catch (Exception e) { LogException(new[] { e }); }
+        }
+
+        private static string GetLastGameStatus()
+        {
+            string gamePath = $"{EXE_DIR}{SC}storage{SC}lastgame.txt";
+            return File.Exists(gamePath) ? File.ReadAllText(gamePath) : string.Empty;
         }
     }
 }

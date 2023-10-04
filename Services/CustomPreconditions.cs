@@ -21,7 +21,7 @@ namespace CharacterEngineDiscord.Services
         }
     }
 
-    public class RequireAdminAccess : PreconditionAttribute
+    public class RequireHosterAccess : PreconditionAttribute
     {
         public override async Task<PreconditionResult> CheckRequirementsAsync(IInteractionContext context, ICommandInfo info, IServiceProvider services)
         {
@@ -33,7 +33,7 @@ namespace CharacterEngineDiscord.Services
             else
             {
                 await context.SendNoPowerFileAsync();
-                return PreconditionResult.FromError("Not a hoster");
+                return PreconditionResult.FromError("This command is only available to the bot owner");
             }
         }
     }

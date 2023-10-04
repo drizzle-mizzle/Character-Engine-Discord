@@ -28,25 +28,28 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Task.Run(async () => {
                     try { await HandleButtonAsync(component); }
-                    catch (Exception e) { await HandleButtonExceptionAsync(component, e); }
+                    catch (Exception e) { await HandleButtonException(component, e); }
                 });
                 return Task.CompletedTask;
             };
         }
 
-        private async Task HandleButtonExceptionAsync(SocketMessageComponent component, Exception e)
+        private async Task HandleButtonException(SocketMessageComponent component, Exception e)
         {
             LogException(new[] { e });
             var channel = component.Channel as IGuildChannel;
             var guild = channel?.Guild;
+            var owner = guild is null ? null : (await guild.GetOwnerAsync()) as SocketGuildUser;
 
-            await TryToReportInLogsChannel(_client, title: "Exception",
-                                                    desc: $"In Guild `{guild?.Name} ({guild?.Id})`, Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                          $"User: {component.User?.Username}\n" +
-                                                          $"Button ID: {component.Data.CustomId}",
-                                                    content: e.ToString(),
-                                                    color: Color.Red,
-                                                    error: true);
+            TryToReportInLogsChannel(_client, title: "Button Exception",
+                                              desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
+                                                    $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
+                                                    $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                    $"User: `{component.User?.Username}`\n" +
+                                                    $"Button ID: `{component.Data.CustomId}`",
+                                              content: e.ToString(),
+                                              color: Color.Red,
+                                              error: true);
         }
 
         private async Task HandleButtonAsync(SocketMessageComponent component)
@@ -93,16 +96,17 @@ namespace CharacterEngineDiscord.Handlers
 
                     Models.Database.Character? character;
 
+                    bool fromChub = true;
                     if (searchQuery.SearchQueryData.IntegrationType is IntegrationType.CharacterAI)
                     {
                         character = await SelectCaiCharacterAsync(characterId, searchQuery.ChannelId);
+                        fromChub = false;
                     }
-                    else if (searchQuery.SearchQueryData.IntegrationType is IntegrationType.OpenAI)
+                    else
                     {
-                        var chubCharacter = await GetChubCharacterInfo(characterId, _integration.HttpClient);
+                        var chubCharacter = await GetChubCharacterInfo(characterId, _integration.CommonHttpClient);
                         character = CharacterFromChubCharacterInfo(chubCharacter);
                     }
-                    else { return; }
 
                     if (character is null)
                     {
@@ -112,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
 
                     var context = new InteractionContext(_client, component, component.Channel);
 
-                    var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration);
+                    var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
                     if (characterWebhook is null) return;
 
                     var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
@@ -122,6 +126,17 @@ namespace CharacterEngineDiscord.Handlers
 
                     string characterMessage = $"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
                     if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+                    // Try to set avatar
+                    Stream? image = null;
+                    if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                    {
+                        var originalMessage = await component.GetOriginalResponseAsync();
+                        var imageUrl = originalMessage.Embeds?.Single()?.Image?.ProxyUrl;
+                        image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
+                    }
+                    image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+                    await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
 
                     await webhookClient.SendMessageAsync(characterMessage);
 

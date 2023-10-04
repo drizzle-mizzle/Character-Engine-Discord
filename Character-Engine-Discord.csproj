@@ -6,7 +6,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-        <SelfContained>true</SelfContained>
         <GenerateDocumentationFile>False</GenerateDocumentationFile>
     </PropertyGroup>
     
@@ -31,16 +30,16 @@
     <ItemGroup>
         <PackageReference Include="DeepL.net" Version="1.7.1" />
         <PackageReference Include="Discord.Net" Version="3.12.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="7.0.10" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.10" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.10">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="7.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.11">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="PuppeteerExtraSharp" Version="2.0.0" />
-        <PackageReference Include="PuppeteerSharp" Version="11.0.4" />
+        <PackageReference Include="PuppeteerSharp" Version="11.0.6" />
         <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
     </ItemGroup>
 
@@ -57,11 +56,6 @@
         <None Update="storage\**">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="storage\" />
-    </ItemGroup>
-    
+    </ItemGroup>    
 
 </Project>

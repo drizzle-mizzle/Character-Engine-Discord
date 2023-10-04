@@ -13,7 +13,8 @@ namespace CharacterEngineDiscord.Services
     {
         internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext? _db = null)
         {
-            var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, _db);
+            var channelId = context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : context.Channel.Id; 
+            var channel = await FindOrStartTrackingChannelAsync(channelId, context.Guild.Id, _db);
             var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
 
             if (characterWebhook is null)
@@ -85,32 +86,43 @@ namespace CharacterEngineDiscord.Services
         internal static Embed SpawnCharacterEmbed(CharacterWebhook characterWebhook)
         {
             var character = characterWebhook.Character;
-            var (link, stat) = characterWebhook.IntegrationType == IntegrationType.CharacterAI ?
-                ($"[Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})", $"Interactions: {character.Interactions}") :
-                ($"[{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})", $"Stars: {character.Stars}");
 
-            string? title = character.Title;
-            if (string.IsNullOrWhiteSpace(title)) title = "No title";
+            string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
+                                 $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
+                               : characterWebhook.FromChub ?
+                                 $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
+                               : "Custom character";
 
-            title = (title.Length > 1000 ? title[0..1000] + "[...]" : title).Replace("\n\n", "\n");
-            title = $"*\"{title}\"*";
+            string api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
+                         $"OpenAI ({characterWebhook.PersonalApiModel})"
+                       : characterWebhook.IntegrationType is IntegrationType.KoboldAI ?
+                         $"KoboldAI ({characterWebhook.PersonalApiModel})"
+                       : characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI ?
+                         $"Horde KoboldAI ({characterWebhook.PersonalApiModel})"
+                       : characterWebhook.IntegrationType.ToString();
 
+            string title = string.IsNullOrWhiteSpace(character.Title) ? "No title" : $"*\"{character.Title}\"*";
+            string desc = string.IsNullOrWhiteSpace(character.Description) ? "No description" : character.Description;
+            string info = $"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.\n\n" +
+                          $"**{character.Name ?? "No name"}**\n" +
+                          $"*\"{title.Replace("\n\n", "\n")}\"*\n\n" +
+                          $"**Description**\n{desc.Replace("\n\n", "\n")}";
+            if (info.Length > 4096) info = info[0..4090] + "[...]";
 
-            string? desc = character.Description;
-            if (string.IsNullOrWhiteSpace(desc)) desc = "No description";
+            string conf = $"Webhook ID: *`{characterWebhook.Id}`*\nUse it or the prefix to modify this integration with *`/update`* commands.";
+            if (characterWebhook.IntegrationType is IntegrationType.Empty)
+                conf += "\n:zap: You have to set backend API for this integration. Use `/update set-api` command.";
 
-            desc = (desc.Length > 800 ? desc[0..800] + "[...]" : desc).Replace("\n\n", "\n");
-            desc = $"\n\n{desc}\n\n*Original link: {link}\n" +
-                   $"Can generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}\n{stat}*";
+            var emb = new EmbedBuilder()
+                .WithColor(Color.Gold)
+                .WithTitle($"{OK_SIGN_DISCORD} **Success**")
+                .WithDescription(info)
+                .AddField("Details", $"*{statAndLink}\nCan generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}*")
+                .AddField("Configuration", conf)
+                .AddField("Usage example:", $"*`{characterWebhook.CallPrefix} hey!`*\n" +
+                                            $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*")
+                .WithFooter($"Created by {character.AuthorName}");
 
-            var emb = new EmbedBuilder().WithTitle($"{OK_SIGN_DISCORD} **Success**").WithColor(Color.Gold);
-            emb.WithDescription($"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.");
-            emb.AddField("Configuration", $"Webhook ID: *`{characterWebhook.Id}`*\nUse it or the prefix to modify this integration with *`/update`* commands.");
-            emb.AddField("Usage example:", $"*`{characterWebhook.CallPrefix} hey!`*\n" +
-                                           $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*");
-            emb.AddField(characterWebhook.Character.Name ?? "???", title);
-            emb.AddField("Description", desc);
-            emb.WithFooter($"Created by {character.AuthorName}");
             if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
                 emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
 
@@ -187,20 +199,23 @@ namespace CharacterEngineDiscord.Services
             return buttons.Build();
         }
 
-        public static async Task TryToReportInLogsChannel(IDiscordClient client, string title, string desc, string? content, Color color, bool error)
+        public static void TryToReportInLogsChannel(IDiscordClient client, string title, string desc, string? content, Color color, bool error)
         {
-            string? channelId = null;
+            Task.Run(async () =>
+            {
+                string? channelId = null;
 
-            if (error) channelId = ConfigFile.DiscordErrorLogsChannelID.Value;
-            if (channelId.IsEmpty()) channelId = ConfigFile.DiscordLogsChannelID.Value;
-            if (channelId.IsEmpty()) return;
+                if (error) channelId = ConfigFile.DiscordErrorLogsChannelID.Value;
+                if (channelId.IsEmpty()) channelId = ConfigFile.DiscordLogsChannelID.Value;
+                if (channelId.IsEmpty()) return;
 
-            if (!ulong.TryParse(channelId, out var uChannelId)) return;
+                if (!ulong.TryParse(channelId, out var uChannelId)) return;
 
-            var channel = await client.GetChannelAsync(uChannelId);
-            if (channel is not ITextChannel textChannel) return;
+                var channel = await client.GetChannelAsync(uChannelId);
+                if (channel is not ITextChannel textChannel) return;
 
-            await ReportInLogsChannel(textChannel, title, desc, content, color);
+                await ReportInLogsChannel(textChannel, title, desc, content, color);
+            });
         }
 
         public static async Task ReportInLogsChannel(ITextChannel channel, string title, string desc, string? content, Color color)
@@ -245,7 +260,10 @@ namespace CharacterEngineDiscord.Services
 
         public enum ApiTypeForChub
         {
-            OpenAI
+            OpenAI,
+            KoboldAI,
+            HordeKoboldAI,
+            Empty
         }
-            }
+    }
 }

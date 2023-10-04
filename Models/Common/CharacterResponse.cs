@@ -3,9 +3,9 @@
     public class CharacterResponse
     {
         public required string Text { get; set; }
-        public required string? CharacterMessageUuid { get; set; }
-        public required string? UserMessageId { get; set; }
-        public required string? ImageRelPath { get; set; }
+        public string? CharacterMessageId { get; set; }
+        public string? UserMessageId { get; set; }
+        public string? ImageRelPath { get; set; }
         public required int TokensUsed { get; set; }
         public required bool IsSuccessful { get; set; }
         public bool IsFailure { get => !IsSuccessful; }

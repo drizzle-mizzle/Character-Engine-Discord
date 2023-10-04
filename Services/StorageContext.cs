@@ -14,7 +14,7 @@ namespace CharacterEngineDiscord.Services
         internal DbSet<CharacterWebhook> CharacterWebhooks { get; set; }
         internal DbSet<Guild> Guilds { get; set; }
         internal DbSet<HuntedUser> HuntedUsers { get; set; }
-        internal DbSet<OpenAiHistoryMessage> OpenAiHistoryMessages { get; set; }
+        internal DbSet<StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
 #pragma warning disable CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
         public StorageContext()
@@ -49,11 +49,11 @@ namespace CharacterEngineDiscord.Services
             if (text.Contains("INSERT"))
                 Console.ForegroundColor = ConsoleColor.Green;
             else if (text.Contains("DELETE"))
-                Console.ForegroundColor = ConsoleColor.DarkRed;
-            else if (text.Contains("UPDATE"))
                 Console.ForegroundColor = ConsoleColor.Magenta;
-            else if (text.Contains("SELECT"))
+            else if (text.Contains("UPDATE"))
                 Console.ForegroundColor = ConsoleColor.Yellow;
+            else if (text.Contains("SELECT"))
+                Console.ForegroundColor = ConsoleColor.Gray;
 
             Console.WriteLine(text);
             Console.ResetColor();
@@ -66,7 +66,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId };
+                guild = new() { Id = guildId, MessagesSent = 0 };
                 await db.Guilds.AddAsync(guild);
                 await db.SaveChangesAsync();
                 return await FindOrStartTrackingGuildAsync(guildId, db);

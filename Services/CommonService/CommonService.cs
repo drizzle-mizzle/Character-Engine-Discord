@@ -1,8 +1,7 @@
-﻿using CharacterEngineDiscord.Models.Database;
-using CharacterEngineDiscord.Models.OpenAI;
+﻿using CharacterEngineDiscord.Models.OpenAI;
 using Discord;
+using Discord.WebSocket;
 using Newtonsoft.Json;
-using System.Dynamic;
 using System.Text.RegularExpressions;
 
 namespace CharacterEngineDiscord.Services
@@ -10,42 +9,45 @@ namespace CharacterEngineDiscord.Services
     internal static partial class CommonService
     {
         // Simply checks whether image is avalable.
-        // (cAI is used to have broken undownloadable images or sometimes it's just
-        //  takes eternity for it to upload one on server, but image url is provided in advance)
-        public static async Task<bool> TryGetImageAsync(string url, HttpClient httpClient)
+        public static async Task<bool> ImageIsAvailable(string url, HttpClient httpClient)
         {
             if (string.IsNullOrWhiteSpace(url)) return false;
 
-            for (int i = 0; i < 10; i++)
-                if ((await httpClient.GetAsync(url).ConfigureAwait(false)).IsSuccessStatusCode)
-                    return true;
-                else
-                    await Task.Delay(3000);
+            for (int i = 0; i < 5; i++)
+            {
+                var response = await httpClient.GetAsync(url);
+                if (response.IsSuccessStatusCode) return true;
+                
+                await Task.Delay(2000);
+            }
 
             return false;
         }
 
-        public static async Task<Stream?> TryDownloadImgAsync(string? url, HttpClient httpClient)
+        public static async Task<Stream?> TryToDownloadImageAsync(string? url, HttpClient httpClient)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
 
-            for (int i = 0; i < 10; i++)
+            try
             {
-                try {
-                    var response = await httpClient.GetAsync(url).ConfigureAwait(false);
-                    return await response.Content.ReadAsStreamAsync();
-                }
-                catch { await Task.Delay(3000); }
+                var response = await httpClient.GetAsync(url);
+                return await response.Content.ReadAsStreamAsync();
             }
-
-            return null;
+            catch
+            {
+                return null;
+            }
         }
 
-        internal static Embed ToInlineEmbed(this string text, Color color, bool bold = true)
+        internal static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null)
         {
             string desc = bold ? $"**{text}**" : text;
 
-            return new EmbedBuilder().WithDescription(desc).WithColor(color).Build();
+            var result = new EmbedBuilder().WithDescription(desc).WithColor(color);
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+                result.WithImageUrl(imageUrl);
+
+            return result.Build();
         }
 
         public static bool ToBool(this string? str)
@@ -75,11 +77,40 @@ namespace CharacterEngineDiscord.Services
 
         public static string RemovePrefix(this string str, string prefix)
         {
-            var text = str.Trim();
-            if (text.StartsWith(prefix))
-                text = text.Remove(0, prefix.Length);
+            var result = str.Trim();
+            if (result.StartsWith(prefix))
+                result = result.Remove(0, prefix.Length);
 
-            return text;
+            return result;
+        }
+
+        public static string AddRefQuote(this string str, IUserMessage? refMsg)
+        {
+            if (str.Contains("{{ref_msg_text}}"))
+            {
+                int start = str.IndexOf("{{ref_msg_begin}}");
+                int end = str.IndexOf("{{ref_msg_end}}") + "{{ref_msg_end}}".Length;
+
+                if (string.IsNullOrWhiteSpace(refMsg?.Content))
+                {
+                    str = str.Remove(start, end - start).Trim();
+                }
+                else
+                {
+                    string refName = refMsg.Author is SocketGuildUser refGuildUser ? (refGuildUser.GetBestName()) : refMsg.Author.Username;
+                    string refContent = refMsg.Content.Replace("\n", " ");
+                    if (refContent.StartsWith("<"))
+                        refContent = MentionRegex().Replace(refContent, "", 1);
+
+                    int refL = Math.Min(refContent.Length, 150);
+                    str = str.Replace("{{ref_msg_user}}", refName)
+                             .Replace("{{ref_msg_text}}", refContent[0..refL] + (refL == 150 ? "..." : ""))
+                             .Replace("{{ref_msg_begin}}", "")
+                             .Replace("{{ref_msg_end}}", "");
+                }
+            }
+
+            return str;
         }
 
         [GeneratedRegex("\\<(.*?)\\>")]

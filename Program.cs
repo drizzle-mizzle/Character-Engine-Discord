@@ -1,5 +1,5 @@
 ﻿using CharacterEngineDiscord.Services;
-using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 using static CharacterEngineDiscord.Services.CommonService;
 
 namespace CharacterEngineDiscord
@@ -13,27 +13,24 @@ namespace CharacterEngineDiscord
         {
             AppDomain.CurrentDomain.UnhandledException += (s, args) =>
             {
-                var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
-                string text = $"{new string('~', Console.WindowWidth)}\n" +
-                              $"Sender: {s.GetType()}\n" +
-                              $"Error:\n{(Exception)args.ExceptionObject}";
+                string logstxt = $"{EXE_DIR}{SC}logs.txt";
+                if (!File.Exists(logstxt)) File.Create(logstxt).Close();
+
+                var sw = File.AppendText(logstxt);
+                string text = $"{new string('~', 10)}\n" +
+                              $"Sender: {s?.GetType()}\n" +
+                              $"Error:\n{args?.ExceptionObject}\n";
                 sw.WriteLine(text);
                 sw.Close();
             };
 
             Log("Working directory: ");
             LogYellow(EXE_DIR + '\n');
-            CreateLogsFile();
-            
-            await SetupDiscordClient();
-            await Task.Delay(-1);
-        }
 
-        private static void CreateLogsFile()
-        {
-            string logstxt = $"{EXE_DIR}{SC}logs.txt";
-            if (File.Exists(logstxt)) return;
-            else File.Create(logstxt).Close();
+            await new StorageContext().Database.MigrateAsync();
+            await SetupDiscordClient();
+
+            await Task.Delay(-1);
         }
     }
 }

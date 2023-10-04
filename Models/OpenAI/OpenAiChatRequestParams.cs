@@ -12,7 +12,6 @@ namespace CharacterEngineDiscord.Models.OpenAI
         public float PresencePenalty { get; set; }
         public float Temperature { get; set; }
         public int MaxTokens { get; set; }
-        public string? UniversalJailbreakPrompt { get; set; }
         public required List<OpenAiMessage> Messages { get; set; }
     }
 

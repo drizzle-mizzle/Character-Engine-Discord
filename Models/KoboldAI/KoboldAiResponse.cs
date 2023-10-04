@@ -1,12 +1,11 @@
 ﻿using CharacterEngineDiscord.Services;
+using Newtonsoft.Json.Linq;
 
-namespace CharacterEngineDiscord.Models.OpenAI
+namespace CharacterEngineDiscord.Models.KoboldAI
 {
-    public class OpenAiChatResponse : IOpenAiResponse
+    public class KoboldAiResponse : IKoboldAiResponse
     {
         public string? Message { get; }
-        public string? MessageId { get; }
-        public int? Usage { get; }
         public int Code { get; }
         public bool IsSuccessful { get; }
         public bool IsFailure { get => !IsSuccessful; }
@@ -14,10 +13,10 @@ namespace CharacterEngineDiscord.Models.OpenAI
 
         private string _responseContent = null!;
 
-        public OpenAiChatResponse(HttpResponseMessage response)
+        public KoboldAiResponse(HttpResponseMessage response)
         {
             Code = (int)response.StatusCode;
-
+            
             if (response.IsSuccessStatusCode)
             {
                 try
@@ -26,11 +25,10 @@ namespace CharacterEngineDiscord.Models.OpenAI
                     dynamic contentParsed = _responseContent.ToDynamicJsonString()!;
 
                     // Getting character message
-                    string? characterMessage = contentParsed.choices?.First?["message"]?["content"];
-                    string? characterMessageID = contentParsed.id; // getting stats
-                    int? usage = contentParsed.usage?.total_tokens;
+                    var results = (JArray)contentParsed.results;
+                    string? characterMessage = (results.First() as dynamic)?.text;
 
-                    if (characterMessage is null || characterMessageID is null)
+                    if (characterMessage is null)
                     {
                         IsSuccessful = false;
                         ErrorReason = $"Something went wrong.";
@@ -38,8 +36,6 @@ namespace CharacterEngineDiscord.Models.OpenAI
                     }
 
                     Message = characterMessage;
-                    MessageId = characterMessageID;
-                    Usage = usage;
 
                     IsSuccessful = true;
                 }

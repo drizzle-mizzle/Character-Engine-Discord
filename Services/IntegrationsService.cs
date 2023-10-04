@@ -15,6 +15,7 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
+using CharacterEngineDiscord.Models.KoboldAI;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -24,10 +25,12 @@ namespace CharacterEngineDiscord.Services
         /// (User ID : [current minute : interactions count])
         /// </summary>
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
+        internal ulong MessagesSent { get; set; } = 0;
 
-        internal HttpClient HttpClient { get; } = new();
-        internal CharacterAIClient? CaiClient { get; set; }
+        internal HttpClient ImagesHttpClient { get; } = new();
+        internal HttpClient CommonHttpClient { get; } = new();
         internal List<SearchQuery> SearchQueries { get; } = new();
+        internal CharacterAIClient? CaiClient { get; set; }
 
         /// <summary>
         /// Webhook ID : WebhookClient
@@ -35,9 +38,9 @@ namespace CharacterEngineDiscord.Services
         internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; } = new();
 
         /// <summary>
-        /// Stored swiped messages (Webhook ID : AvailableCharacterResponse)
+        /// Stored swiped messages (Character-webhook ID : LastCharacterCall)
         /// </summary>
-        internal Dictionary<ulong, List<AvailableCharacterResponse>> AvailableCharacterResponses { get; } = new();
+        internal Dictionary<ulong, LastCharacterCall> Conversations { get; } = new();
 
         /// <summary>
         /// For internal use only
@@ -46,25 +49,34 @@ namespace CharacterEngineDiscord.Services
         {
             CharacterAI,
             OpenAI,
+            KoboldAI,
+            HordeKoboldAI,
             Empty
         }
 
-        public async Task Initialize()
+
+        public void Initialize()
         {
-            HttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
-            HttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
-            HttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36");
-            
-            bool useCai = ConfigFile.CaiEnabled.Value.ToBool();
-            if (useCai)
+            ImagesHttpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
+            ImagesHttpClient.DefaultRequestHeaders.Add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+            ImagesHttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
+            ImagesHttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36");
+            ImagesHttpClient.Timeout = new(0, 0, 10);
+
+            CommonHttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
+            CommonHttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
+            CommonHttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36");
+            CommonHttpClient.Timeout = new(0, 3, 0);
+
+            if (ConfigFile.CaiEnabled.Value.ToBool())
             {
                 CaiClient = new(
-                    userToken: ConfigFile.DefaultCaiUserAuthToken.Value!,
+                    userToken: ConfigFile.DefaultCaiUserAuthToken.Value ?? "",
                     caiPlusMode: ConfigFile.DefaultCaiPlusMode.Value.ToBool(),
                     customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
                     customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
                 );
-                await CaiClient.LaunchBrowserAsync(killDuplicates: true);
+                CaiClient.LaunchBrowser(killDuplicates: true);
                 AppDomain.CurrentDomain.ProcessExit += (s, args) => CaiClient.KillBrowser();
 
                 Log("CharacterAI client - "); LogGreen("Running\n\n");
@@ -91,7 +103,7 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// Temporary "raw" solution, will be redone into a library later
         /// </summary>
-        internal static async Task<OpenAiChatResponse?> CallChatOpenAiAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
+        internal static async Task<OpenAiChatResponse?> SendOpenAiRequestAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
         {
             // Build data payload
             dynamic content = new ExpandoObject();
@@ -120,31 +132,118 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
+        internal static async Task<KoboldAiResponse?> SendKoboldAiRequestAsync(KoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        {
+            string prompt = "";
+            foreach (var msg in requestParams.Messages)
+                prompt += $"{msg.Role}{msg.Content}";
+
+            if (!continueRequest)
+                prompt += "\nYou: ";
+
+            // Build data payload
+            dynamic content = new ExpandoObject();
+            content.max_context_length = requestParams.MaxContextLength;
+            content.max_length = requestParams.MaxLength;
+            content.prompt = prompt;
+            content.rep_pen = requestParams.RepetitionPenalty;
+            content.rep_pen_slope = requestParams.RepetitionPenaltySlope;
+            content.singleline = requestParams.SingleLine;
+            content.temperature = requestParams.Temperature;
+            content.tfs = requestParams.TailFreeSampling;
+            content.top_a = requestParams.TopA;
+            content.top_k = requestParams.TopK;
+            content.top_P = requestParams.TopP;
+            content.typical = requestParams.TypicalSampling;
+
+            // Getting character response
+            string url = $"{requestParams.ApiEndpoint.Trim('/')}/v1/generate";
+            var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(JsonConvert.SerializeObject(content), Encoding.UTF8, "application/json"),
+            };
+
+            try
+            {
+                var response = await httpClient.SendAsync(httpRequestMessage);
+                return new(response);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        internal static async Task<HordeKoboldAiResponse?> SendHordeKoboldAiRequestAsync(HordeKoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        {
+            string prompt = "";
+            foreach (var msg in requestParams.KoboldAiSettings.Messages)
+                prompt += $"{msg.Role}{msg.Content}";
+
+            if (!continueRequest)
+                prompt += "\nYou: ";
+
+            // Build data payload
+            dynamic koboldParams = new ExpandoObject();
+            koboldParams.max_context_length = requestParams.KoboldAiSettings.MaxContextLength;
+            koboldParams.max_length = requestParams.KoboldAiSettings.MaxLength;
+            koboldParams.rep_pen = requestParams.KoboldAiSettings.RepetitionPenalty;
+            koboldParams.rep_pen_slope = requestParams.KoboldAiSettings.RepetitionPenaltySlope;
+            koboldParams.singleline = requestParams.KoboldAiSettings.SingleLine;
+            koboldParams.temperature = requestParams.KoboldAiSettings.Temperature;
+            koboldParams.tfs = requestParams.KoboldAiSettings.TailFreeSampling;
+            koboldParams.top_a = requestParams.KoboldAiSettings.TopA;
+            koboldParams.top_k = requestParams.KoboldAiSettings.TopK;
+            koboldParams.top_P = requestParams.KoboldAiSettings.TopP;
+            koboldParams.typical = requestParams.KoboldAiSettings.TypicalSampling;
+
+            dynamic content = new ExpandoObject();
+            content.models = new string[] { requestParams.Model };
+            content["params"] = koboldParams;
+            content.use_default_badwordsids = true;
+            content.prompt = prompt;
+
+            // Getting character response
+            string url = "https://horde.koboldai.net/api/v2/generate/text/async";
+            var httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, url);
+
+            httpRequestMessage.Headers.Add("Apikey", requestParams.Token);
+            httpRequestMessage.Content = new StringContent(JsonConvert.SerializeObject(koboldParams), Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await httpClient.SendAsync(httpRequestMessage);
+                return new(response);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false, bool isContinue = false)
         {
-            string jailbreakPrompt = characterWebhook.UniversalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
-            string fullJailbreakPrompt = $"{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")}.  " +
-                                         $"Character's name: {characterWebhook.Character.Name}.  " +
-                                         $"Character calls {{{{user}}}} by any name introduced by {{{{user}}}}.  " +
+            string jailbreakPrompt = characterWebhook.PersonalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
+            string fullSystemPrompt = $"{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")}  " +
                                          $"{characterWebhook.Character.Definition?.Replace("{{char}}", $"{characterWebhook.Character.Name}")}";
 
-            // ALWAYS add jailbreak prompt to the payload
-            var messages = new List<OpenAiMessage> { new("system", fullJailbreakPrompt) };
+            // Always add system prompt to the beginning of payload
+            var messages = new List<OpenAiMessage> { new("system", fullSystemPrompt) };
             
             // Count~ tokens
-            float currentAmountOfTokens = fullJailbreakPrompt.Length / 3.6f;
+            float currentAmountOfTokens = fullSystemPrompt.Length / 3.6f;
 
             // Create a separate list and fill it with the dialog history in reverse order.
             // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
             var oldMessages = new List<OpenAiMessage>();
-            for (int i = characterWebhook.OpenAiHistoryMessages.Count - 1; i >= 0; i--)
+            for (int i = characterWebhook.StoredHistoryMessages.Count - 1; i >= 0; i--)
             {
-                string msgContent = characterWebhook.OpenAiHistoryMessages[i].Content;
+                string msgContent = characterWebhook.StoredHistoryMessages[i].Content;
                 float tokensInThisMessage = msgContent.Length / 3.6f;
                 if ((currentAmountOfTokens + tokensInThisMessage) > 3600f) break;
 
                 // Build history message
-                var historyMessage = new OpenAiMessage(characterWebhook.OpenAiHistoryMessages[i].Role, msgContent);
+                var historyMessage = new OpenAiMessage(characterWebhook.StoredHistoryMessages[i].Role, msgContent);
                 oldMessages.Add(historyMessage);
 
                 // Update token counter
@@ -154,27 +253,98 @@ namespace CharacterEngineDiscord.Services
             oldMessages.Reverse(); // restore natural order
 
             if (isSwipe)
-                oldMessages.RemoveAt(oldMessages.Count-1);
+                oldMessages.RemoveAt(oldMessages.Count-1); // delete last for swipe
             else if (isContinue)
                 oldMessages.Add(new("user", "(continue character response from the point where it stopped)"));
 
-            messages.AddRange(oldMessages); // add history message to the payload
+            messages.AddRange(oldMessages);
 
             // Build request payload
             var openAiParams = new OpenAiChatRequestParams()
             {
-                ApiEndpoint = characterWebhook.PersonalOpenAiApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value!,
-                ApiToken = characterWebhook.PersonalOpenAiApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
-                UniversalJailbreakPrompt = fullJailbreakPrompt,
-                Temperature = characterWebhook.OpenAiTemperature ?? 1.05f,
-                FreqPenalty = characterWebhook.OpenAiFreqPenalty ?? 0.9f,
-                PresencePenalty = characterWebhook.OpenAiPresencePenalty ?? 0.9f,
-                MaxTokens = characterWebhook.OpenAiMaxTokens ?? 200,
-                Model = characterWebhook.OpenAiModel!,
+                ApiEndpoint = characterWebhook.PersonalApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value!,
+                ApiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
+                Temperature = characterWebhook.GenerationTemperature ?? 1.05f,
+                FreqPenalty = characterWebhook.GenerationFreqPenaltyOrRepetitionSlope ?? 0.9f,
+                PresencePenalty = characterWebhook.GenerationPresenceOrRepetitionPenalty ?? 0.9f,
+                MaxTokens = characterWebhook.GenerationMaxTokens ?? 200,
+                Model = characterWebhook.PersonalApiModel!,
                 Messages = messages
             };
 
             return openAiParams;
+        }
+
+        internal static KoboldAiRequestParams BuildKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
+        {
+            string jailbreakPrompt = characterWebhook.PersonalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
+            string fullSystemPrompt = $"[SYSTEM INFO] \n{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")} \n" +
+                                      $"{characterWebhook.Character.Definition?.Replace("{{char}}", $"{characterWebhook.Character.Name}")} \n" +
+                                      $"[DIALOGUE HISTORY] \n<START> \n";
+
+            // Always add system prompt to the beginning of payload
+            var messages = new List<KoboldAiMessage> { new("", fullSystemPrompt) };
+            float currentAmountOfTokens = fullSystemPrompt.Length / 4f;
+
+            // Create a separate list and fill it with the dialog history in reverse order.
+            // Too old messages, these that are out of approximate token limit, will be ignored and deleted later.
+            var oldMessages = new List<KoboldAiMessage>();
+            for (int i = characterWebhook.StoredHistoryMessages.Count - 1; i >= 0; i--)
+            {
+                string msgContent = characterWebhook.StoredHistoryMessages[i].Content;
+                float tokensInThisMessage = msgContent.Length / 4f;
+                float allTokens = currentAmountOfTokens + tokensInThisMessage;
+                float limitTokens = characterWebhook.GenerationContextSizeTokens ?? 4000f;
+                if (allTokens > limitTokens) break;
+
+                // Build history message
+                var historyMessage = new KoboldAiMessage(characterWebhook.StoredHistoryMessages[i].Role, msgContent);
+                oldMessages.Add(historyMessage);
+
+                // Update token counter
+                currentAmountOfTokens += tokensInThisMessage;
+            }
+
+            oldMessages.Reverse(); // restore natural order
+
+            if (isSwipe)
+            {
+                oldMessages.RemoveAt(oldMessages.Count - 1); // delete last for swipe
+            }
+
+            messages.AddRange(oldMessages);
+
+            // Build request payload
+            var koboldAiParams = new KoboldAiRequestParams()
+            {
+                ApiEndpoint = characterWebhook.PersonalApiEndpoint ?? characterWebhook.Channel.Guild.GuildKoboldAiApiEndpoint ?? "",
+                Temperature = characterWebhook.GenerationTemperature ?? 1.07f,
+                RepetitionPenalty = characterWebhook.GenerationPresenceOrRepetitionPenalty ?? 1.05f,
+                TopP = characterWebhook.GenerationTopP ?? 1f,
+                TopA = characterWebhook.GenerationTopA ?? 0f,
+                TopK = characterWebhook.GenerationTopK ?? 100,
+                TypicalSampling = characterWebhook.GenerationTypicalSampling ?? 1,
+                TailFreeSampling = characterWebhook.GenerationTailfreeSampling ?? 0.93f,
+                RepetitionPenaltySlope = characterWebhook.GenerationFreqPenaltyOrRepetitionSlope ?? 0.8f,
+                SingleLine = false,
+                MaxLength = characterWebhook.GenerationMaxTokens ?? 200,
+                MaxContextLength = characterWebhook.GenerationContextSizeTokens ?? 4096,
+                Messages = messages
+            };
+
+            return koboldAiParams;
+        }
+
+        internal static HordeKoboldAiRequestParams BuildHordeKoboldAiRequestPayload(CharacterWebhook characterWebhook)
+        {
+            var hordeParams = new HordeKoboldAiRequestParams()
+            {
+                Token = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildHordeApiToken!,
+                Model = characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildHordeModel!,
+                KoboldAiSettings = BuildKoboldAiRequestPayload(characterWebhook, false)
+            };
+
+            return hordeParams;
         }
 
         internal static async Task<ChubSearchResponse> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
@@ -212,26 +382,21 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration)
+        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Character unsavedCharacter, IntegrationsService integration, bool fromChub)
         {
+            if (context.Channel is not IIntegrationChannel discordChannel) return null;
+
             // Create basic call prefix from two first letters in the character name
             int l = Math.Min(2, unsavedCharacter.Name.Length-1);
             string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch"
 
-            IIntegrationChannel? discordChannel;
-            discordChannel = context.Channel as IIntegrationChannel;
-            if (discordChannel is null) return null;
-
             // replacing with Russian 'о' and 'с', as name "discord" is not allowed for webhooks
             string name = unsavedCharacter.Name.ToLower().Contains("discord") ? unsavedCharacter.Name.Replace('o', 'о').Replace('c', 'с') : unsavedCharacter.Name;
-
-            var image = await TryDownloadImgAsync(unsavedCharacter.AvatarUrl, integration.HttpClient);
-            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
             IWebhook? channelWebhook;
             try
             {
-                channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
+                channelWebhook = await discordChannel.CreateWebhookAsync(name);
             }
             catch (Exception e)
             {
@@ -243,14 +408,9 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
+                var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
 
-                string? caiHistoryId, openAiModel, openAiEndpoint;
-                caiHistoryId = openAiModel = openAiEndpoint = null;
-
-                float? openAiFreqPenalty, openAiPresPenalty, openAiTemperature;
-                openAiFreqPenalty = openAiPresPenalty = openAiTemperature = null;
-
-                int? openAiMaxTokens = null;
+                string? caiHistoryId = null;
 
                 if (type is IntegrationType.CharacterAI)
                 {
@@ -266,15 +426,13 @@ namespace CharacterEngineDiscord.Services
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
-                    openAiModel = channel.Guild.GuildOpenAiModel ?? ConfigFile.DefaultOpenAiModel.Value;
-                    openAiEndpoint = channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value;
-                    openAiFreqPenalty = 0.9f;
-                    openAiPresPenalty = 0.9f;
-                    openAiTemperature = 1.05f;
-                    openAiMaxTokens = 200;
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = "assistant", Content = character.Greeting });
+                }
+                else if (type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
+                {
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = "\nYou: ", Content = character.Greeting });
                 }
 
-                var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
                 var characterWebhook = (await db.CharacterWebhooks.AddAsync(new CharacterWebhook()
                 {
                     Id = channelWebhook.Id,
@@ -282,25 +440,17 @@ namespace CharacterEngineDiscord.Services
                     CallPrefix = callPrefix,
                     ReferencesEnabled = false,
                     SwipesEnabled = true,
+                    FromChub = fromChub,
                     CrutchEnabled = type is not IntegrationType.CharacterAI,
                     ResponseDelay = 1,
-                    MessagesFormat = null,
-                    UniversalJailbreakPrompt = null,
                     IntegrationType = type,
                     ReplyChance = 0,
-                    CaiActiveHistoryId = caiHistoryId,
-                    OpenAiModel = openAiModel,
-                    OpenAiFreqPenalty = openAiFreqPenalty,
-                    OpenAiPresencePenalty = openAiPresPenalty,
-                    OpenAiTemperature = openAiTemperature,
-                    OpenAiMaxTokens = openAiMaxTokens,
+                    ActiveHistoryID = caiHistoryId,
                     CharacterId = character.Id,
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,
+                    MessagesSent = 1
                 })).Entity;
-
-                if (type is not IntegrationType.CharacterAI)
-                    db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = character.Greeting, Role = "assistant" });
 
                 await db.SaveChangesAsync();
                 return characterWebhook;
@@ -308,7 +458,8 @@ namespace CharacterEngineDiscord.Services
             catch (Exception e)
             {
                 LogException(new[] { e });
-                await TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+                TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+
                 await channelWebhook.DeleteAsync();
 
                 return null;
@@ -328,7 +479,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
-        internal static SearchQueryData SearchQueryDataFromChubResponse(ChubSearchResponse response)
+        internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse response)
         {
             var characters = new List<Character>();
 
@@ -338,10 +489,10 @@ namespace CharacterEngineDiscord.Services
                 if (cc is not null) characters.Add(cc);
             }
 
-            return new(characters.ToList(), response.OriginalQuery, IntegrationType.OpenAI) { ErrorReason = response.ErrorReason };
+            return new(characters.ToList(), response.OriginalQuery, type) { ErrorReason = response.ErrorReason };
         }
 
-        internal static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
+        internal static Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
         {
             if (caiCharacter.IsEmpty) return null;
 
@@ -397,91 +548,70 @@ namespace CharacterEngineDiscord.Services
 
         internal async Task<bool> UserIsBanned(SocketCommandContext context)
         {
-            var db = new StorageContext();
+            var user = context.Message.Author;
+            var channel = context.Channel;
 
-            ulong currUserId = context.Message.Author.Id;
-            var blockedUser = await db.BlockedUsers.FindAsync(currUserId);
-            if (blockedUser is not null) return true;
-
-            int currentMinuteOfDay = context.Message.CreatedAt.Minute + context.Message.CreatedAt.Hour * 60;
-
-            // Start watching for user
-            if (!_watchDog.ContainsKey(currUserId))
-                _watchDog.Add(currUserId, new(-1, 0)); // user id : (current minute : count)
-
-            // Drop + update user stats if he replies in another minute
-            if (_watchDog[currUserId].Key != currentMinuteOfDay)
-                _watchDog[currUserId] = new(currentMinuteOfDay, 0);
-
-            // Update interactions count within current minute
-            _watchDog[currUserId] = new(_watchDog[currUserId].Key, _watchDog[currUserId].Value + 1);
-
-            int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
-
-            if (_watchDog[currUserId].Value == rateLimit - 2)
-                await context.Message.ReplyAsync(embed: $"{WARN_SIGN_DISCORD} {context.User.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
-            else if (_watchDog[currUserId].Value > rateLimit)
-            {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 24 });
-
-                await db.SaveChangesAsync();
-                _watchDog.Remove(currUserId);
-
-                await TryToReportInLogsChannel(context.Client, title: $":eyes: Notification",
-                                                               desc: $"Server: **{context.Guild?.Name} ({context.Guild?.Id})** owned by **{context.Guild?.Owner?.Username} ({context.Guild?.OwnerId})**\nUser **{context.Message?.Author?.Username} ({context.Message?.Author?.Id})** hit the rate limit and was blocked",
-                                                               content: null,
-                                                               color: Color.LightOrange,
-                                                               error: false);
-
-                await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {context.User.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
-                return true;
-            }
-            return false;
+            return await CheckIfUserIsBannedAsync(user, channel, context.Client);
         }
 
         internal async Task<bool> UserIsBanned(SocketReaction reaction, DiscordSocketClient client)
         {
-            var db = new StorageContext();
+            var user = reaction.User.GetValueOrDefault();
+            var channel = reaction.Channel;
+            if (user is null) return true;
 
-            ulong currUserId = reaction.User.Value.Id;
-            var blockedUser = await db.BlockedUsers.FindAsync(currUserId);
+            return await CheckIfUserIsBannedAsync(user, channel, client);
+        }
+
+        internal async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, DiscordSocketClient client)
+        {
+            var db = new StorageContext();
+            
+            var blockedUser = await db.BlockedUsers.FindAsync(user.Id);
             if (blockedUser is not null) return true;
 
             int currentMinuteOfDay = DateTime.UtcNow.Minute + DateTime.UtcNow.Hour * 60;
 
             // Start watching for user
-            if (!_watchDog.ContainsKey(currUserId))
-                _watchDog.Add(currUserId, new(-1, 0)); // user id : (current minute : count)
+            if (!_watchDog.ContainsKey(user.Id))
+                _watchDog.Add(user.Id, new(-1, 0)); // user id : (current minute : count)
 
             // Drop + update user stats if he replies in another minute
-            if (_watchDog[currUserId].Key != currentMinuteOfDay)
-                _watchDog[currUserId] = new(currentMinuteOfDay, 0);
+            if (_watchDog[user.Id].Key != currentMinuteOfDay)
+                _watchDog[user.Id] = new(currentMinuteOfDay, 0);
 
             // Update interactions count within current minute
-            _watchDog[currUserId] = new(_watchDog[currUserId].Key, _watchDog[currUserId].Value + 1);
+            _watchDog[user.Id] = new(_watchDog[user.Id].Key, _watchDog[user.Id].Value + 1);
 
             int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
-            if (_watchDog[currUserId].Value == rateLimit - 1)
-                await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value?.Mention} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
-            else if (_watchDog[currUserId].Value > rateLimit)
+            if (_watchDog[user.Id].Value == rateLimit - 2)
             {
-                await db.BlockedUsers.AddAsync(new() { Id = currUserId, From = DateTime.UtcNow, Hours = 24 });
-
-                await db.SaveChangesAsync();
-                _watchDog.Remove(currUserId);
-
-                var currentChannel = await client.GetChannelAsync(reaction.Channel.Id) as SocketTextChannel;
-                await TryToReportInLogsChannel(client, title: $":eyes: Notification",
-                                                       desc: $"Server: **{currentChannel?.Guild?.Name} ({currentChannel?.Guild?.Id})** owned by **{currentChannel?.Guild?.Owner?.Username} ({currentChannel?.Guild?.OwnerId})**\nUser **{reaction.User.Value.Username}** ({reaction.User.Value.Id}) hit the rate limit and was blocked",
-                                                       content: null,
-                                                       color: Color.LightOrange,
-                                                       error: false);
-
-                await reaction.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {reaction.User.Value.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
-                return true;
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {MentionUtils.MentionUser(user.Id)} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
+                return false;
             }
-            return false;
+
+            if (_watchDog[user.Id].Value <= rateLimit)
+            {
+                return false;
+            }
+
+            await db.BlockedUsers.AddAsync(new() { Id = user.Id, From = DateTime.UtcNow, Hours = 24 });
+            await db.SaveChangesAsync();
+
+            _watchDog.Remove(user.Id);
+
+            var textChannel = await client.GetChannelAsync(channel.Id) as SocketTextChannel;
+            await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {user.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
+
+            TryToReportInLogsChannel(client, title: $":eyes: Notification",
+                                             desc: $"Server: **{textChannel?.Guild.Name} ({textChannel?.Guild.Id})** owned by **{textChannel?.Guild.Owner.Username} ({textChannel?.Guild.OwnerId})**\n" +
+                                                   $"User **{user.Username} ({user.Id})** hit the rate limit and was blocked",
+                                             content: null,
+                                             color: Color.LightOrange,
+                                             error: false);
+
+            return true;
         }
 
         public void WatchDogClear()
@@ -490,11 +620,11 @@ namespace CharacterEngineDiscord.Services
         }
 
         // Shortcuts
-
         internal static Embed FailedToSetCharacterEmbed()
-            => $"{WARN_SIGN_DISCORD} Failed to set a character".ToInlineEmbed(Color.Red);
+        => $"{WARN_SIGN_DISCORD} Failed to set a character".ToInlineEmbed(Color.Red);
 
-        internal static Embed SuccessEmbed()
-            => $"{OK_SIGN_DISCORD} Success".ToInlineEmbed(Color.Green);
+        internal static Embed SuccessEmbed(string message = "Success", string? imageUrl = null)
+            => $"{OK_SIGN_DISCORD} {message}".ToInlineEmbed(Color.Green, imageUrl: imageUrl);
     }
 }
+

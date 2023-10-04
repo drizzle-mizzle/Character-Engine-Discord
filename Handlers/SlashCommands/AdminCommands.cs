@@ -3,15 +3,14 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-using System;
-using CharacterEngineDiscord.Migrations;
 using System.Diagnostics;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    [RequireAdminAccess]
+    [RequireHosterAccess]
     [Group("admin", "Admin commands")]
     public class AdminCommands : InteractionModuleBase<InteractionContext>
     {
@@ -153,13 +152,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 if (mc is not null) channels.Add(mc);
             });
 
+            int count = 0;
             await Parallel.ForEachAsync(channels, async (channel, ct) =>
             {
-                try { await channel.SendMessageAsync(embed: embed); }
+                try {
+                    await channel.SendMessageAsync(embed: embed);
+                    count++;
+                }
                 catch { return; }
             });
                 
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+            await FollowupAsync(embed: SuccessEmbed($"Message was sent in {count} channels"), ephemeral: true);
         }
 
         [SlashCommand("server-stats", "-")]
@@ -188,31 +191,37 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
+            var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, _db);
             var allCharacters = _db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
+
             if (allCharacters is null || !allCharacters.Any())
             {
-                await FollowupAsync(embed: $"No records".ToInlineEmbed(Color.Orange));
+                await FollowupAsync(embed: $"No records ({dbGuild.MessagesSent})".ToInlineEmbed(Color.Orange));
                 return;
             }
 
             int charactersCount = allCharacters.Count();
-            bool defOpenAiToken = allCharacters.First().Channel.Guild.GuildOpenAiApiToken is null;
-            bool defCaiToken = allCharacters.First().Channel.Guild.GuildCaiUserToken is null;
-            DateTime? lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime)?.FirstOrDefault()?.LastCallTime;
-
-            string desc = $"**Owner:** `{guild.Owner.Username}`\n" +
+            var lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime).First().LastCallTime;
+            string callDate = $"{lastUsed.Day}/{lastUsed.Month}/{lastUsed.Year}";
+            
+            string desc = $"**Owner:** `{guild.Owner?.Username}`\n" +
                           $"**Characters:** `{charactersCount}`\n" +
-                          $"**Last character call:** `{(lastUsed is null ? "?" : lastUsed.GetValueOrDefault())}`\n" +
-                          $"**Uses default OpenAI token:** `{defOpenAiToken}`\n" +
-                          $"**Uses default cAI token:** `{defCaiToken}`";
+                          $"**Last character call:** `{callDate}`\n" +
+                          $"**Messages sent:** `{dbGuild.MessagesSent}`";
 
             var embed = new EmbedBuilder().WithTitle(guild.Name)
                                           .WithColor(Color.Magenta)
-                                          .WithDescription(desc)
-                                          .WithImageUrl(guild.IconUrl)
-                                          .Build();
-
-            await FollowupAsync(embed: embed);
+                                          .WithDescription(desc);
+            try
+            {
+                string iconUrl = guild.IconUrl;
+                if (!string.IsNullOrWhiteSpace(iconUrl))
+                    embed.WithImageUrl(iconUrl);
+            }
+            finally
+            {
+                await FollowupAsync(embed: embed.Build());
+            }
         }
 
         [SlashCommand("shutdown", "Shutdown")]
@@ -262,7 +271,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple));
 
-            try { await _integration.CaiClient.LaunchBrowserAsync(killDuplicates: true); }
+            try { _integration.CaiClient.LaunchBrowser(killDuplicates: true); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));
@@ -278,6 +287,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await _client.SetGameAsync(activity, streamUrl, type);
             await RespondAsync(embed: SuccessEmbed(), ephemeral: true);
+
+            string gamePath = $"{EXE_DIR}{SC}storage{SC}lastgame.txt";
+            File.WriteAllText(gamePath, activity ?? "");
         }
 
         [SlashCommand("set-status", "Set status")]

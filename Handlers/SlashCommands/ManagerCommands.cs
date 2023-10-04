@@ -10,6 +10,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
+using Newtonsoft.Json.Linq;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -27,22 +28,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _db = new StorageContext();
         }
 
-        [SlashCommand("delete-webhook", "Remove character-webhook from channel")]
-        public async Task DeleteWebhook(string webhookIdOrPrefix)
+        [SlashCommand("delete-character", "Remove character-webhook from channel")]
+        public async Task DeleteCharacter(string webhookIdOrPrefix)
         {
-            await DeleteWebhookAsync(webhookIdOrPrefix);
+            await DeleteCharacterAsync(webhookIdOrPrefix);
         }
 
-        [SlashCommand("clear-server-webhooks", "Remove all character-webhooks from this server")]
-        public async Task ClearServerWebhooks()
+        public enum ClearCharactersChoise { [ChoiceDisplay("only in the current channel")]InChannel, [ChoiceDisplay("on the whole server")]OnServer }
+        [SlashCommand("clear-characters", "Remove all character-webhooks from this channel/server")]
+        public async Task ClearChannelCharacters(ClearCharactersChoise scope)
         {
-            await ClearWebhooksAsync(all: true);
-        }
-
-        [SlashCommand("clear-channel-webhooks", "Remove all character-webhooks from this channel")]
-        public async Task ClearChannelWebhooks()
-        {
-            await ClearWebhooksAsync(all: false);
+            await ClearCharactersAsync(all: scope is ClearCharactersChoise.OnServer);
         }
 
         [SlashCommand("copy-character-from-channel", "As it says")]
@@ -55,12 +51,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task SetChannelRandomReplyChance(float chance)
         {
             await DeferAsync();
-
+            
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
+            string before = channel.RandomReplyChance.ToString();
             channel.RandomReplyChance = chance;
             await _db.SaveChangesAsync();
 
-            await FollowupAsync(embed: SuccessEmbed());
+            await FollowupAsync(embed: SuccessEmbed($"Random reply chance for this channel was changed from {before}% to {chance}%"));
         }
 
         [SlashCommand("hunt-user", "Make character respond on messages of certain user (or bot)")]
@@ -132,7 +129,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("drop-server-messages-format", "Drop default messages format for this server")]
         public async Task DropGuildMessagesFormat()
         {
-            await DeferAsync(ephemeral: true);
+            await DeferAsync();
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
@@ -155,7 +152,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("drop-server-jailbreak-prompt", "Drop default jailbreak prompt for this server")]
         public async Task DropGuildPrompt()
         {
-            await DeferAsync(ephemeral: true);
+            await DeferAsync();
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
@@ -182,7 +179,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("drop-server-cai-user-token", "Drop default CharacterAI auth token for this server")]
         public async Task DropGuildCaiToken()
         {
-            await DeferAsync(ephemeral: true);
+            await DeferAsync();
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
@@ -193,8 +190,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-
-        [SlashCommand("set-server-openai-api-token", "Set default OpenAI api token for this server")]
+        [SlashCommand("set-server-openai-api", "Set default OpenAI API for this server")]
         public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? reverseProxyEndpoint = null)
         {
             await DeferAsync(ephemeral: true);
@@ -211,10 +207,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("drop-server-openai-api-token", "Drop default OpenAI api token for this server")]
+        [SlashCommand("drop-server-openai-api", "Drop default OpenAI API for this server")]
         public async Task DropGuildOpenAiToken()
         {
-            await DeferAsync(ephemeral: true);
+            await DeferAsync();
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
@@ -227,6 +223,89 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
+        [SlashCommand("set-server-koboldai-api", "Set default KoboldAI API for this server")]
+        public async Task SetGuildKoboldAiApi(string apiEndpoint)
+        {
+            await DeferAsync(ephemeral: true);
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
+            guild.GuildKoboldAiApiEndpoint = apiEndpoint;
+            
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
+
+        [SlashCommand("drop-server-koboldai-api", "Drop default KoboldAI API for this server")]
+        public async Task DropGuildKoboldAiApi()
+        {
+            await DeferAsync();
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
+            guild.GuildKoboldAiApiEndpoint = null;
+
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed());
+        }
+
+        [SlashCommand("get-horde-koboldai-workers", "Get the list of available Horde KoboldAI workers")]
+        public async Task GetHordeWorkers()
+        {
+            await DeferAsync();
+
+            string url = "https://horde.koboldai.net/api/v2/workers?type=text";
+            var response = await _integration.CommonHttpClient.GetAsync(url);
+
+            Embed embed;
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                dynamic? dynamicContent = content.ToDynamicJsonString();
+                int count = 1;
+                if (dynamicContent is not null)
+                {
+                    var eb = new EmbedBuilder().WithDescription("");
+                    foreach (dynamic worker in (JArray)dynamicContent)
+                    {
+                        string line = $"**{count++}. {worker.name} | `{((JArray)worker.models).FirstOrDefault()}`**" +
+                                      $"Capabilities: {worker.max_length}/{worker.max_context_length} ({((string)worker.performance).Replace("tokens per second", "T/s")})\n" +
+                                      $"Uptime: {worker.uptime}\n";
+                        if (eb.Description.Length + line.Length <= 4096)
+                            eb.Description += line;
+                    }
+                    embed = eb.WithColor(Color.Green).WithTitle("Found workers:").Build();
+                }
+                else
+                {
+                    embed = new EmbedBuilder().WithColor(Color.Red).WithDescription("Something went wrong").Build();
+                }
+            }
+            else
+            {
+                embed = new EmbedBuilder().WithColor(Color.Red).WithDescription("Something went wrong").Build();
+            }
+
+            await FollowupAsync(embed: embed);
+        }
+
+        [SlashCommand("set-server-horde-koboldai-api", "Set default Horde KoboldAI API for this server")]
+        public async Task SetGuildHordeKoboldAiApi(string token, string model)
+        {
+            await DeferAsync(ephemeral: true);
+
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+
+            guild.GuildHordeApiToken = token;
+            guild.GuildHordeModel = model;
+
+            await _db.SaveChangesAsync();
+
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+        }
+
         [SlashCommand("say", "Make character say something")]
         public async Task SayAsync(string webhookIdOrPrefix, string text)
         {
@@ -236,7 +315,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 
@@ -248,7 +327,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await webhookClient.SendMessageAsync(text);
-            await FollowupAsync(embed: SuccessEmbed());
+            await ModifyOriginalResponseAsync(r => r.Embed = SuccessEmbed());
         }
 
         [SlashCommand("block-user", "Make characters ignore certain user on this server.")]
@@ -339,7 +418,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Long stuff ////
         ////////////////////
 
-        private async Task DeleteWebhookAsync(string webhookIdOrPrefix)
+        private async Task DeleteCharacterAsync(string webhookIdOrPrefix)
         {
             await DeferAsync();
 
@@ -347,7 +426,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 
@@ -374,7 +453,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        private async Task ClearWebhooksAsync(bool all)
+        private async Task ClearCharactersAsync(bool all)
         {
             await DeferAsync();
 
@@ -390,7 +469,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                    select webhook).ToList();
             }
             else
-            { 
+            {
                 discordWebhooks = await ((SocketTextChannel)Context.Channel).GetWebhooksAsync();
                 trackedWebhooks = (from channel in (from channels in _db.Channels where channels.Id == Context.Channel.Id select channels)
                                    join webhook in _db.CharacterWebhooks on channel.Id equals webhook.Channel.Id
@@ -399,15 +478,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var trackedWebhookIds = trackedWebhooks.Select(w => w.Id).ToList();
 
-            foreach (var tw in trackedWebhooks)
+            await Parallel.ForEachAsync(trackedWebhooks, async (tw, ct) =>
             {
                 var discordWebhook = discordWebhooks.FirstOrDefault(dw => dw.Id == tw.Id);
-                _ = discordWebhook?.DeleteAsync();
+                if (discordWebhook is null) return;
+
                 _db.CharacterWebhooks.Remove(tw);
-            }
+                await discordWebhook.DeleteAsync();
+            });
 
             await _db.SaveChangesAsync();
-            await FollowupAsync(embed: SuccessEmbed());
+            await FollowupAsync(embed: SuccessEmbed($"All characters {(all ? "on this server" : "in the current channel")} were removed successfully"));
         }
 
         private async Task ResetCharacterAsync(string webhookIdOrPrefix)
@@ -424,7 +505,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 
@@ -433,13 +514,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
                 var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
                 var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
-                characterWebhook.CaiActiveHistoryId = newHisoryId;
+                characterWebhook.ActiveHistoryID = newHisoryId;
             }
             else
             {
-                characterWebhook.OpenAiHistoryMessages.Clear();
-                var firstGreetingMessage = new OpenAiHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
-                await _db.OpenAiHistoryMessages.AddAsync(firstGreetingMessage);
+                characterWebhook.StoredHistoryMessages.Clear();
+                var firstGreetingMessage = new StoredHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
+                await _db.StoredHistoryMessages.AddAsync(firstGreetingMessage);
             }
 
             await _db.SaveChangesAsync();
@@ -458,15 +539,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await webhookClient.SendMessageAsync(characterMessage);
         }
 
-        private async Task CopyCharacterAsync(IChannel iChannel, string webhookIdOrPrefix)
+        private async Task CopyCharacterAsync(IChannel channel, string webhookIdOrPrefix)
         {
             await DeferAsync();
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, iChannel.Id, _db);
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, channel.Id, _db);
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 
@@ -477,7 +558,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             string name = characterWebhook.Character.Name.ToLower().Contains("discord") ? characterWebhook.Character.Name.Replace('o', 'о').Replace('c', 'с') : characterWebhook.Character.Name;
-            var image = await TryDownloadImgAsync(characterWebhook.Character.AvatarUrl, _integration.HttpClient);
+            var image = await TryToDownloadImageAsync(characterWebhook.Character.AvatarUrl, _integration.ImagesHttpClient);
             image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
             IWebhook channelWebhook;
@@ -499,29 +580,30 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     WebhookToken = channelWebhook.Token,
                     ChannelId = (await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id)).Id,
                     LastCallTime = DateTime.Now,
+                    MessagesSent = 1,
                     ReplyChance = 0,
                     ResponseDelay = 1,
+                    FromChub = characterWebhook.FromChub,
                     CallPrefix = characterWebhook.CallPrefix,
                     CharacterId = characterWebhook.CharacterId,
                     CrutchEnabled = characterWebhook.CrutchEnabled,
                     IntegrationType = characterWebhook.IntegrationType,
-                    MessagesFormat = characterWebhook.MessagesFormat,
-                    OpenAiFreqPenalty = characterWebhook.OpenAiFreqPenalty,
-                    OpenAiMaxTokens = characterWebhook.OpenAiMaxTokens,
-                    OpenAiModel = characterWebhook.OpenAiModel,
-                    OpenAiPresencePenalty = characterWebhook.OpenAiPresencePenalty,
-                    OpenAiTemperature = characterWebhook.OpenAiTemperature,
+                    PersonalMessagesFormat = characterWebhook.PersonalMessagesFormat,
+                    GenerationFreqPenaltyOrRepetitionSlope = characterWebhook.GenerationFreqPenaltyOrRepetitionSlope,
+                    GenerationMaxTokens = characterWebhook.GenerationMaxTokens,
+                    PersonalApiModel = characterWebhook.PersonalApiModel,
+                    PersonalApiToken = characterWebhook.PersonalApiToken,
+                    GenerationPresenceOrRepetitionPenalty = characterWebhook.GenerationPresenceOrRepetitionPenalty,
+                    GenerationTemperature = characterWebhook.GenerationTemperature,
                     ReferencesEnabled = characterWebhook.ReferencesEnabled,
                     SwipesEnabled = characterWebhook.SwipesEnabled,
-                    UniversalJailbreakPrompt = characterWebhook.UniversalJailbreakPrompt,
-                    PersonalCaiUserAuthToken = characterWebhook.PersonalCaiUserAuthToken,
-                    PersonalOpenAiApiEndpoint = characterWebhook.PersonalOpenAiApiEndpoint,
-                    PersonalOpenAiApiToken = characterWebhook.PersonalOpenAiApiToken,
-                    CaiActiveHistoryId = null
+                    PersonalJailbreakPrompt = characterWebhook.PersonalJailbreakPrompt,
+                    PersonalApiEndpoint = characterWebhook.PersonalApiEndpoint,
+                    ActiveHistoryID = null
                 });
 
                 if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
-                    _db.OpenAiHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+                    _db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
                 await _db.SaveChangesAsync();
 
@@ -531,13 +613,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
                 if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
 
-                await FollowupAsync(embed: SuccessEmbed());
+                await FollowupAsync(embed: SuccessEmbed($"{characterWebhook.Character.Name} was successfully copied from {channel.Name}"));
                 await webhookClient.SendMessageAsync(characterMessage);
             }
             catch (Exception e)
             {
                 LogException(new[] { e });
-                await TryToReportInLogsChannel(_client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+                TryToReportInLogsChannel(_client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+
                 await channelWebhook.DeleteAsync();
             }
         }
@@ -556,7 +639,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 
@@ -612,7 +695,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (characterWebhook is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Webhook not found".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE);
                 return;
             }
 

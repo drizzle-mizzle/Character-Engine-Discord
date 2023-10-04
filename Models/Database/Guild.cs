@@ -3,15 +3,28 @@
     public class Guild
     {
         public required ulong Id { get; set; }
-        public string? GuildMessagesFormat { get; set; } = null;
-        public string? GuildJailbreakPrompt { get; set; } = null;
+        public string? GuildMessagesFormat { get; set; }
+        public string? GuildJailbreakPrompt { get; set; }
 
-        public string? GuildCaiUserToken { get; set; } = null;
-        public bool? GuildCaiPlusMode { get; set; } = null;
+        // CharacterAI
+        public string? GuildCaiUserToken { get; set; }
+        public bool? GuildCaiPlusMode { get; set; }
 
-        public string? GuildOpenAiApiEndpoint { get; set; } = null;
-        public string? GuildOpenAiApiToken { get; set; } = null;
-        public string? GuildOpenAiModel { get; set; } = null;
+        // OpenAI
+        public string? GuildOpenAiApiEndpoint { get; set; }
+        public string? GuildOpenAiApiToken { get; set; }
+        public string? GuildOpenAiModel { get; set; }
+
+        // KoboldAI
+        public string? GuildKoboldAiApiEndpoint { get; set; }
+
+        // Horde
+        public string? GuildHordeApiToken { get; set; }
+        public string? GuildHordeModel { get; set; }
+
+
+        public required int MessagesSent { get; set; }
+
         public virtual List<Channel> Channels { get; } = new();
         public virtual List<BlockedUser> BlockedUsers { get; } = new();
     }

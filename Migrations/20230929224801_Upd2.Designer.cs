@@ -3,6 +3,7 @@ using System;
 using CharacterEngineDiscord.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CharacterEngineDiscord.Migrations
 {
     [DbContext(typeof(StorageContext))]
-    partial class StorageContextModelSnapshot : ModelSnapshot
+    [Migration("20230929224801_Upd2")]
+    partial class Upd2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -279,9 +282,6 @@ namespace CharacterEngineDiscord.Migrations
 
                     b.Property<string>("GuildOpenAiModel")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("MessagesSent")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

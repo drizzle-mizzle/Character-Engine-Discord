@@ -10,6 +10,8 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
+using Microsoft.VisualBasic;
+using PuppeteerSharp;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -18,21 +20,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class SpawnCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
-        //private readonly DiscordSocketClient _client;
         
         public SpawnCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
-            //_client = services.GetRequiredService<DiscordSocketClient>();
         }
 
+        const string sqDesc = "When specify a character ID, set 'set-with-id' parameter to 'True'";
         [SlashCommand("cai-character", "Add new character from CharacterAI to this channel")]
-        public async Task SpawnCaiCharacter([Summary(description: "When specify a character ID, set 'set-with-id' parameter to 'True'")] string searchQueryOrCharacterId, bool setWithId = false)
+        public async Task SpawnCaiCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false)
         {
             await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId);
         }
 
-        const string sqDesc = "When specify it with a character ID, set 'set-with-id' parameter to 'True'";
         const string tagsDesc = "Tags separated by ','";
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
         public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool setWithId = false)
@@ -40,43 +40,37 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId);
         }
 
-        [SlashCommand("custom-character", "Add new character to this channel with full customization")]
+        [SlashCommand("custom-character", "Add a new character to this channel with full customization")]
         public async Task SpawnCustomTavernCharacter()
         {
             await RespondWithCustomCharModalasync();
         }
 
 
-        ////////////////////////////
-        //// Main logic section ////
-        ////////////////////////////
+        ////////////////////
+        //// Long stuff ////
+        ////////////////////
 
         private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId)
         {
             await DeferAsync();
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-
-            switch (apiType)
+            if (apiType is ApiTypeForChub.KoboldAI || apiType is ApiTypeForChub.HordeKoboldAI)
             {
-                case ApiTypeForChub.OpenAI:
-                    string? token = channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
-                    if (!string.IsNullOrWhiteSpace(token)) break;
-
-                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an OpenAI API token for your server first!\n" +
-                                                $"Command: `/set-server-openai-api-token token:YOUR_TOKEN gpt-model:gpt-3.5-turbo`").ToInlineEmbed(Color.Red));
-                    return;
-                default: return;
+                await FollowupAsync("Not implemented.");
+                return;
             }
 
-            // It will be extended, don't laugh T_T
-            IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI : IntegrationType.OpenAI;
+            IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI
+                                            : apiType is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
+                                            : apiType is ApiTypeForChub.HordeKoboldAI ? IntegrationType.HordeKoboldAI
+                                            : IntegrationType.Empty;
 
             if (setWithId)
             {
                 await FollowupAsync(embed: WAIT_MESSAGE);
 
-                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.HttpClient);
+                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.CommonHttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
                 await FinishSpawningAsync(integrationType, character);
             }
@@ -93,9 +87,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     Page = 1,
                     SortBy = sortBy,
                     AllowNSFW = allowNSFW
-                }, _integration.HttpClient);
+                }, _integration.CommonHttpClient);
 
-                var searchQueryData = SearchQueryDataFromChubResponse(response);
+                var searchQueryData = SearchQueryDataFromChubResponse(integrationType, response);
                 await FinishSearchAsync(searchQueryData);
             }
         }
@@ -123,10 +117,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
 
+            await FollowupAsync(embed: WAIT_MESSAGE);
+
             if (setWithId)
             {
-                await FollowupAsync(embed: WAIT_MESSAGE);
-
                 var caiCharacter = await _integration.CaiClient.GetInfoAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var character = CharacterFromCaiCharacterInfo(caiCharacter);
 
@@ -134,8 +128,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: WAIT_MESSAGE);
-
                 var response = await _integration.CaiClient.SearchAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
                 var searchQueryData = SearchQueryDataFromCaiResponse(response);
 
@@ -152,7 +144,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration);
+            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration, type is not IntegrationType.CharacterAI);
 
             if (characterWebhook is null)
             {
@@ -163,10 +155,20 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
-            await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
+            var originalMessage = await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
 
             string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
             if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+            // Try to set avatar
+            Stream? image = null;
+            if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+            {
+                var imageUrl = originalMessage.Embeds?.Single()?.Image?.ProxyUrl;
+                image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
+            }
+            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+            await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
 
             await webhookClient.SendMessageAsync(characterMessage);
         }
@@ -219,7 +221,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                         "((DELETE THIS SECTION))\n\n" +
                                                         "Scenario of roleplay: {{char}} has joined Discord!\n\n" +
                                                         "Example conversations between {{char}} and {{user}}:\n<START>\n{{user}}: Nullpo;\n{{char}}: Gah!\n<END>")
-                                            .AddTextInput($"Avatar url", "avatar-url", TextInputStyle.Short, "https://avatars.charhub.io/avatars/.../avatar.webp", required: false)
+                                            .AddTextInput($"Avatar url", "avatar-url", TextInputStyle.Short, "https://some.site/.../avatar.jpg", required: false)
                                             .Build();
 
             await RespondWithModalAsync(modal);
