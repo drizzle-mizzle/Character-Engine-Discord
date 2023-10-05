@@ -76,10 +76,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
 
             var image = await TryToDownloadImageAsync(avatarUrl, _integration.ImagesHttpClient);
-            if (image is null && characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-            {
-                image = new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-            }
+            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
             await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
 
