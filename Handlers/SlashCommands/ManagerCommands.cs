@@ -11,6 +11,7 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -34,11 +35,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeleteCharacterAsync(webhookIdOrPrefix);
         }
 
-        public enum ClearCharactersChoise { [ChoiceDisplay("only in the current channel")]InChannel, [ChoiceDisplay("on the whole server")]OnServer }
+        public enum ClearCharactersChoise { [ChoiceDisplay("only in the current channel")]channel, [ChoiceDisplay("on the whole server")]server }
         [SlashCommand("clear-characters", "Remove all character-webhooks from this channel/server")]
         public async Task ClearChannelCharacters(ClearCharactersChoise scope)
         {
-            await ClearCharactersAsync(all: scope is ClearCharactersChoise.OnServer);
+            await ClearCharactersAsync(all: scope is ClearCharactersChoise.server);
         }
 
         [SlashCommand("copy-character-from-channel", "As it says")]
@@ -487,7 +488,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 await discordWebhook.DeleteAsync();
             });
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException e)
+            {
+                foreach (var entry in e.Entries)
+                    entry.Reload();
+
+                _db.SaveChanges();
+            }
+
             await FollowupAsync(embed: SuccessEmbed($"All characters {(all ? "on this server" : "in the current channel")} were removed successfully"));
         }
 
