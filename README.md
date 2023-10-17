@@ -22,7 +22,7 @@ Universal frontend for the various LLM APIs in the form of Discord bot.
 
 ## 🪄Features
 - Allows to spawn up to 15 characters in a single channel and an unlimited amount for on the whole server.
-- Embedded character finder based on [`CharacterHub`](https://www.chub.ai/), [`CharacterAI`](https://character.ai) and [`Aisekai`](https://aisekai.ai/) catalogs.
+- Embedded character finder based on [`CharacterHub`](https://www.chub.ai/), [`CharacterAI`](https://www.character.ai) and [`Aisekai`](https://www.aisekai.ai) catalogs.
 - Supports custom Tavern-like character cards.
 - Supports answers swiping.
 - Per-character flexible configuration, allows to set personal jailbreak prompts, message format templates, API backends and much more **for each character on the server separately**.
