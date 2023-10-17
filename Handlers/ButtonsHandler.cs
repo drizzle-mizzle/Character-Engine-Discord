@@ -9,6 +9,8 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using Polly;
+using CharacterEngineDiscord.Models.Database;
+using CharacterEngineDiscord.Models.CharacterHub;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -92,27 +94,10 @@ namespace CharacterEngineDiscord.Handlers
                     catch { return; }
 
                     int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
-                    string characterId = searchQuery.SearchQueryData.Characters[index].Id;
+                    var character = searchQuery.SearchQueryData.Characters[index];
 
-                    Models.Database.Character? character;
-
-                    bool fromChub = true;
-                    if (searchQuery.SearchQueryData.IntegrationType is IntegrationType.CharacterAI)
-                    {
-                        character = await SelectCaiCharacterAsync(characterId, searchQuery.ChannelId);
-                        fromChub = false;
-                    }
-                    else
-                    {
-                        var chubCharacter = await GetChubCharacterInfo(characterId, _integration.CommonHttpClient);
-                        character = CharacterFromChubCharacterInfo(chubCharacter);
-                    }
-
-                    if (character is null)
-                    {
-                        await component.Message.ModifyAsync(msg => msg.Embed = FailedToSetCharacterEmbed());
-                        return;
-                    }
+                    var type = searchQuery.SearchQueryData.IntegrationType;
+                    if (character is null) return;
 
                     var context = new InteractionContext(_client, component, component.Channel);
 
@@ -124,7 +109,7 @@ namespace CharacterEngineDiscord.Handlers
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
 
-                    string characterMessage = $"{component.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
+                    string characterMessage = $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
                     if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
 
                     // Try to set avatar
@@ -155,7 +140,6 @@ namespace CharacterEngineDiscord.Handlers
             catch { return; }
         }
 
-
         /// <summary>
         /// Called when user presses "select" button in search
         /// </summary>
@@ -167,12 +151,47 @@ namespace CharacterEngineDiscord.Handlers
             var channel = await db.Channels.FindAsync(channelId);
             if (channel is null) return null;
 
-            var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-            var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
+            var caiToken = channel.Guild.GuildCaiUserToken ?? "";
+            var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
             if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
             var caiCharacter = await _integration.CaiClient.GetInfoAsync(characterId, customAuthToken: caiToken, customPlusMode: plusMode);
             return CharacterFromCaiCharacterInfo(caiCharacter);
+        }
+
+        /// <summary>
+        /// Called when user presses "select" button in search
+        /// </summary>
+        private async Task<Models.Database.Character?> SelectAisekaiCharacterAsync(string characterId, ulong channelId, SocketUserMessage originalMessage, string? authToken = null)
+        {
+            var db = new StorageContext();
+            var channel = await db.Channels.FindAsync(channelId);
+            if (channel is null) return null;
+
+            authToken ??= channel.Guild.GuildAisekaiAuthToken;
+            if (string.IsNullOrWhiteSpace(authToken)) return null;
+
+            var response = await _integration.AisekaiClient.GetCharacterInfoAsync(authToken, characterId);
+            if (response.IsSuccessful)
+            {
+                return CharacterFromAisekaiCharacterInfo(response.Character!.Value);
+            }
+            else if (response.Code == 401)
+            {   // Re-login
+                var newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(channel.GuildId, channel.Guild.GuildAisekaiRefreshToken!);
+                if (newAuthToken is null)
+                {
+                    await originalMessage.ModifyAsync(m => m.Embed = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
+                    return null;
+                }
+                else
+                    return await SelectAisekaiCharacterAsync(characterId, channelId, originalMessage, newAuthToken);
+            }
+            else
+            {
+                await originalMessage.ModifyAsync(m => m.Embed = $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
+                return null;
+            }
         }
     }
 }

@@ -9,9 +9,12 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using Microsoft.EntityFrameworkCore;
 using CharacterEngineDiscord.Models.KoboldAI;
 using Newtonsoft.Json.Linq;
+using System;
+using Castle.Components.DictionaryAdapter.Xml;
+using PuppeteerSharp;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -106,11 +109,13 @@ namespace CharacterEngineDiscord.Handlers
                                  .AddRefQuote(userMessage.ReferencedMessage);
 
             // Get character response
-            CharacterResponse characterResponse = null!;
+            Models.Common.CharacterResponse characterResponse = null!;
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                 characterResponse = await CallOpenAiCharacterAsync(characterWebhook, text);
             else if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                 characterResponse = await CallCaiCharacterAsync(characterWebhook, text);
+            else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
+                characterResponse = await CallAisekaiCharacterAsync(characterWebhook, text);
             else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
                 return;//characterResponse = await CallKoboldAiCharacterAsync(characterWebhook, text);
             else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
@@ -133,30 +138,20 @@ namespace CharacterEngineDiscord.Handlers
             characterWebhook.MessagesSent++;
             characterWebhook.Channel.Guild.MessagesSent++;
             characterWebhook.LastCharacterDiscordMsgId = await messageId;
-            
-            try
-            {
-                await db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException e)
-            {
-                foreach(var entry in e.Entries)
-                    entry.Reload();
 
-                db.SaveChanges();
-            }
+            await StorageContext.TryToSaveDbChangesAsync(db);
         }
 
         
+
         /// <returns>Message ID or 0 if sending failed</returns>
-        private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, CharacterResponse characterResponse, SocketUserMessage userMessage, string userName, bool isThread)
+        private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, Models.Common.CharacterResponse characterResponse, SocketUserMessage userMessage, string userName, bool isThread)
         {
             _integration.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
             var convo = _integration.Conversations[characterWebhook.Id];
 
             lock (convo)
-            {
-                // Forget all choises from the last message and remember a new one
+            {   // Forget all choises from the last message and remember a new one
                 convo.AvailableMessages.Clear();
                 convo.AvailableMessages.Add(new()
                 {
@@ -226,23 +221,23 @@ namespace CharacterEngineDiscord.Handlers
 
         // Calls
 
-        private async Task<CharacterResponse> CallCaiCharacterAsync(CharacterWebhook cw, string text)
+        private async Task<Models.Common.CharacterResponse> CallCaiCharacterAsync(CharacterWebhook cw, string text)
         {
-            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-            var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
-            var caiResponse = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.ActiveHistoryID!, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var caiToken = cw.Channel.Guild.GuildCaiUserToken;
+            var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
+            var response = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.ActiveHistoryID!, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
             string message;
             bool success;
 
-            if (!caiResponse.IsSuccessful)
+            if (!response.IsSuccessful)
             {
-                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: ```\n{caiResponse.ErrorReason}\n```";
+                message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: ```\n{response.ErrorReason}\n```";
                 success = false;
             }
             else
             {
-                message = caiResponse.Response!.Text;
+                message = response.Response!.Text;
                 success = true;
             }
 
@@ -250,14 +245,90 @@ namespace CharacterEngineDiscord.Handlers
             {
                 Text = message,
                 IsSuccessful = success,
-                CharacterMessageId = caiResponse.Response?.UuId,
-                ImageRelPath = caiResponse.Response?.ImageRelPath,
-                UserMessageId = caiResponse.LastUserMsgUuId,
-                TokensUsed = 0,
+                CharacterMessageId = response.Response?.UuId,
+                ImageRelPath = response.Response?.ImageRelPath,
+                UserMessageId = response.LastUserMsgUuId
             };
         }
 
-        private async Task<CharacterResponse> CallOpenAiCharacterAsync(CharacterWebhook cw, string text)
+        private async Task<CharacterResponse> CallAisekaiCharacterAsync(CharacterWebhook characterWebhook, string text, string? authToken = null)
+        {
+            authToken ??= characterWebhook.Channel.Guild.GuildAisekaiAuthToken!;
+            
+            _integration.Conversations.TryGetValue(characterWebhook.Id, out var convo);
+            
+            if (convo is not null && convo.AvailableMessages.Count > 1) // there was a swipe
+            {   // Try to edit character message
+                var editResult = await EditLastAisekaiCharacterMessageAsync(characterWebhook, authToken, convo);
+                if (editResult.Key is false)
+                {
+                    return new()
+                    {
+                        Text = editResult.Value!,
+                        IsSuccessful = false
+                    };
+                }
+            }
+
+            return await SendAisekaiCharacterMessageAsync(characterWebhook, text, authToken);
+        }
+
+        private async Task<CharacterResponse> SendAisekaiCharacterMessageAsync(CharacterWebhook characterWebhook, string text, string authToken)
+        {
+            string message;
+            string? lastMessageId = null;
+
+            var response = await _integration.AisekaiClient.PostChatMessageAsync(authToken, characterWebhook.ActiveHistoryID!, text);
+
+            if (response.IsSuccessful)
+            {
+                message = response.CharacterResponse!.Value.Content;
+                lastMessageId = response.CharacterResponse!.Value.LastMessageId;
+            }
+            else if (response.Code == 401)
+            {
+                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                if (newToken is null)
+                    message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
+                else
+                    return await SendAisekaiCharacterMessageAsync(characterWebhook, text, newToken);
+            }
+            else
+            {
+                message = $"{WARN_SIGN_DISCORD} Failed to create new chat with a character: `{response.ErrorReason}`";
+            }
+
+            return new()
+            {
+                Text = message,
+                CharacterMessageId = lastMessageId,
+                IsSuccessful = response.IsSuccessful
+            };
+        }
+
+        private async Task<KeyValuePair<bool, string?>> EditLastAisekaiCharacterMessageAsync(CharacterWebhook characterWebhook, string authToken, LastCharacterCall convo)
+        {
+            var response = await _integration.AisekaiClient.PatchEditMessageAsync(authToken, characterWebhook.ActiveHistoryID!, convo.AvailableMessages[0].MessageId!, convo.AvailableMessages[characterWebhook.CurrentSwipeIndex].Text!);
+
+            if (response.IsSuccessful)
+            {
+                return new(true, null);
+            }
+            if (response.Code == 401)
+            {
+                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                if (newToken is null)
+                    return new(false, $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`");
+                else
+                    return await EditLastAisekaiCharacterMessageAsync(characterWebhook, newToken, convo);
+            }
+            else
+            {
+                return new(false, $"{WARN_SIGN_DISCORD} Failed to create new chat with a character: `{response.ErrorReason}`");
+            }
+        }
+
+        private async Task<Models.Common.CharacterResponse> CallOpenAiCharacterAsync(CharacterWebhook cw, string text)
         {            
             cw.StoredHistoryMessages.Add(new() { Role = "user", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
             var openAiRequestParams = BuildChatOpenAiRequestPayload(cw);
@@ -310,7 +381,7 @@ namespace CharacterEngineDiscord.Handlers
             };
         }
 
-        private async Task<CharacterResponse> CallKoboldAiCharacterAsync(CharacterWebhook cw, string text)
+        private async Task<Models.Common.CharacterResponse> CallKoboldAiCharacterAsync(CharacterWebhook cw, string text)
         {
             cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
             var koboldAiRequestParams = BuildKoboldAiRequestPayload(cw);
@@ -320,7 +391,6 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`",
-                    TokensUsed = 0,
                     IsSuccessful = false
                 };
             }
@@ -350,12 +420,11 @@ namespace CharacterEngineDiscord.Handlers
             return new()
             {
                 Text = message,
-                IsSuccessful = success,
-                TokensUsed = 0
+                IsSuccessful = success
             };
         }
 
-        private async Task<CharacterResponse> CallHordeKoboldAiCharacterAsync(CharacterWebhook cw, string text)
+        private async Task<Models.Common.CharacterResponse> CallHordeKoboldAiCharacterAsync(CharacterWebhook cw, string text)
         {
             cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
             var hordeRequestParams = BuildHordeKoboldAiRequestPayload(cw);
@@ -365,7 +434,6 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `Your message couldn't fit in the max token limit`",
-                    TokensUsed = 0,
                     IsSuccessful = false
                 };
             }
@@ -404,8 +472,7 @@ namespace CharacterEngineDiscord.Handlers
             return new()
             {
                 Text = message,
-                IsSuccessful = success,
-                TokensUsed = 0
+                IsSuccessful = success
             };
         }
 
@@ -416,12 +483,11 @@ namespace CharacterEngineDiscord.Handlers
             try
             {
                 var response = await httpClient.GetAsync(url);
-                string content = await response.Content.ReadAsStringAsync();
-                dynamic contentParsed = content.ToDynamicJsonString()!;
+                var content = await response.Content.ReadAsJsonAsync();
 
-                if ($"{contentParsed.done}".ToBool())
+                if ($"{content!.done}".ToBool())
                 {
-                    var generations = (JArray)contentParsed.generations;
+                    var generations = (JArray)content.generations;
                     string text = (generations.First() as dynamic).text;
 
                     return new()
@@ -430,7 +496,7 @@ namespace CharacterEngineDiscord.Handlers
                         Message = new("\nYou: ", text)
                     };
                 }
-                else if (!$"{contentParsed.is_possible}".ToBool() || $"{contentParsed.faulted}".ToBool())
+                else if (!$"{content.is_possible}".ToBool() || $"{content.faulted}".ToBool())
                 {
                     return new()
                     {
@@ -475,6 +541,8 @@ namespace CharacterEngineDiscord.Handlers
                 result = await EnsureCaiCharacterCanBeCalledAsync(characterWebhook, channel);
             else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                 result = await EnsureOpenAiCharacterCanBeCalledAsync(characterWebhook, channel);
+            else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
+                result = await EnsureAisekaiCharacterCanBeCalledAsync(characterWebhook, channel);
             else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
                 result = await EnsureKoboldAiCharacterCanBeCalledAsync(characterWebhook, channel);
             else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
@@ -496,11 +564,24 @@ namespace CharacterEngineDiscord.Handlers
                 return false;
             }
 
-            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
+            var caiToken = cw.Channel.Guild.GuildCaiUserToken;
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
-                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an CharacterAI auth token for your server first!".ToInlineEmbed(Color.Red));
+                return false;
+            }
+
+            return true;
+        }
+
+        private static async Task<bool> EnsureAisekaiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
+        {
+            var authToken = cw.Channel.Guild.GuildAisekaiAuthToken;
+
+            if (string.IsNullOrWhiteSpace(authToken))
+            {
+                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} You have to specify an Aisekai account for your server first!".ToInlineEmbed(Color.Red));
                 return false;
             }
 
@@ -509,7 +590,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private static async Task<bool> EnsureOpenAiCharacterCanBeCalledAsync(CharacterWebhook cw, ISocketMessageChannel channel)
         {
-            string? openAiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value;
+            string? openAiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildOpenAiApiToken;
 
             if (string.IsNullOrWhiteSpace(openAiToken))
             {

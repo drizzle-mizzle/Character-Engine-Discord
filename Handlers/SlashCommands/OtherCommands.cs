@@ -27,12 +27,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task BaicsHelp()
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
-                                          .WithDescription($"Only server owner can execute bot commands by default. If you want allow other users to manage bot settings, give them **{ConfigFile.DiscordBotRole.Value}** role. More settings can be found in `Server settings -> Integrations`.")
-                                          .AddField("How to use", "1. Use one of the `/spawn` commands to create a character.\n" +
-                                                                  "2. Modify it with one of the `/update` commands using a given prefix or webhook ID.\n" +
-                                                                  "3. Call character by mentioning its prefix or with reply on one of its messages.\n" +
-                                                                  "4. If you want to start the chat with a character from the beginning, use `/reset-character` command.\n" +
-                                                                  "5. Read [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides) and [wiki/Commands](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Commands) to know more.")
+                                          .WithDescription("**How to use**\n" +
+                                                           "1. Use one of the `/spawn` commands to create a character.\n" +
+                                                           "2. Modify it with one of the `/update` commands using a given prefix or webhook ID.\n" +
+                                                           "3. Call character by mentioning its prefix or with reply on any of its messages.\n" +
+                                                           "4. If you want to start the chat with some character from the beginning, use `/reset-character` command.\n" +
+                                                           "5. Read [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides) and [wiki/Commands](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Commands) to know more.")
                                           .AddField("API", "By default, bot will use its owner's credentials (if those are present) for accessing all needed servcies like **CharacterAI** or **OpenAI**\n" +
                                                            "To use your own API keys and cAI accounts, change it with `/set-server-[ type ]-token` command.\n" +
                                                            "Each character can use different credentials.")

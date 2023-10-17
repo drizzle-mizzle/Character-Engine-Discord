@@ -89,6 +89,8 @@ namespace CharacterEngineDiscord.Services
 
             string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
                                  $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
+                               : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
+                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: {character.Stars}"
                                : characterWebhook.FromChub ?
                                  $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
                                : "Custom character";
@@ -105,7 +107,7 @@ namespace CharacterEngineDiscord.Services
             string desc = string.IsNullOrWhiteSpace(character.Description) ? "No description" : character.Description;
             string info = $"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.\n\n" +
                           $"**{character.Name ?? "No name"}**\n" +
-                          $"*\"{title.Replace("\n\n", "\n")}\"*\n\n" +
+                          $"*{title.Replace("\n\n", "\n")}*\n\n" +
                           $"**Description**\n{desc.Replace("\n\n", "\n")}";
             if (info.Length > 4096) info = info[0..4090] + "[...]";
 
@@ -117,7 +119,7 @@ namespace CharacterEngineDiscord.Services
                 .WithColor(Color.Gold)
                 .WithTitle($"{OK_SIGN_DISCORD} **Success**")
                 .WithDescription(info)
-                .AddField("Details", $"*{statAndLink}\nCan generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}*")
+                .AddField("Details", $"*API: `{api}`\n{statAndLink}\nCan generate images: `{(character.ImageGenEnabled is true ? "Yes" : "No")}`*")
                 .AddField("Configuration", conf)
                 .AddField("Usage example:", $"*`{characterWebhook.CallPrefix} hey!`*\n" +
                                             $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*")
@@ -175,7 +177,8 @@ namespace CharacterEngineDiscord.Services
 
                 if (i + 1 == query.CurrentRow) fTitle += " - ✅";
 
-                string interactionsOrStars = query.SearchQueryData.IntegrationType is IntegrationType.CharacterAI ?
+                var type = query.SearchQueryData.IntegrationType;
+                string interactionsOrStars = type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai ?
                     $"Interactions: {character.Interactions}" :
                     $"Stars: {character.Stars}";
 

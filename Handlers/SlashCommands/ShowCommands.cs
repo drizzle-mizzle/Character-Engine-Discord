@@ -6,7 +6,6 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord;
 using CharacterEngineDiscord.Models.Common;
-using System.Security.Permissions;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -88,48 +87,50 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var character = characterWebhook.Character;
-            string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
-                                 $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
-                               : characterWebhook.FromChub ?
-                                 $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
-                               : "Custom character";
+       
+            var _tagline = character.Title?.Replace("\n\n", "\n");
+            if (string.IsNullOrWhiteSpace(_tagline)) _tagline = "No title";
 
-            string api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
-                         $"OpenAI ({characterWebhook.PersonalApiModel})"
-                       : characterWebhook.IntegrationType is IntegrationType.KoboldAI ?
-                         $"KoboldAI ({characterWebhook.PersonalApiModel})"
-                       : characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI ?
-                         $"Horde KoboldAI ({characterWebhook.PersonalApiModel})"
-                       : characterWebhook.IntegrationType.ToString();
+            string? _characterDesc = character.Description?.Replace("\n\n", "\n");
+            if (string.IsNullOrWhiteSpace(_characterDesc)) _characterDesc = "No description";
 
-            string? info = character.Title;
-            if (string.IsNullOrWhiteSpace(info)) info = "No title";
-            info = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
-                   $"Webhook ID: *`{characterWebhook.Id}`*\n" +
-                   $"API: *`{api}`*\n" +
-                   $"Messages sent: *`{characterWebhook.MessagesSent}`*\n" +
-                   $"Quotes enabled: *`{characterWebhook.ReferencesEnabled}`*\n" +
-                   $"Swipes enabled: *`{characterWebhook.SwipesEnabled}`*\n" +
-                   $"Proceed button enabled: *`{characterWebhook.CrutchEnabled}`*\n" +
-                   $"ResponseDelay: *`{characterWebhook.ResponseDelay}s`*\n" +
-                   $"Reply chance: *`{characterWebhook.ReplyChance}%`*\n" +
-                   $"Hunted users: *`{characterWebhook.HuntedUsers.Count}`*\n\n" +
-                   $"**Tagline**\n*\"{info.Replace("\n\n", "\n")}\"*";
+            string _statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
+                          $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
+                                : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
+                          $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: {character.Stars}"
+                                : characterWebhook.FromChub ?
+                          $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
+                                : "Custom character";
+            string _api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
+                          $"OpenAI ({characterWebhook.PersonalApiModel})"
+                        : characterWebhook.IntegrationType is IntegrationType.KoboldAI ?
+                          $"KoboldAI ({characterWebhook.PersonalApiModel})"
+                        : characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI ?
+                          $"Horde KoboldAI ({characterWebhook.PersonalApiModel})"
+                        : characterWebhook.IntegrationType.ToString();
 
-            if (info.Length > 4096) info = info[0..4090] + "[...]";
-            
-            string? characterDesc = character.Description;
-            if (string.IsNullOrWhiteSpace(characterDesc)) characterDesc = "No description";
+            string details = $"*{_statAndLink}\nCan generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}*";
+            string info = $"Call prefix: *`{characterWebhook.CallPrefix}`*\n" +
+                          $"Webhook ID: *`{characterWebhook.Id}`*\n" +
+                          $"API: *`{_api}`*\n" +
+                          $"Messages sent: *`{characterWebhook.MessagesSent}`*\n" +
+                          $"Quotes enabled: *`{characterWebhook.ReferencesEnabled}`*\n" +
+                          $"Swipes enabled: *`{characterWebhook.SwipesEnabled}`*\n" +
+                          $"Proceed button enabled: *`{characterWebhook.CrutchEnabled}`*\n" +
+                          $"ResponseDelay: *`{characterWebhook.ResponseDelay}s`*\n" +
+                          $"Reply chance: *`{characterWebhook.ReplyChance}%`*\n" +
+                          $"Hunted users: *`{characterWebhook.HuntedUsers.Count}`*";
+            string fullDesc = $"*{_tagline}*\n\n**Description**\n{_characterDesc}";
 
-            characterDesc = (characterDesc.Length > 800 ? characterDesc[0..800] + "[...]" : characterDesc).Replace("\n\n", "\n");
-            characterDesc = $"\n\n{characterDesc}\n\n" +
-                            $"*{statAndLink}\nCan generate images: {(character.ImageGenEnabled is true ? "Yes" : "No")}*";
+            if (fullDesc.Length > 4096)
+                fullDesc = fullDesc[0..4090] + "[...]";
 
             var emb = new EmbedBuilder()
                 .WithColor(Color.Gold)
                 .WithTitle($"{OK_SIGN_DISCORD} **{character.Name}**")
-                .WithDescription(info)
-                .AddField("Description", characterDesc)
+                .WithDescription($"{fullDesc}\n")
+                .AddField("Details", details)
+                .AddField("Settings", info)
                 .WithImageUrl(characterWebhook.Character.AvatarUrl)
                 .WithFooter($"Created by {character.AuthorName}");
 
@@ -169,9 +170,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+            var type = characterWebhook.IntegrationType;
+            if (type is not IntegrationType.OpenAI || type is not IntegrationType.KoboldAI || type is not IntegrationType.HordeKoboldAI)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't show history for CharacterAI integration!".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't show history for {type} integration".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -291,9 +293,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
+                var type = characterWebhook.IntegrationType;
+                if (type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai)
                 {
-                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for CharacterAI integrations".ToInlineEmbed(Color.Red));
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for {type} integrations".ToInlineEmbed(Color.Red));
                     return;
                 }
 
@@ -332,8 +335,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             for (int i = start; i <= end; i++)
             {
                 var cw = characterWebhooks.ElementAt(i);
-                string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ? $"**[character.ai](https://beta.character.ai/chat?char={cw.Character.Id})**" :
-                                         cw.IntegrationType is IntegrationType.OpenAI ? $"`{cw.PersonalApiModel}` **[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})**" : "empty";
+                string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ?
+                                            $"**[CharacterAI](https://beta.character.ai/chat?char={cw.Character.Id})**"
+                                       : cw.IntegrationType is IntegrationType.Aisekai ?
+                                            $"**[Aisekai](https://www.aisekai.ai/chat/{cw.Character.Id})**"
+                                       : cw.IntegrationType is IntegrationType.OpenAI ?
+                                            $"`OpenAI {cw.PersonalApiModel}` **{(cw.FromChub ? $"[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})" : "(custom character)")}**"
+                                       : cw.IntegrationType is IntegrationType.KoboldAI ?
+                                            $"`KoboldAI` **{(cw.FromChub ? $"[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})" : "(custom character)")}**"
+                                       : cw.IntegrationType is IntegrationType.HordeKoboldAI ?
+                                            $"`Horde KoboldAI` **{(cw.FromChub ? $"[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})" : "(custom character)")}**"
+                                       : "not set";
+
                 string val = $"Call prefix: *`{cw.CallPrefix}`*\n" +
                              $"Integration Type: {integrationType}\n" +
                              $"Webhook ID: *`{cw.Id}`*\n" +

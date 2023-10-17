@@ -404,3 +404,4 @@ logs.txt
 storage/database.sqlite3
 storage/database.sqlite3-shm
 storage/database.sqlite3-wal
+.editorconfig

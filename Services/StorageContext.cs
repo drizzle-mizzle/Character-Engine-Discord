@@ -7,14 +7,14 @@ namespace CharacterEngineDiscord.Services
 {
     internal class StorageContext : DbContext
     {
-        internal DbSet<BlockedGuild> BlockedGuilds { get; set; }
-        internal DbSet<BlockedUser> BlockedUsers { get; set; }
-        internal DbSet<Channel> Channels { get; set; }
-        internal DbSet<Character> Characters { get; set; }
-        internal DbSet<CharacterWebhook> CharacterWebhooks { get; set; }
-        internal DbSet<Guild> Guilds { get; set; }
-        internal DbSet<HuntedUser> HuntedUsers { get; set; }
-        internal DbSet<StoredHistoryMessage> StoredHistoryMessages { get; set; }
+        internal DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
+        internal DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
+        internal DbSet<Models.Database.Channel> Channels { get; set; }
+        internal DbSet<Models.Database.Character> Characters { get; set; }
+        internal DbSet<Models.Database.CharacterWebhook> CharacterWebhooks { get; set; }
+        internal DbSet<Models.Database.Guild> Guilds { get; set; }
+        internal DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
+        internal DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
 #pragma warning disable CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
         public StorageContext()
@@ -59,6 +59,21 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
+        protected internal static async Task TryToSaveDbChangesAsync(StorageContext db)
+        {
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException e)
+            {
+                foreach (var entry in e.Entries)
+                    entry.Reload();
+
+                db.SaveChanges();
+            }
+        }
+
         protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
         {
             db ??= new StorageContext();
@@ -68,7 +83,7 @@ namespace CharacterEngineDiscord.Services
             {
                 guild = new() { Id = guildId, MessagesSent = 0 };
                 await db.Guilds.AddAsync(guild);
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingGuildAsync(guildId, db);
             }
 
@@ -84,14 +99,14 @@ namespace CharacterEngineDiscord.Services
             {
                 channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
             }
 
             return channel;
         }
 
-        protected internal static async Task<Character> FindOrStartTrackingCharacterAsync(Character notSavedCharacter, StorageContext? db = null)
+        protected internal static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null)
         {
             db ??= new StorageContext();
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
@@ -99,10 +114,12 @@ namespace CharacterEngineDiscord.Services
             if (character is null)
             {
                 character = (await db.Characters.AddAsync(notSavedCharacter)).Entity;
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
             }
             else
-            {
+            {   // Update dynamic info
+                character.AuthorName = notSavedCharacter.AuthorName;
+                character.Name = notSavedCharacter.Name;
                 character.Stars = notSavedCharacter.Stars;
                 character.Interactions = notSavedCharacter.Interactions;
                 character.Title = notSavedCharacter.Title;

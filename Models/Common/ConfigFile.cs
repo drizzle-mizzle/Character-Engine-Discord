@@ -22,14 +22,8 @@ namespace CharacterEngineDiscord.Models.Common
         public static ConfigField MaxCharactersPerChannel { get; } = new("max_characters_per_channel");
 
         public static ConfigField CaiEnabled { get; } = new("use_character_ai");
-        public static ConfigField DefaultCaiUserAuthToken { get; } = new("character_ai_default_user_auth_token");
-        public static ConfigField DefaultCaiPlusMode { get; } = new("character_ai_default_plus_mode");
         public static ConfigField PuppeteerBrowserDir { get; } = new("puppeteer_browser_directory");
         public static ConfigField PuppeteerBrowserExe { get; } = new("puppeteer_browser_executable_path");
-
-        public static ConfigField DefaultOpenAiApiEndpoint { get; } = new("open_ai_default_api_endpoint");
-        public static ConfigField DefaultOpenAiApiToken { get; } = new("open_ai_default_api_token");
-        public static ConfigField DefaultOpenAiModel { get; } = new("open_ai_default_model");
 
         public static ConfigField DefaultJailbreakPrompt { get; } = new("default_jailbreak_prompt");
         public static ConfigField DefaultMessagesFormat { get; } = new("default_messages_format");

@@ -79,7 +79,7 @@ namespace CharacterEngineDiscord.Handlers
             if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
 
             guild.GuildJailbreakPrompt = newJailbreakPrompt;
-            await db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(db);
 
             await modal.FollowupAsync(embed: SuccessEmbed());
         }
@@ -98,9 +98,10 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            var type = characterWebhook.IntegrationType;
+            if (type is not IntegrationType.OpenAI && type is not IntegrationType.KoboldAI && type is not IntegrationType.HordeKoboldAI)
             {
-                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Available only for OpenAI integrations!".ToInlineEmbed(Color.Orange));
+                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for {type} integrations".ToInlineEmbed(Color.Orange));
                 return;
             }
 
@@ -108,7 +109,7 @@ namespace CharacterEngineDiscord.Handlers
             if (string.IsNullOrWhiteSpace(newJailbreakPrompt)) return;
 
             characterWebhook.PersonalJailbreakPrompt = newJailbreakPrompt;
-            await db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(db);
 
             await modal.FollowupAsync(embed: SuccessEmbed());
         }

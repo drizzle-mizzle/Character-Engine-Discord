@@ -74,7 +74,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             _db.BlockedGuilds.Remove(blockedGuild);
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -99,7 +99,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = 0 });
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -125,7 +125,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             _db.BlockedUsers.Remove(blockedUser);
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -352,7 +352,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await _db.BlockedGuilds.AddAsync(new() { Id = guildId });
             _db.Guilds.Remove(guild); // Remove from db
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Server was removed from the database".ToInlineEmbed(Color.Red));
 

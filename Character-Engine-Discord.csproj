@@ -13,12 +13,14 @@
         <Optimize>True</Optimize>
         <DebugType>embedded</DebugType>
         <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+        <WarningLevel>7</WarningLevel>
     </PropertyGroup>
     
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
       <Optimize>True</Optimize>
       <DebugType>embedded</DebugType>
       <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+      <WarningLevel>7</WarningLevel>
     </PropertyGroup>
     
     <ItemGroup>

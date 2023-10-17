@@ -12,7 +12,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
         public bool IsFailure { get => !IsSuccessful; }
         public string? ErrorReason { get; }
 
-        private string _responseContent = null!;
+        private dynamic? _responseContent = null!;
 
         public OpenAiChatResponse(HttpResponseMessage response)
         {
@@ -23,12 +23,11 @@ namespace CharacterEngineDiscord.Models.OpenAI
                 try
                 {
                     ReadResponseContentAsync(response.Content).Wait();
-                    dynamic contentParsed = _responseContent.ToDynamicJsonString()!;
 
                     // Getting character message
-                    string? characterMessage = contentParsed.choices?.First?["message"]?["content"];
-                    string? characterMessageID = contentParsed.id; // getting stats
-                    int? usage = contentParsed.usage?.total_tokens;
+                    string? characterMessage = _responseContent.choices?.First?["message"]?["content"];
+                    string? characterMessageID = _responseContent.id; // getting stats
+                    int? usage = _responseContent.usage?.total_tokens;
 
                     if (characterMessage is null || characterMessageID is null)
                     {
@@ -58,7 +57,7 @@ namespace CharacterEngineDiscord.Models.OpenAI
 
         private async Task ReadResponseContentAsync(HttpContent content)
         {
-            _responseContent = await content.ReadAsStringAsync();
+            _responseContent = await content.ReadAsJsonAsync();
         }
     }
 }

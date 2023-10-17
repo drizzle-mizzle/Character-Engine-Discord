@@ -1,5 +1,6 @@
 ﻿using CharacterEngineDiscord.Services;
 using Newtonsoft.Json.Linq;
+using System.Runtime.InteropServices;
 
 namespace CharacterEngineDiscord.Models.KoboldAI
 {
@@ -11,7 +12,7 @@ namespace CharacterEngineDiscord.Models.KoboldAI
         public bool IsFailure { get => !IsSuccessful; }
         public string? ErrorReason { get; }
 
-        private string _responseContent = null!;
+        private dynamic? _responseContent = null!;
 
         public KoboldAiResponse(HttpResponseMessage response)
         {
@@ -22,10 +23,9 @@ namespace CharacterEngineDiscord.Models.KoboldAI
                 try
                 {
                     ReadResponseContentAsync(response.Content).Wait();
-                    dynamic contentParsed = _responseContent.ToDynamicJsonString()!;
 
                     // Getting character message
-                    var results = (JArray)contentParsed.results;
+                    var results = (JArray)_responseContent.results;
                     string? characterMessage = (results.First() as dynamic)?.text;
 
                     if (characterMessage is null)
@@ -54,7 +54,7 @@ namespace CharacterEngineDiscord.Models.KoboldAI
 
         private async Task ReadResponseContentAsync(HttpContent content)
         {
-            _responseContent = await content.ReadAsStringAsync();
+            _responseContent = await content.ReadAsJsonAsync();
         }
     }
 }

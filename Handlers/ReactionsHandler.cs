@@ -6,8 +6,10 @@ using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
+using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Services.AisekaiIntegration;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -67,7 +69,7 @@ namespace CharacterEngineDiscord.Handlers
             //if (reaction.Emote?.Name == STOP_BTN.Name)
             //{
             //    characterWebhook.SkipNextBotMessage = true;
-            //    await db.SaveChangesAsync();
+            //    await TryToSaveDbChanges(db);
             //    return;
             //}
 
@@ -86,7 +88,7 @@ namespace CharacterEngineDiscord.Handlers
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
                 characterWebhook.CurrentSwipeIndex--;
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
                 await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
@@ -94,7 +96,7 @@ namespace CharacterEngineDiscord.Handlers
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
                 characterWebhook.CurrentSwipeIndex++;
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
                 await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
             else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
@@ -138,9 +140,11 @@ namespace CharacterEngineDiscord.Handlers
                     msg.AllowedMentions = AllowedMentions.None;
                 });
 
-                CharacterResponse characterResponse;
+                Models.Common.CharacterResponse characterResponse;
                 if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
                     characterResponse = await SwipeCharacterAiMessageAsync(characterWebhook, _integration.CaiClient);
+                else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
+                    characterResponse = await SwipeAisekaiMessageAsync(characterWebhook, _integration.AisekaiClient);
                 else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                     characterResponse = await SwipeOpenAiMessageAsync(characterWebhook, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
                 else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
@@ -226,12 +230,12 @@ namespace CharacterEngineDiscord.Handlers
                 db.StoredHistoryMessages.Add(new() { Role = "assistant", Content = responseText, CharacterWebhookId = characterWebhookId });
             }
 
-            await db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(db);
             //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
             //if (tm is not null) tm.IsTranslated = false;
         }
 
-        private static async Task<CharacterResponse> SwipeKoboldAiMessageAsync(CharacterWebhook characterWebhook, HttpClient httpClient)
+        private static async Task<Models.Common.CharacterResponse> SwipeKoboldAiMessageAsync(CharacterWebhook characterWebhook, HttpClient httpClient)
         {
             var koboldAiParams = BuildKoboldAiRequestPayload(characterWebhook, isSwipe: true);
             var koboldAiResponse = await SendKoboldAiRequestAsync(koboldAiParams, httpClient, continueRequest: false);
@@ -241,8 +245,7 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = koboldAiResponse?.ErrorReason ?? "Something went wrong!",
-                    IsSuccessful = false,
-                    TokensUsed = 0,
+                    IsSuccessful = false
                 };
             }
             else
@@ -250,8 +253,7 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = koboldAiResponse.Message!,
-                    IsSuccessful = true,
-                    TokensUsed = 0
+                    IsSuccessful = true
                 };
             }
         }
@@ -262,7 +264,7 @@ namespace CharacterEngineDiscord.Handlers
         //}
 
         /// <param name="isSwipeOrContinue">true = swipe, false = continue</param>
-        private static async Task<CharacterResponse> SwipeOpenAiMessageAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipeOrContinue)
+        private static async Task<Models.Common.CharacterResponse> SwipeOpenAiMessageAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipeOrContinue)
         {
             var openAiParams = BuildChatOpenAiRequestPayload(characterWebhook, isSwipe: isSwipeOrContinue, isContinue: !isSwipeOrContinue);
             var openAiResponse = await SendOpenAiRequestAsync(openAiParams, client);
@@ -288,21 +290,11 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<CharacterResponse> SwipeCharacterAiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCharacterAiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
         {
-            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-            
-            if (string.IsNullOrWhiteSpace(caiToken))
-            {
-                return new()
-                {
-                    Text = $"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!",
-                    TokensUsed = 0,
-                    IsSuccessful = false
-                };
-            }
+            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken!;
+            var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
             var caiResponse = await client!.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
             if (!caiResponse.IsSuccessful)
@@ -310,7 +302,6 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = caiResponse.ErrorReason!.Replace(WARN_SIGN_UNICODE, WARN_SIGN_DISCORD),
-                    TokensUsed = 0,
                     IsSuccessful = false
                 };
             }
@@ -319,13 +310,44 @@ namespace CharacterEngineDiscord.Handlers
                 return new()
                 {
                     Text = caiResponse.Response!.Text,
-                    TokensUsed = 0,
                     IsSuccessful = true,
                     CharacterMessageId = caiResponse.Response.UuId,
                     UserMessageId = caiResponse.LastUserMsgUuId,
                     ImageRelPath = caiResponse.Response.ImageRelPath,
                 };
             }
+        }
+
+        private async Task<CharacterResponse> SwipeAisekaiMessageAsync(CharacterWebhook characterWebhook, AisekaiClient aisekaiClient, string? authToken = null)
+        {
+            authToken ??= characterWebhook.Channel.Guild.GuildAisekaiAuthToken!;
+            var response = await aisekaiClient.SwipeChatMessageAsync(authToken, characterWebhook.ActiveHistoryID!, characterWebhook.LastCharacterMsgId!);
+
+            string message;
+            
+            if (response.IsSuccessful)
+            {
+                message = response.Content!;
+            }
+            else if (response.Code == 401)
+            {
+                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                if (newToken is null)
+                    message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
+                else
+                    return await SwipeAisekaiMessageAsync(characterWebhook, aisekaiClient, newToken);
+            }
+            else
+            {
+                message = $"Failed to fetch character response: `{response.ErrorReason}`";
+            }
+
+            return new()
+            {
+                Text = message,
+                CharacterMessageId = characterWebhook.LastCharacterMsgId,
+                IsSuccessful = true
+            };
         }
 
         private async Task HandleReactionException(Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)

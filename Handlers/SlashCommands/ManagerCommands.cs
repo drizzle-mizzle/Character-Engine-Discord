@@ -7,11 +7,12 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using System.Security.Permissions;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -56,7 +57,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, _db);
             string before = channel.RandomReplyChance.ToString();
             channel.RandomReplyChance = chance;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Random reply chance for this channel was changed from {before}% to {chance}%"));
         }
@@ -104,7 +105,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             guild.GuildMessagesFormat = newFormat;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             string text = newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
 
@@ -135,7 +136,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
             guild.GuildMessagesFormat = null;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -158,12 +159,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
             guild.GuildJailbreakPrompt = null;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
 
-        [SlashCommand("set-server-cai-user-token", "Set default CharacterAI auth token for this server")]
+        [SlashCommand("set-server-cai-token", "Set default CharacterAI auth token for this server")]
         public async Task SetGuildCaiToken(string token, bool hasCaiPlusSubscription)
         {
             await DeferAsync(ephemeral: true);
@@ -172,23 +173,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             guild.GuildCaiUserToken = token;
             guild.GuildCaiPlusMode = hasCaiPlusSubscription;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("drop-server-cai-user-token", "Drop default CharacterAI auth token for this server")]
-        public async Task DropGuildCaiToken()
+        [SlashCommand("set-server-aisekai-auth", "Set default Aisekai account for this server")]
+        public async Task SetGuildAisekaiAuth(string email, string password)
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: true);
 
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
+            var response = await _integration.AisekaiClient.AuthorizeUserAsync(email, password);
 
-            guild.GuildCaiUserToken = null;
-            guild.GuildCaiPlusMode = null;
-            await _db.SaveChangesAsync();
+            if (response.IsSuccessful)
+            {
+                var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
-            await FollowupAsync(embed: SuccessEmbed());
+                guild.GuildAisekaiAuthToken = response.ExpToken;
+                guild.GuildAisekaiRefreshToken = response.RefreshToken;
+                await TryToSaveDbChangesAsync(_db);
+
+                await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
+            }
+            else
+            {
+                await FollowupAsync(embed: $"Failed to sign in to the Aisekai account: `{response.Message}`".ToInlineEmbed(Color.Red), ephemeral: true);
+            }
         }
 
         [SlashCommand("set-server-openai-api", "Set default OpenAI API for this server")]
@@ -203,25 +213,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             guild.GuildOpenAiApiToken = token;
             guild.GuildOpenAiModel = gptModel is OpenAiModel.GPT_3_5_turbo ? "gpt-3.5-turbo" : gptModel is OpenAiModel.GPT_4 ? "gpt-4" : null;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
-        }
-
-        [SlashCommand("drop-server-openai-api", "Drop default OpenAI API for this server")]
-        public async Task DropGuildOpenAiToken()
-        {
-            await DeferAsync();
-
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-
-            guild.GuildOpenAiApiEndpoint = null;
-            guild.GuildOpenAiApiToken = null;
-            guild.GuildOpenAiModel = null;
-
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed());
         }
 
         [SlashCommand("set-server-koboldai-api", "Set default KoboldAI API for this server")]
@@ -232,24 +226,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
             guild.GuildKoboldAiApiEndpoint = apiEndpoint;
-            
-            await _db.SaveChangesAsync();
+
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
-        [SlashCommand("drop-server-koboldai-api", "Drop default KoboldAI API for this server")]
-        public async Task DropGuildKoboldAiApi()
+        [SlashCommand("set-server-horde-koboldai-api", "Set default Horde KoboldAI API for this server")]
+        public async Task SetGuildHordeKoboldAiApi(string token, string model)
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: true);
 
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
 
-            guild.GuildKoboldAiApiEndpoint = null;
+            guild.GuildHordeApiToken = token;
+            guild.GuildHordeModel = model;
 
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
-            await FollowupAsync(embed: SuccessEmbed());
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
         [SlashCommand("get-horde-koboldai-workers", "Get the list of available Horde KoboldAI workers")]
@@ -263,19 +258,18 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             Embed embed;
             if (response.IsSuccessStatusCode)
             {
-                var content = await response.Content.ReadAsStringAsync();
-                dynamic? dynamicContent = content.ToDynamicJsonString();
+                var content = await response.Content.ReadAsJsonAsync();
                 int count = 1;
-                if (dynamicContent is not null)
+                if (content is not null)
                 {
                     var eb = new EmbedBuilder().WithDescription("");
-                    foreach (dynamic worker in (JArray)dynamicContent)
+                    foreach (dynamic worker in (JArray)content)
                     {
-                        string line = $"**{count++}. {worker.name} | `{((JArray)worker.models).FirstOrDefault()}`**" +
+                        string line = $"**{count++}. `{((JArray)worker.models).FirstOrDefault()}` by {worker.name}**" +
                                       $"Capabilities: {worker.max_length}/{worker.max_context_length} ({((string)worker.performance).Replace("tokens per second", "T/s")})\n" +
                                       $"Uptime: {worker.uptime}\n";
-                        if (eb.Description.Length + line.Length <= 4096)
-                            eb.Description += line;
+                        if (eb.Description.Length + line.Length > 4096) break;
+                        eb.Description += line;
                     }
                     embed = eb.WithColor(Color.Green).WithTitle("Found workers:").Build();
                 }
@@ -290,21 +284,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await FollowupAsync(embed: embed);
-        }
-
-        [SlashCommand("set-server-horde-koboldai-api", "Set default Horde KoboldAI API for this server")]
-        public async Task SetGuildHordeKoboldAiApi(string token, string model)
-        {
-            await DeferAsync(ephemeral: true);
-
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-
-            guild.GuildHordeApiToken = token;
-            guild.GuildHordeModel = model;
-
-            await _db.SaveChangesAsync();
-
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: true);
         }
 
         [SlashCommand("say", "Make character say something")]
@@ -367,7 +346,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = hours, GuildId = guild.Id });
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -409,7 +388,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             _db.BlockedUsers.Remove(blockedUser);
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -440,16 +419,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             try
             {
                 var discordWebhook = await textChannel.GetWebhookAsync(characterWebhook.Id);
-                await discordWebhook.DeleteAsync();
+                if (discordWebhook is not null)
+                    await discordWebhook.DeleteAsync();
             }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to delete webhook: `{e.Message}`".ToInlineEmbed(Color.Red));
-                return;
             }
 
             _db.CharacterWebhooks.Remove(characterWebhook);
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -488,17 +467,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 await discordWebhook.DeleteAsync();
             });
 
-            try
-            {
-                await _db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException e)
-            {
-                foreach (var entry in e.Entries)
-                    entry.Reload();
-
-                _db.SaveChanges();
-            }
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"All characters {(all ? "on this server" : "in the current channel")} were removed successfully"));
         }
@@ -506,12 +475,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         private async Task ResetCharacterAsync(string webhookIdOrPrefix)
         {
             await DeferAsync();
-
-            if (_integration.CaiClient is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red));
-                return;
-            }
 
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
 
@@ -521,35 +484,105 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-            {
-                var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
-                var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-                var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
-                characterWebhook.ActiveHistoryID = newHisoryId;
-            }
-            else
+            bool result = false;
+            var type = characterWebhook.IntegrationType;
+
+            if (type is IntegrationType.CharacterAI)
+                result = await ResetCaiCharacterAsync(characterWebhook);
+            else if (type is IntegrationType.Aisekai)
+                result = await ResetAisekaiCharacterAsync(characterWebhook, characterWebhook.Channel.Guild.GuildAisekaiAuthToken);
+            else if (type is IntegrationType.OpenAI || type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
             {
                 characterWebhook.StoredHistoryMessages.Clear();
                 var firstGreetingMessage = new StoredHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
                 await _db.StoredHistoryMessages.AddAsync(firstGreetingMessage);
+                await TryToSaveDbChangesAsync(_db);
+                result = true;
+            }
+            else
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} No API backend is set for this character".ToInlineEmbed(Color.Orange));
             }
 
-            await _db.SaveChangesAsync();
-            await FollowupAsync(embed: SuccessEmbed());
-
+            if (result is false) return;
+           
             var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character greeting message".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Channel webhook not found".ToInlineEmbed(Color.Red));
                 return;
             }
 
             string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
             if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
 
-            await webhookClient.SendMessageAsync(characterMessage);
+            try
+            {
+                await webhookClient.SendMessageAsync(characterMessage);
+            }
+            catch (Exception e)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character greeting message: `{e.Message}`".ToInlineEmbed(Color.Red));
+            }
         }
+
+        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook characterWebhook)
+        {
+            if (_integration.CaiClient is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is not available in the current moment".ToInlineEmbed(Color.Orange));
+                return false;
+            }
+
+            string? caiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildCaiUserToken;
+            bool plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
+
+            var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
+            if (newHisoryId is null)
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character".ToInlineEmbed(Color.Red));
+                return false;
+            }
+            else
+            {
+                characterWebhook.ActiveHistoryID = newHisoryId;
+
+                await FollowupAsync(embed: SuccessEmbed());
+                return true;
+            }
+        }
+
+        private async Task<bool> ResetAisekaiCharacterAsync(CharacterWebhook characterWebhook, string? authToken)
+        {
+            var guild = characterWebhook.Channel.Guild;
+            
+            var response = await _integration.AisekaiClient.ResetChatHistoryAsync(authToken ?? "", characterWebhook.ActiveHistoryID ?? "");
+            if (response.IsSuccessful)
+            {
+                await FollowupAsync(embed: SuccessEmbed());
+                characterWebhook.Character.Greeting = response.Greeting!;
+
+                return true;
+            }
+            else if (response.Code == 401)
+            {
+                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? "");
+                if (newToken is null)
+                {
+                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`").ToInlineEmbed(Color.Red));
+                    return false;
+                }
+
+                return await ResetAisekaiCharacterAsync(characterWebhook, newToken);
+            }
+            else
+            {
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
+                return false;
+            }
+        }
+
+
 
         private async Task CopyCharacterAsync(IChannel channel, string webhookIdOrPrefix)
         {
@@ -614,10 +647,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     ActiveHistoryID = null
                 });
 
-                if (characterWebhook.IntegrationType is not IntegrationType.CharacterAI)
+                var type = characterWebhook.IntegrationType;
+                if (type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai)
                     _db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
-                await _db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(_db);
 
                 var webhookClient = new DiscordWebhookClient(channelWebhook.Id, channelWebhook.Token);
                 _integration.WebhookClients.TryAdd(channelWebhook.Id, webhookClient);
@@ -687,7 +721,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await _db.HuntedUsers.AddAsync(new() { UserId = (ulong)userToHuntId, Chance = chanceOfResponse, CharacterWebhookId = characterWebhook.Id });
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             username ??= user?.Mention;
             await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** hunting **{username}**".ToInlineEmbed(Color.LighterGrey, false));
@@ -745,11 +779,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.HuntedUsers.Remove(huntedUser);
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             username ??= user?.Mention;
             await FollowupAsync(embed: $":ghost: **{characterWebhook.Character.Name}** is not hunting **{username}** anymore".ToInlineEmbed(Color.LighterGrey, false));
         }
-
     }
 }

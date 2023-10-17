@@ -75,6 +75,20 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
+        public static async Task<dynamic?> ReadAsJsonAsync(this HttpContent httpContent)
+        {
+            try
+            {
+                var content = await httpContent.ReadAsStringAsync();
+                return content.IsEmpty() ? null : JsonConvert.DeserializeObject<dynamic>(content);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e });
+                return null;
+            }
+        }
+
         public static string RemovePrefix(this string str, string prefix)
         {
             var result = str.Trim();

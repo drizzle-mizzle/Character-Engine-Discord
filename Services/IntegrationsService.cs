@@ -16,6 +16,9 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
 using CharacterEngineDiscord.Models.KoboldAI;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using CharacterEngineDiscord.Services.AisekaiIntegration;
+using System.Runtime.InteropServices;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -26,10 +29,11 @@ namespace CharacterEngineDiscord.Services
         /// </summary>
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
         internal ulong MessagesSent { get; set; } = 0;
+        internal List<SearchQuery> SearchQueries { get; } = new();
 
         internal HttpClient ImagesHttpClient { get; } = new();
         internal HttpClient CommonHttpClient { get; } = new();
-        internal List<SearchQuery> SearchQueries { get; } = new();
+        internal AisekaiClient AisekaiClient { get; } = new();
         internal CharacterAIClient? CaiClient { get; set; }
 
         /// <summary>
@@ -48,6 +52,7 @@ namespace CharacterEngineDiscord.Services
         public enum IntegrationType
         {
             CharacterAI,
+            Aisekai,
             OpenAI,
             KoboldAI,
             HordeKoboldAI,
@@ -71,8 +76,6 @@ namespace CharacterEngineDiscord.Services
             if (ConfigFile.CaiEnabled.Value.ToBool())
             {
                 CaiClient = new(
-                    userToken: ConfigFile.DefaultCaiUserAuthToken.Value ?? "",
-                    caiPlusMode: ConfigFile.DefaultCaiPlusMode.Value.ToBool(),
                     customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
                     customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
                 );
@@ -262,8 +265,8 @@ namespace CharacterEngineDiscord.Services
             // Build request payload
             var openAiParams = new OpenAiChatRequestParams()
             {
-                ApiEndpoint = characterWebhook.PersonalApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? ConfigFile.DefaultOpenAiApiEndpoint.Value!,
-                ApiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? ConfigFile.DefaultOpenAiApiToken.Value!,
+                ApiEndpoint = characterWebhook.PersonalApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint ?? "https://api.openai.com/v1/chat/completions",
+                ApiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? "",
                 Temperature = characterWebhook.GenerationTemperature ?? 1.05f,
                 FreqPenalty = characterWebhook.GenerationFreqPenaltyOrRepetitionSlope ?? 0.9f,
                 PresencePenalty = characterWebhook.GenerationPresenceOrRepetitionPenalty ?? 0.9f,
@@ -382,7 +385,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Character unsavedCharacter, IntegrationsService integration, bool fromChub)
+        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration, bool fromChub)
         {
             if (context.Channel is not IIntegrationChannel discordChannel) return null;
 
@@ -390,12 +393,12 @@ namespace CharacterEngineDiscord.Services
             int l = Math.Min(2, unsavedCharacter.Name.Length-1);
             string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch"
 
-            // replacing with Russian 'о' and 'с', as name "discord" is not allowed for webhooks
-            string name = unsavedCharacter.Name.ToLower().Contains("discord") ? unsavedCharacter.Name.Replace('o', 'о').Replace('c', 'с') : unsavedCharacter.Name;
+            var db = new StorageContext();
 
             IWebhook? channelWebhook;
             try
-            {
+            {   // replacing with Russian 'о' and 'с', as name "discord" is not allowed for webhooks
+                string name = unsavedCharacter.Name.ToLower().Contains("discord") ? unsavedCharacter.Name.Replace('o', 'о').Replace('c', 'с') : unsavedCharacter.Name;
                 channelWebhook = await discordChannel.CreateWebhookAsync(name);
             }
             catch (Exception e)
@@ -404,25 +407,38 @@ namespace CharacterEngineDiscord.Services
                 return null;
             }
 
-            var db = new StorageContext();
             try
             {
                 var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
 
-                string? caiHistoryId = null;
+                string? historyId = null;
 
                 if (type is IntegrationType.CharacterAI)
                 {
-                    if (integration.CaiClient is null) return null;
+                    if (integration.CaiClient is null) throw new();
 
-                    var caiToken = channel.Guild.GuildCaiUserToken ?? ConfigFile.DefaultCaiUserAuthToken.Value;
-                    if (string.IsNullOrWhiteSpace(caiToken)) return null;
+                    var caiToken = channel.Guild.GuildCaiUserToken;
+                    if (string.IsNullOrWhiteSpace(caiToken)) throw new();
 
-                    var plusMode = channel.Guild.GuildCaiPlusMode ?? ConfigFile.DefaultCaiPlusMode.Value.ToBool();
+                    var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-                    caiHistoryId = await integration.CaiClient.CreateNewChatAsync(unsavedCharacter.Id, customAuthToken: caiToken, customPlusMode: plusMode);
-                    if (caiHistoryId is null) return null;
+                    historyId = await integration.CaiClient.CreateNewChatAsync(unsavedCharacter.Id, customAuthToken: caiToken, customPlusMode: plusMode);
+                    if (historyId is null) throw new();
+                }
+                else if (type is IntegrationType.Aisekai)
+                {
+                    var authToken = channel.Guild.GuildAisekaiAuthToken;
+                    if (string.IsNullOrWhiteSpace(authToken)) throw new();
+
+                    var response = await integration.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
+                    if (!response.IsSuccessful) throw new();
+
+                    historyId = response.ChatId!;
+                    character.Greeting = response.GreetingMessage!;
+
+                    bool tim = await integration.AisekaiClient.PatchToggleInitMessageAsync(authToken, historyId, false);
+                    if (!tim) throw new();
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
@@ -445,22 +461,23 @@ namespace CharacterEngineDiscord.Services
                     ResponseDelay = 1,
                     IntegrationType = type,
                     ReplyChance = 0,
-                    ActiveHistoryID = caiHistoryId,
+                    ActiveHistoryID = historyId,
                     CharacterId = character.Id,
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,
                     MessagesSent = 1
                 })).Entity;
 
-                await db.SaveChangesAsync();
+                await TryToSaveDbChangesAsync(db);
                 return characterWebhook;
             }
             catch (Exception e)
             {
                 LogException(new[] { e });
-                TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
+                TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn a character", e.ToString(), Color.Red, true);
 
-                await channelWebhook.DeleteAsync();
+                if (channelWebhook is not null)
+                    await channelWebhook.DeleteAsync();
 
                 return null;
             }
@@ -468,7 +485,7 @@ namespace CharacterEngineDiscord.Services
 
         internal static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
         {
-            var characters = new List<Character>();
+            var characters = new List<Models.Database.Character>();
 
             foreach(var c in response.Characters)
             {
@@ -479,9 +496,22 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
+        internal static SearchQueryData SearchQueryDataFromAisekaiResponse(AisekaiIntegration.Models.SearchResponse response)
+        {
+            var characters = new List<Models.Database.Character>();
+
+            foreach (var c in response.Characters)
+            {
+                var cc = CharacterFromAisekaiCharacterInfo(c);
+                if (cc is not null) characters.Add(cc);
+            }
+
+            return new(characters.ToList(), response.OriginalQuery, IntegrationType.Aisekai) { ErrorReason = response.ErrorReason };
+        }
+
         internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse response)
         {
-            var characters = new List<Character>();
+            var characters = new List<Models.Database.Character>();
 
             foreach (var c in response.Characters)
             {
@@ -492,7 +522,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, type) { ErrorReason = response.ErrorReason };
         }
 
-        internal static Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
+        internal static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
         {
             if (caiCharacter.IsEmpty) return null;
 
@@ -513,7 +543,24 @@ namespace CharacterEngineDiscord.Services
             };
         }
 
-        internal static Character? CharacterFromChubCharacterInfo(ChubCharacter? chubCharacter)
+        internal static Models.Database.Character? CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
+        {
+            return new()
+            {
+                Id = aisekaiCharacter.Id,
+                Name = aisekaiCharacter.Name,
+                Title = $"Tags: {(aisekaiCharacter.Tags is null ? "none" : string.Join(", ", aisekaiCharacter.Tags))}\nNSFW: {aisekaiCharacter.NSFW}",
+                Greeting = string.Empty,
+                Description = aisekaiCharacter.Description,
+                AuthorName = aisekaiCharacter.Author,
+                AvatarUrl = aisekaiCharacter.AvatarUrl,
+                ImageGenEnabled = false,
+                Interactions = aisekaiCharacter.ChatCount,
+                Stars = aisekaiCharacter.LikeCount
+            };
+        }
+
+        internal static Models.Database.Character? CharacterFromChubCharacterInfo(ChubCharacter? chubCharacter)
         {
             if (chubCharacter is null) return null;
 
@@ -597,7 +644,7 @@ namespace CharacterEngineDiscord.Services
             }
 
             await db.BlockedUsers.AddAsync(new() { Id = user.Id, From = DateTime.UtcNow, Hours = 24 });
-            await db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(db);
 
             _watchDog.Remove(user.Id);
 
@@ -614,14 +661,25 @@ namespace CharacterEngineDiscord.Services
             return true;
         }
 
+        internal async Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken)
+        {
+            var newToken = await AisekaiClient.RefreshUserTokenAsync(refreshToken);
+
+            if (newToken is not null)
+            {
+                var db = new StorageContext();
+                var guild = await FindOrStartTrackingGuildAsync(guildId, db);
+                guild.GuildAisekaiAuthToken = newToken;
+                await TryToSaveDbChangesAsync(db);
+            }
+
+            return newToken;
+        }
+
         public void WatchDogClear()
         {
             _watchDog.Clear();
         }
-
-        // Shortcuts
-        internal static Embed FailedToSetCharacterEmbed()
-        => $"{WARN_SIGN_DISCORD} Failed to set a character".ToInlineEmbed(Color.Red);
 
         internal static Embed SuccessEmbed(string message = "Success", string? imageUrl = null)
             => $"{OK_SIGN_DISCORD} {message}".ToInlineEmbed(Color.Green, imageUrl: imageUrl);

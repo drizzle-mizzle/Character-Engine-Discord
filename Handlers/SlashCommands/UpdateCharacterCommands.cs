@@ -4,6 +4,7 @@ using Discord.Interactions;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
+using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 
@@ -38,7 +39,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.CallPrefix = newCallPrefix;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed());
         }
@@ -81,7 +82,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
 
             characterWebhook.Character.AvatarUrl = avatarUrl;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"{characterWebhook.Character.Name} avatar updated", imageUrl: avatarUrl));
         }
@@ -108,44 +109,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.Character.Name;
             characterWebhook.Character.Name = name;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Character name was changed from {before} to {name}"));
-        }
-
-        [SlashCommand("set-api", "Change API backend")]
-        public async Task SetApiBackend(string webhookIdOrPrefix, ApiTypeForChub apiType, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
-        {
-            await DeferAsync(ephemeral: true);
-
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
-
-            if (characterWebhook is null)
-            {
-                await FollowupAsync(ephemeral: true, embed: CHARACTER_NOT_FOUND_MESSAGE);
-                return;
-            }
-
-            if (apiType is ApiTypeForChub.OpenAI)
-            {
-                var model = openAiModel is OpenAiModel.GPT_3_5_turbo ? "gpt-3.5-turbo" : openAiModel is OpenAiModel.GPT_4 ? "gpt-4" : null;
-                if (model is null)
-                {
-                    await FollowupAsync(ephemeral: true, embed: $"{WARN_SIGN_DISCORD} Specify an OpenAI model".ToInlineEmbed(Color.Red));
-                    return;
-                }
-
-                characterWebhook.IntegrationType = IntegrationType.OpenAI;
-                characterWebhook.PersonalApiModel = model;
-
-                if (personalApiToken is not null) // don't overwrite in case it was set before
-                    characterWebhook.PersonalApiToken = personalApiToken;
-                if (personalApiEndpoint is not null)
-                    characterWebhook.PersonalApiEndpoint = personalApiEndpoint;
-            }
-
-            await _db.SaveChangesAsync();
-            await FollowupAsync(ephemeral: true, embed: SuccessEmbed());
         }
 
         [SlashCommand("set-delay", "Change response delay")]
@@ -163,7 +129,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.ResponseDelay.ToString();
             characterWebhook.ResponseDelay = seconds;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Response delay was changed from {before}s to {seconds}s"));
         }
@@ -182,7 +148,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.ReferencesEnabled = enable;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Quotes {(enable ? "enabled" : "disabled")}"));
         }
@@ -201,7 +167,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.SwipesEnabled = enable;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Swipes {(enable ? "enabled" : "disabled")}"));
         }
@@ -226,7 +192,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.CrutchEnabled = enable;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Crutch {(enable ? "enabled" : "disabled")}"));
         }
@@ -246,7 +212,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.ReplyChance.ToString();
             characterWebhook.ReplyChance = chance;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: SuccessEmbed($"Random reply chance for {characterWebhook.Character.Name} was changed from {before} to {chance}"));
         }
@@ -275,13 +241,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 message += $".\nEntered history ID has length that is different from expected ({newHistoryId.Length}/43). Make sure it's correct.";
 
             characterWebhook.ActiveHistoryID = newHistoryId;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
         }
 
         [SlashCommand("open-ai-settings", "Change OpenAI integration settings")]
-        public async Task SetOpenAiSettings(string webhookIdOrPrefix,  int? maxTokens = null, float? temperature = null, float? frequencyPenalty = null, float? presencePenalty = null)
+        public async Task SetOpenAiSettings(string webhookIdOrPrefix, int? maxTokens = null, float? temperature = null, float? frequencyPenalty = null, float? presencePenalty = null, OpenAiModel? openAiModel = null, string? personalApiToken = null, string? personalApiEndpoint = null)
         {
             await DeferAsync();
 
@@ -293,9 +259,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI)
+            if (characterWebhook.IntegrationType is not IntegrationType.OpenAI && characterWebhook.IntegrationType is not IntegrationType.Empty)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not OpenAI intergration".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not OpenAI intergration or Custom character".ToInlineEmbed(Color.Red));
                 return;
             }
 
@@ -347,11 +313,33 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else if (presencePenalty is not null)
             {
-                embed.Description += $"- Presence penalty value was changed from {characterWebhook.GenerationPresenceOrRepetitionPenalty ?? 0.9} to {presencePenalty}";
+                embed.Description += $"- Presence penalty value was changed from {characterWebhook.GenerationPresenceOrRepetitionPenalty ?? 0.9} to {presencePenalty}\n";
                 characterWebhook.GenerationPresenceOrRepetitionPenalty = presencePenalty;
             }
 
-            await _db.SaveChangesAsync();
+            // Model
+            if (openAiModel is not null)
+            {
+                var model = openAiModel is OpenAiModel.GPT_3_5_turbo ? "gpt-3.5-turbo" : openAiModel is OpenAiModel.GPT_4 ? "gpt-4" : null;
+                embed.Description += $"- Model was changed from {characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildOpenAiModel ?? "`not set`"} to {model}\n";
+                characterWebhook.PersonalApiModel = model;
+            }
+
+            // Token
+            if (personalApiToken is not null)
+            {
+                embed.Description += $"- Api token was changed from {characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildOpenAiApiToken ?? "`not set`"} to {personalApiToken}\n";
+                characterWebhook.PersonalApiToken = personalApiToken;
+            }
+
+            // Endpoint
+            if (personalApiEndpoint is not null)
+            {
+                embed.Description += $"- Api endpoint was changed from {characterWebhook.PersonalApiEndpoint ?? characterWebhook.Channel.Guild.GuildOpenAiApiEndpoint?? "`not set`"} to {personalApiEndpoint}\n";
+                characterWebhook.PersonalApiEndpoint = personalApiEndpoint;
+            }
+
+            await TryToSaveDbChangesAsync(_db);
 
             await FollowupAsync(embed: embed.Build());
         }
@@ -390,7 +378,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.PersonalMessagesFormat = newFormat;
-            await _db.SaveChangesAsync();
+            await TryToSaveDbChangesAsync(_db);
 
             string text = newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
 

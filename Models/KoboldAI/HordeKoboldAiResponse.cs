@@ -12,7 +12,7 @@ namespace CharacterEngineDiscord.Models.KoboldAI
         public bool IsFailure { get => !IsSuccessful; }
         public string? ErrorReason { get; }
 
-        private string _responseContent = null!;
+        private dynamic? _responseContent = null!;
 
         public HordeKoboldAiResponse(HttpResponseMessage response)
         {
@@ -23,9 +23,8 @@ namespace CharacterEngineDiscord.Models.KoboldAI
                 try
                 {
                     ReadResponseContentAsync(response.Content).Wait();
-                    dynamic contentParsed = _responseContent.ToDynamicJsonString()!;
 
-                    string? messageId = contentParsed.id;                    
+                    string? messageId = _responseContent.id;                    
 
                     if (messageId is null)
                     {
@@ -53,7 +52,7 @@ namespace CharacterEngineDiscord.Models.KoboldAI
 
         private async Task ReadResponseContentAsync(HttpContent content)
         {
-            _responseContent = await content.ReadAsStringAsync();
+            _responseContent = await content.ReadAsJsonAsync();
         }
     }
 }
