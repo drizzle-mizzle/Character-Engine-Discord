@@ -215,7 +215,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration, type is not IntegrationType.CharacterAI);
+            var fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
+            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration, fromChub);
 
             if (characterWebhook is null)
             {

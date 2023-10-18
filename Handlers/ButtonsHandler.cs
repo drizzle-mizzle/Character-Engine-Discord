@@ -100,6 +100,7 @@ namespace CharacterEngineDiscord.Handlers
                     if (character is null) return;
 
                     var context = new InteractionContext(_client, component, component.Channel);
+                    bool fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
 
                     var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
                     if (characterWebhook is null) return;
