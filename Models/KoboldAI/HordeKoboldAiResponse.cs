@@ -6,7 +6,7 @@ namespace CharacterEngineDiscord.Models.KoboldAI
 {
     public class HordeKoboldAiResponse : IKoboldAiResponse
     {
-        public string? MessageId { get; }
+        public string? Id { get; }
         public int Code { get; }
         public bool IsSuccessful { get; }
         public bool IsFailure { get => !IsSuccessful; }
@@ -24,16 +24,16 @@ namespace CharacterEngineDiscord.Models.KoboldAI
                 {
                     ReadResponseContentAsync(response.Content).Wait();
 
-                    string? messageId = _responseContent.id;                    
+                    string? id = _responseContent.id;                    
 
-                    if (messageId is null)
+                    if (id is null)
                     {
                         IsSuccessful = false;
                         ErrorReason = $"Something went wrong.";
                         return;
                     }
 
-                    MessageId = messageId;
+                    Id = id;
 
                     IsSuccessful = true;
                 }

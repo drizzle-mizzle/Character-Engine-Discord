@@ -30,6 +30,7 @@ namespace CharacterEngineDiscord.Handlers
                 Task.Run(async () =>
                 {
                     try { await HandleReactionAsync(msg, channel, reaction); }
+                    catch (NullReferenceException e) { LogException(new[] { e }); }
                     catch (Exception e) { await HandleReactionException(channel, reaction, e); }
                 });
                 return Task.CompletedTask;
@@ -40,27 +41,26 @@ namespace CharacterEngineDiscord.Handlers
                 Task.Run(async () =>
                 {
                     try { await HandleReactionAsync(msg, channel, reaction); }
+                    catch (NullReferenceException e) { LogException(new[] { e }); }
                     catch (Exception e) { await HandleReactionException(channel, reaction, e); }
                 });
                 return Task.CompletedTask;
             };
         }
 
-        private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong>? rawMessage, Cacheable<IMessageChannel, ulong>? discordChannel, SocketReaction? reaction)
+        private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
-            if (rawMessage is null || discordChannel is null || reaction is null) return;
-
             var user = reaction.User.GetValueOrDefault(null);
             if (user is null || user is not SocketGuildUser userReacted || userReacted.IsBot) return;
 
             IUserMessage originalMessage;
-            try { originalMessage = await ((Cacheable<IUserMessage, ulong>)rawMessage).DownloadAsync(); }
+            try { originalMessage = await rawMessage.DownloadAsync(); }
             catch { return; }
-
+            if (originalMessage is null) return;
             if (!originalMessage.Author.IsWebhook) return;
 
             var db = new StorageContext();
-            var channel = await db.Channels.FindAsync(((Cacheable<IMessageChannel, ulong>)discordChannel).Id);
+            var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
@@ -142,15 +142,15 @@ namespace CharacterEngineDiscord.Handlers
 
                 Models.Common.CharacterResponse characterResponse;
                 if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                    characterResponse = await SwipeCharacterAiMessageAsync(characterWebhook, _integration.CaiClient);
+                    characterResponse = await SwipeCharacterAiMessageAsync(characterWebhook, _integration.CaiClient!);
                 else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
                     characterResponse = await SwipeAisekaiMessageAsync(characterWebhook, _integration.AisekaiClient);
                 else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
                     characterResponse = await SwipeOpenAiMessageAsync(characterWebhook, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
                 else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
                     characterResponse = await SwipeKoboldAiMessageAsync(characterWebhook, _integration.CommonHttpClient);
-                else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
-                    return; //characterResponse = await SwipeHordeKoboldAiMessageAsync(characterWebhook, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
+                else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
+                    characterResponse = await SwipeHordeKoboldAiMessageAsync(characterWebhook, _integration.CommonHttpClient);
                 else return;
 
                 if (!characterResponse.IsSuccessful)
@@ -235,10 +235,10 @@ namespace CharacterEngineDiscord.Handlers
             //if (tm is not null) tm.IsTranslated = false;
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeKoboldAiMessageAsync(CharacterWebhook characterWebhook, HttpClient httpClient)
+        private static async Task<Models.Common.CharacterResponse> SwipeKoboldAiMessageAsync(CharacterWebhook cw, HttpClient httpClient)
         {
-            var koboldAiParams = BuildKoboldAiRequestPayload(characterWebhook, isSwipe: true);
-            var koboldAiResponse = await SendKoboldAiRequestAsync(koboldAiParams, httpClient, continueRequest: false);
+            var koboldAiParams = BuildKoboldAiRequestPayload(cw, isSwipe: true);
+            var koboldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiParams, httpClient, continueRequest: false);
 
             if (koboldAiResponse is null || koboldAiResponse.IsFailure)
             {
@@ -258,10 +258,43 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        //private Task<CharacterResponse> SwipeHordeKoboldAiMessageAsync(CharacterWebhook characterWebhook, HttpClient httpClient, bool isSwipeOrContinue)
-        //{
+        private async Task<CharacterResponse> SwipeHordeKoboldAiMessageAsync(CharacterWebhook cw, HttpClient httpClient)
+        {
+            var hordeKoboldAiParams = BuildHordeKoboldAiRequestPayload(cw, isSwipe: true);
+            var hordeKoboldAiResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeKoboldAiParams, httpClient, continueRequest: false);
 
-        //}
+            if (hordeKoboldAiResponse is null || hordeKoboldAiResponse.IsFailure || hordeKoboldAiResponse.Id.IsEmpty())
+            {
+                return new()
+                {
+                    Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{hordeKoboldAiResponse?.ErrorReason ?? "Something went wrong"}`",
+                    IsSuccessful = false
+                };
+            }
+            else
+            {
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeKoboldAiResponse.Id, _integration.CommonHttpClient, 0);
+
+                string message;
+                bool success;
+                if (hordeResult.IsSuccessful)
+                {
+                    message = hordeResult.Message!;
+                    success = true;
+                }
+                else
+                {
+                    message = hordeResult.ErrorReason!;
+                    success = false;
+                }
+
+                return new()
+                {
+                    Text = message,
+                    IsSuccessful = success
+                };
+            }
+        }
 
         /// <param name="isSwipeOrContinue">true = swipe, false = continue</param>
         private static async Task<Models.Common.CharacterResponse> SwipeOpenAiMessageAsync(CharacterWebhook characterWebhook, HttpClient client, bool isSwipeOrContinue)
@@ -290,12 +323,12 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCharacterAiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient? client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCharacterAiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient client)
         {
-            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken!;
+            var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var caiResponse = await client!.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var caiResponse = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
             if (!caiResponse.IsSuccessful)
             {
@@ -353,8 +386,10 @@ namespace CharacterEngineDiscord.Handlers
         private async Task HandleReactionException(Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)
         {
             LogException(new[] { e });
+
             var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
             var guild = guildChannel?.Guild;
+
             TryToReportInLogsChannel(_client, title: "Reaction Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +

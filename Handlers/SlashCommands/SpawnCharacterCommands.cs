@@ -62,12 +62,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync();
 
-            if (apiType is ApiTypeForChub.KoboldAI || apiType is ApiTypeForChub.HordeKoboldAI)
-            {
-                await FollowupAsync("Not implemented.");
-                return;
-            }
-
             if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
             {
                 await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple));
@@ -118,7 +112,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
-            var caiToken = channel.Guild.GuildCaiUserToken ?? "";
+            var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
@@ -196,13 +190,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {   // Re-login
                 var newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(channel.GuildId, channel.Guild.GuildAisekaiRefreshToken!);
                 if (newAuthToken is null)
-                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`").ToInlineEmbed(Color.Red));
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
                 else
                     await SpawnAisekaiCharacterWithIdAsync(channel, characterId, newAuthToken);
             }
             else
             {
-                await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`").ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
             }
         }
 

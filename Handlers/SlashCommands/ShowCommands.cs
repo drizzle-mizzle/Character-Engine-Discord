@@ -95,11 +95,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (string.IsNullOrWhiteSpace(_characterDesc)) _characterDesc = "No description";
 
             string _statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
-                          $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
+                          $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"
                                 : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
-                          $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: {character.Stars}"
+                          $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: `{character.Stars}`"
                                 : characterWebhook.FromChub ?
-                          $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
+                          $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: `{character.Stars}`"
                                 : "Custom character";
             string _api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
                           $"OpenAI ({characterWebhook.PersonalApiModel})"

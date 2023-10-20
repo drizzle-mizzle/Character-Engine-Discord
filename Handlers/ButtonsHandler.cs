@@ -140,59 +140,5 @@ namespace CharacterEngineDiscord.Handlers
             }
             catch { return; }
         }
-
-        /// <summary>
-        /// Called when user presses "select" button in search
-        /// </summary>
-        private async Task<Models.Database.Character?> SelectCaiCharacterAsync(string characterId, ulong channelId)
-        {
-            if (_integration.CaiClient is null) return null;
-
-            var db = new StorageContext();
-            var channel = await db.Channels.FindAsync(channelId);
-            if (channel is null) return null;
-
-            var caiToken = channel.Guild.GuildCaiUserToken ?? "";
-            var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
-            if (string.IsNullOrWhiteSpace(caiToken)) return null;
-
-            var caiCharacter = await _integration.CaiClient.GetInfoAsync(characterId, customAuthToken: caiToken, customPlusMode: plusMode);
-            return CharacterFromCaiCharacterInfo(caiCharacter);
-        }
-
-        /// <summary>
-        /// Called when user presses "select" button in search
-        /// </summary>
-        private async Task<Models.Database.Character?> SelectAisekaiCharacterAsync(string characterId, ulong channelId, SocketUserMessage originalMessage, string? authToken = null)
-        {
-            var db = new StorageContext();
-            var channel = await db.Channels.FindAsync(channelId);
-            if (channel is null) return null;
-
-            authToken ??= channel.Guild.GuildAisekaiAuthToken;
-            if (string.IsNullOrWhiteSpace(authToken)) return null;
-
-            var response = await _integration.AisekaiClient.GetCharacterInfoAsync(authToken, characterId);
-            if (response.IsSuccessful)
-            {
-                return CharacterFromAisekaiCharacterInfo(response.Character!.Value);
-            }
-            else if (response.Code == 401)
-            {   // Re-login
-                var newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(channel.GuildId, channel.Guild.GuildAisekaiRefreshToken!);
-                if (newAuthToken is null)
-                {
-                    await originalMessage.ModifyAsync(m => m.Embed = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
-                    return null;
-                }
-                else
-                    return await SelectAisekaiCharacterAsync(characterId, channelId, originalMessage, newAuthToken);
-            }
-            else
-            {
-                await originalMessage.ModifyAsync(m => m.Embed = $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
-                return null;
-            }
-        }
     }
 }

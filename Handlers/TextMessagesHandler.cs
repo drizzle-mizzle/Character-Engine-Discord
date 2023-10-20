@@ -1,5 +1,4 @@
 ﻿using Discord;
-using Discord.Webhook;
 using Discord.Commands;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -9,12 +8,6 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.KoboldAI;
-using Newtonsoft.Json.Linq;
-using System;
-using Castle.Components.DictionaryAdapter.Xml;
-using PuppeteerSharp;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -117,9 +110,9 @@ namespace CharacterEngineDiscord.Handlers
             else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
                 characterResponse = await CallAisekaiCharacterAsync(characterWebhook, text);
             else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
-                return;//characterResponse = await CallKoboldAiCharacterAsync(characterWebhook, text);
+                characterResponse = await CallKoboldAiCharacterAsync(characterWebhook, text);
             else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
-                return;// characterResponse = await CallHordeKoboldAiCharacterAsync(characterWebhook, text);
+                characterResponse = await CallHordeKoboldAiCharacterAsync(characterWebhook, text);
 
             if (characterResponse.IsFailure)
             {
@@ -223,7 +216,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task<Models.Common.CharacterResponse> CallCaiCharacterAsync(CharacterWebhook cw, string text)
         {
-            var caiToken = cw.Channel.Guild.GuildCaiUserToken;
+            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
             var response = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.ActiveHistoryID!, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
@@ -383,7 +376,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task<Models.Common.CharacterResponse> CallKoboldAiCharacterAsync(CharacterWebhook cw, string text)
         {
-            cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            cw.StoredHistoryMessages.Add(new() { Role = $"\n<USER>\n", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
             var koboldAiRequestParams = BuildKoboldAiRequestPayload(cw);
 
             if (koboldAiRequestParams.Messages.Count < 2)
@@ -398,7 +391,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var kobkoldAiResponse = await SendKoboldAiRequestAsync(koboldAiRequestParams, _integration.CommonHttpClient, continueRequest: false);
+            var kobkoldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiRequestParams, _integration.CommonHttpClient, continueRequest: false);
 
             if (kobkoldAiResponse is null || kobkoldAiResponse.IsFailure || kobkoldAiResponse.Message.IsEmpty())
             {
@@ -408,7 +401,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {   // Remember character message
-                cw.StoredHistoryMessages.Add(new() { Role = "\nYou: ", Content = kobkoldAiResponse.Message!, CharacterWebhookId = cw.Id });
+                cw.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = kobkoldAiResponse.Message!, CharacterWebhookId = cw.Id });
 
                 if (cw.StoredHistoryMessages.Count > 100)
                     cw.StoredHistoryMessages.RemoveRange(0, 20);
@@ -426,7 +419,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task<Models.Common.CharacterResponse> CallHordeKoboldAiCharacterAsync(CharacterWebhook cw, string text)
         {
-            cw.StoredHistoryMessages.Add(new() { Role = "\nUser: ", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
+            cw.StoredHistoryMessages.Add(new() { Role = $"\n<USER>\n", Content = text, CharacterWebhookId = cw.Id }); // remember user message (will be included in payload)
             var hordeRequestParams = BuildHordeKoboldAiRequestPayload(cw);
 
             if (hordeRequestParams.KoboldAiSettings.Messages.Count < 2)
@@ -441,9 +434,9 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var hordeResponse = await SendHordeKoboldAiRequestAsync(hordeRequestParams, _integration.CommonHttpClient, continueRequest: false);
+            var hordeResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeRequestParams, _integration.CommonHttpClient, continueRequest: false);
 
-            if (hordeResponse is null || hordeResponse.IsFailure || hordeResponse.MessageId.IsEmpty())
+            if (hordeResponse is null || hordeResponse.IsFailure || hordeResponse.Id.IsEmpty())
             {
                 string desc = hordeResponse?.ErrorReason ?? "Something went wrong";
                 message = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{desc}`";
@@ -451,15 +444,15 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {   // Remember character message
-                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.MessageId, _integration.CommonHttpClient, 0);
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.Id, _integration.CommonHttpClient, 0);
                 if (hordeResult.IsSuccessful)
                 {
-                    cw.StoredHistoryMessages.Add(new() { Role = "\nYou: ", Content = hordeResult.Message!.Value.Content, CharacterWebhookId = cw.Id });
+                    cw.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = hordeResult.Message!, CharacterWebhookId = cw.Id });
 
                     if (cw.StoredHistoryMessages.Count > 100)
                         cw.StoredHistoryMessages.RemoveRange(0, 20);
 
-                    message = hordeResult.Message.Value.Content;
+                    message = hordeResult.Message!;
                     success = true;
                 }
                 else
@@ -475,62 +468,6 @@ namespace CharacterEngineDiscord.Handlers
                 IsSuccessful = success
             };
         }
-
-        private static async Task<HordeKoboldAiResult> TryToAwaitForHordeRequestResultAsync(string? messageId, HttpClient httpClient, int attemptCount)
-        {
-            string url = $"https://horde.koboldai.net/api/v2/generate/text/status/{messageId}";
-
-            try
-            {
-                var response = await httpClient.GetAsync(url);
-                var content = await response.Content.ReadAsJsonAsync();
-
-                if ($"{content!.done}".ToBool())
-                {
-                    var generations = (JArray)content.generations;
-                    string text = (generations.First() as dynamic).text;
-
-                    return new()
-                    {
-                        IsSuccessful = true,
-                        Message = new("\nYou: ", text)
-                    };
-                }
-                else if (!$"{content.is_possible}".ToBool() || $"{content.faulted}".ToBool())
-                {
-                    return new()
-                    {
-                        IsSuccessful = false,
-                        ErrorReason = "Request failed. Try again later or change the model."
-                    };
-                }
-                else
-                {
-                    if (attemptCount > 20) // 2 min max
-                    {
-                        return new()
-                        {
-                            IsSuccessful = false,
-                            ErrorReason = "Timed out"
-                        };
-                    }
-                    else
-                    {
-                        await Task.Delay(6000);
-                        return await TryToAwaitForHordeRequestResultAsync(messageId, httpClient, attemptCount + 1);
-                    }
-                }
-            }
-            catch
-            {
-                return new()
-                {
-                    IsSuccessful = false,
-                    ErrorReason = "Something went wrong"
-                };
-            }
-        }
-
 
         // Ensure
 

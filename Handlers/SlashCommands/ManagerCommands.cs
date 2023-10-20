@@ -534,7 +534,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return false;
             }
 
-            string? caiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildCaiUserToken;
+            string? caiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             bool plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
 
             var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
@@ -546,6 +546,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             else
             {
                 characterWebhook.ActiveHistoryID = newHisoryId;
+                await TryToSaveDbChangesAsync(_db);
 
                 await FollowupAsync(embed: SuccessEmbed());
                 return true;

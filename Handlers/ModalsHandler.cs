@@ -135,11 +135,9 @@ namespace CharacterEngineDiscord.Handlers
                 Definition = definition,
                 AvatarUrl = modal.Data.Components.FirstOrDefault(c => c.CustomId == "avatar-url")?.Value,
                 Title = "Custom character",
-                Description = null,
                 ImageGenEnabled = false,
                 Interactions = null,
-                Stars = null,
-                Tgt = null
+                Stars = null
             };
 
             if (unsavedCharacter.Name.Length < 2)

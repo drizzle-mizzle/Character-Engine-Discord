@@ -88,19 +88,19 @@ namespace CharacterEngineDiscord.Services
             var character = characterWebhook.Character;
 
             string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
-                                 $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: {character.Interactions}"
+                                 $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"
                                : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
-                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: {character.Stars}"
+                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: `{character.Stars}`"
                                : characterWebhook.FromChub ?
-                                 $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: {character.Stars}"
+                                 $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: `{character.Stars}`"
                                : "Custom character";
 
             string api = characterWebhook.IntegrationType is IntegrationType.OpenAI ?
-                         $"OpenAI ({characterWebhook.PersonalApiModel})"
+                         $"OpenAI ({characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildOpenAiModel})"
                        : characterWebhook.IntegrationType is IntegrationType.KoboldAI ?
-                         $"KoboldAI ({characterWebhook.PersonalApiModel})"
+                         $"KoboldAI"
                        : characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI ?
-                         $"Horde KoboldAI ({characterWebhook.PersonalApiModel})"
+                         $"Horde KoboldAI ({characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildHordeModel})"
                        : characterWebhook.IntegrationType.ToString();
 
             string title = string.IsNullOrWhiteSpace(character.Title) ? "No title" : $"*\"{character.Title}\"*";
@@ -179,8 +179,8 @@ namespace CharacterEngineDiscord.Services
 
                 var type = query.SearchQueryData.IntegrationType;
                 string interactionsOrStars = type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai ?
-                    $"Interactions: {character.Interactions}" :
-                    $"Stars: {character.Stars}";
+                    $"Interactions: `{character.Interactions}`" :
+                    $"Stars: `{character.Stars}`";
 
                 list.AddField($"{index + 1}. {fTitle}", $"{interactionsOrStars} | Author: {character.AuthorName}");
             }

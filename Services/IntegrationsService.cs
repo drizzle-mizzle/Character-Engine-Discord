@@ -19,6 +19,7 @@ using CharacterEngineDiscord.Models.KoboldAI;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using System.Runtime.InteropServices;
+using Newtonsoft.Json.Linq;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -135,14 +136,14 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<KoboldAiResponse?> SendKoboldAiRequestAsync(KoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        internal static async Task<KoboldAiResponse?> SendKoboldAiRequestAsync(string characterName, KoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
         {
             string prompt = "";
             foreach (var msg in requestParams.Messages)
                 prompt += $"{msg.Role}{msg.Content}";
 
             if (!continueRequest)
-                prompt += "\nYou: ";
+                prompt += $"\n<{characterName}>\n";
 
             // Build data payload
             dynamic content = new ExpandoObject();
@@ -177,14 +178,14 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<HordeKoboldAiResponse?> SendHordeKoboldAiRequestAsync(HordeKoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        internal static async Task<HordeKoboldAiResponse?> SendHordeKoboldAiRequestAsync(string characterName, HordeKoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
         {
             string prompt = "";
             foreach (var msg in requestParams.KoboldAiSettings.Messages)
                 prompt += $"{msg.Role}{msg.Content}";
 
             if (!continueRequest)
-                prompt += "\nYou: ";
+                prompt += $"\n<{characterName}>\n";
 
             // Build data payload
             dynamic koboldParams = new ExpandoObject();
@@ -202,7 +203,7 @@ namespace CharacterEngineDiscord.Services
 
             dynamic content = new ExpandoObject();
             content.models = new string[] { requestParams.Model };
-            content["params"] = koboldParams;
+            (content as IDictionary<string, object>)!["params"] = koboldParams;
             content.use_default_badwordsids = true;
             content.prompt = prompt;
 
@@ -338,13 +339,13 @@ namespace CharacterEngineDiscord.Services
             return koboldAiParams;
         }
 
-        internal static HordeKoboldAiRequestParams BuildHordeKoboldAiRequestPayload(CharacterWebhook characterWebhook)
+        internal static HordeKoboldAiRequestParams BuildHordeKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
         {
             var hordeParams = new HordeKoboldAiRequestParams()
             {
                 Token = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildHordeApiToken!,
                 Model = characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildHordeModel!,
-                KoboldAiSettings = BuildKoboldAiRequestPayload(characterWebhook, false)
+                KoboldAiSettings = BuildKoboldAiRequestPayload(characterWebhook, isSwipe)
             };
 
             return hordeParams;
@@ -413,17 +414,18 @@ namespace CharacterEngineDiscord.Services
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
 
                 string? historyId = null;
-
+                
                 if (type is IntegrationType.CharacterAI)
                 {
                     if (integration.CaiClient is null) throw new();
-
-                    var caiToken = channel.Guild.GuildCaiUserToken;
+                    var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
                     if (string.IsNullOrWhiteSpace(caiToken)) throw new();
-
                     var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-                    historyId = await integration.CaiClient.CreateNewChatAsync(unsavedCharacter.Id, customAuthToken: caiToken, customPlusMode: plusMode);
+                    var info = await integration.CaiClient.GetInfoAsync(character.Id, customAuthToken: caiToken, customPlusMode: plusMode);
+                    character.Tgt = info.Tgt;
+
+                    historyId = await integration.CaiClient.CreateNewChatAsync(character.Id, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (historyId is null) throw new();
                 }
                 else if (type is IntegrationType.Aisekai)
@@ -446,7 +448,7 @@ namespace CharacterEngineDiscord.Services
                 }
                 else if (type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
                 {
-                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = "\nYou: ", Content = character.Greeting });
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = $"\n<{character.Name}>\n", Content = character.Greeting });
                 }
 
                 var characterWebhook = (await db.CharacterWebhooks.AddAsync(new CharacterWebhook()
@@ -587,6 +589,61 @@ namespace CharacterEngineDiscord.Services
             catch
             {
                 return null;
+            }
+        }
+
+        public static async Task<HordeKoboldAiResult> TryToAwaitForHordeRequestResultAsync(string? messageId, HttpClient httpClient, int attemptCount)
+        {
+            string url = $"https://horde.koboldai.net/api/v2/generate/text/status/{messageId}";
+
+            try
+            {
+                var response = await httpClient.GetAsync(url);
+                var content = await response.Content.ReadAsJsonAsync();
+
+                if ($"{content!.done}".ToBool())
+                {
+                    var generations = (JArray)content.generations;
+                    string text = (generations.First() as dynamic).text;
+
+                    return new()
+                    {
+                        IsSuccessful = true,
+                        Message = text
+                    };
+                }
+                else if (!$"{content.is_possible}".ToBool() || $"{content.faulted}".ToBool())
+                {
+                    return new()
+                    {
+                        IsSuccessful = false,
+                        ErrorReason = "Request failed. Try again later or change the model."
+                    };
+                }
+                else
+                {
+                    if (attemptCount > 20) // 2 min max
+                    {
+                        return new()
+                        {
+                            IsSuccessful = false,
+                            ErrorReason = "Timed out"
+                        };
+                    }
+                    else
+                    {
+                        await Task.Delay(6000);
+                        return await TryToAwaitForHordeRequestResultAsync(messageId, httpClient, attemptCount + 1);
+                    }
+                }
+            }
+            catch
+            {
+                return new()
+                {
+                    IsSuccessful = false,
+                    ErrorReason = "Something went wrong"
+                };
             }
         }
 
