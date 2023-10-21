@@ -40,9 +40,9 @@ namespace CharacterEngineDiscord.Handlers
             if (invalidInput) return;
 
             var context = new SocketCommandContext(_client, userMessage);
-            if (context.Guild is null) return;
             if (context.Channel is not IGuildChannel guildChannel) return;
-            if (context.Guild.CurrentUser.GetPermissions(guildChannel).SendMessages is false) return;
+            if (context.Guild?.CurrentUser?.GetPermissions(guildChannel) is not ChannelPermissions perms) return;
+            if (perms.SendMessages is false) return;
 
             ulong channelId;
             bool isThread = false;
@@ -678,8 +678,8 @@ namespace CharacterEngineDiscord.Handlers
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
                                                     $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                    $"User: {message.Author.Username}" + (message.Author.IsWebhook ? " (webhook)" : message.Author.IsBot ? " (bot)" : "") +
-                                                    $"\nMessage: {message.Content[0..Math.Min(message.Content.Length, 1000)]}",
+                                                    $"User: `{message.Author.Username}" + (message.Author.IsWebhook ? " (webhook)`" : message.Author.IsBot ? " (bot)`" : "`") +
+                                                    $"\nMessage: `{message.Content[0..Math.Min(message.Content.Length, 1000)]}`",
                                               content: e.ToString(),
                                               color: Color.Red,
                                               error: true);
