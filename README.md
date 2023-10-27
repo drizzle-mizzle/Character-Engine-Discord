@@ -8,8 +8,6 @@ Universal frontend for the various LLM APIs in the form of Discord bot.
   <br>
   <sup><b>
     ⭐If you liked this project, you can show it off by pressing on this shiny little star button: </sup><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/fe5331b5-8264-460d-aeef-9d73724fa16b"/><img height="20" src="https://github.com/drizzle-mizzle/Character-Engine-Discord/assets/55811932/dc1200b4-9871-4b6d-9100-b7b3067276bd"/>
-    <br>
-    <sup>[ <a href="https://discord.gg/JtVzgJ8Znh">Join my Discord server</a> ]</sup>
   </sup></b>
 </div>
     
