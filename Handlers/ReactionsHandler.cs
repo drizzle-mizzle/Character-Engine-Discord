@@ -10,6 +10,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
+using Discord.Webhook;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -66,18 +67,12 @@ namespace CharacterEngineDiscord.Handlers
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
             if (characterWebhook is null) return;
 
-            //if (reaction.Emote?.Name == STOP_BTN.Name)
-            //{
-            //    characterWebhook.SkipNextBotMessage = true;
-            //    await TryToSaveDbChanges(db);
-            //    return;
-            //}
-
-            //if (reaction.Emote.Name == TRANSLATE_BTN.Name)
-            //{
-            //    _ = TranslateMessageAsync(message, currentChannel.Data.TranslateLanguage);
-            //    return;
-            //}
+            if (reaction.Emote?.Name == STOP_BTN.Name)
+            {
+                characterWebhook.SkipNextBotMessage = true;
+                await TryToSaveDbChangesAsync(db);
+                return;
+            }
 
             bool userIsLastCaller = characterWebhook.LastDiscordUserCallerId == userReacted.Id;
             bool msgIsSwipable = originalMessage.Id == characterWebhook.LastCharacterDiscordMsgId;
@@ -89,7 +84,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 characterWebhook.CurrentSwipeIndex--;
                 await TryToSaveDbChangesAsync(db);
-                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
+                await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
@@ -97,22 +92,20 @@ namespace CharacterEngineDiscord.Handlers
 
                 characterWebhook.CurrentSwipeIndex++;
                 await TryToSaveDbChangesAsync(db);
-                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
+                await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: true);
             }
             else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
             {   // proceed generation
                 if (await _integration.UserIsBanned(reaction, _client)) return;
 
-                await UpdateCharacterMessage(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
+                await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
             }
         }
 
-        /// <summary>
-        /// Super complicated shit, but I don't want to refactor it...
-        /// </summary>
-        private async Task UpdateCharacterMessage(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser caller, bool isSwipe)
+        private async Task SwipeCharacterMessageAsync(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser userCalled, bool isSwipe)
         {
-            if (!_integration.Conversations.ContainsKey(characterWebhookId)) return;
+            bool messageIsNotTracked = !_integration.Conversations.ContainsKey(characterWebhookId);
+            if (messageIsNotTracked) return;
 
             var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
@@ -125,70 +118,43 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-            var quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault(e => e.Footer is not null) as Embed; // remember quote
             var convo = _integration.Conversations[characterWebhookId];
+            await convo.Locker.WaitAsync();
+            try
+            {
+                await ContinueSwipeAsync(convo, characterWebhook, userCalled, characterOriginalMessage, webhookClient, isSwipe, db);
+            }
+            finally
+            {
+                convo.Locker.Release();
+                await TryToSaveDbChangesAsync(db);
+            }
+        }
+
+        private async Task ContinueSwipeAsync(LastCharacterCall convo, CharacterWebhook cw, SocketGuildUser userCalled, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe, StorageContext db)
+        {
+            // Remember quote from the message embed before it will be erased
+            var quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault(e => e.Footer is not null) as Embed;
 
             // Check if fetching a new message, or just swiping among already available ones
-            bool gottaFetch = !isSwipe || (convo.AvailableMessages.Count < characterWebhook.CurrentSwipeIndex + 1);
-
+            // If fetch new, it will update convo.AvailableMessages
+            bool gottaFetch = !isSwipe || (convo.AvailableMessages.Count < cw.CurrentSwipeIndex + 1);
             if (gottaFetch)
-            {
+            { 
                 await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
                 {
                     if (isSwipe) msg.Content = null;
                     msg.Embeds = new List<Embed> { WAIT_MESSAGE };
                     msg.AllowedMentions = AllowedMentions.None;
                 });
-
-                Models.Common.CharacterResponse characterResponse;
-                if (characterWebhook.IntegrationType is IntegrationType.CharacterAI)
-                    characterResponse = await SwipeCharacterAiMessageAsync(characterWebhook, _integration.CaiClient!);
-                else if (characterWebhook.IntegrationType is IntegrationType.Aisekai)
-                    characterResponse = await SwipeAisekaiMessageAsync(characterWebhook, _integration.AisekaiClient);
-                else if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
-                    characterResponse = await SwipeOpenAiMessageAsync(characterWebhook, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
-                else if (characterWebhook.IntegrationType is IntegrationType.KoboldAI)
-                    characterResponse = await SwipeKoboldAiMessageAsync(characterWebhook, _integration.CommonHttpClient);
-                else if (characterWebhook.IntegrationType is IntegrationType.HordeKoboldAI)
-                    characterResponse = await SwipeHordeKoboldAiMessageAsync(characterWebhook, _integration.CommonHttpClient);
-                else return;
-
-                if (!characterResponse.IsSuccessful)
-                {
-                    await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
-                    {
-                        msg.Embeds = new List<Embed> { characterResponse.Text.ToInlineEmbed(Color.Red) };
-                        msg.AllowedMentions = AllowedMentions.All;
-                    });
-                    return;
-                }
-
-                // Add to the storage
-                var newResponse = new AvailableCharacterResponse()
-                {
-                    MessageId = characterResponse.CharacterMessageId!,
-                    Text = isSwipe ? characterResponse.Text : MentionRegex().Replace(characterOriginalMessage.Content, "") + " " + characterResponse.Text,
-                    ImageUrl = characterResponse.ImageRelPath,
-                    TokensUsed = characterResponse.TokensUsed
-                };
-
-                lock (convo.AvailableMessages)
-                {
-                    if (isSwipe)
-                        convo.AvailableMessages.Add(newResponse);
-                    else
-                        convo.AvailableMessages[characterWebhook.CurrentSwipeIndex] = newResponse;
-                }
+                bool success = await TryToFetchNewCharacterMessageAsync(convo, cw, characterOriginalMessage, webhookClient, isSwipe);
+                if (!success) return;
             }
-
             convo.LastUpdated = DateTime.UtcNow;
 
-            AvailableCharacterResponse newCharacterMessage;
-            try { newCharacterMessage = convo.AvailableMessages[characterWebhook.CurrentSwipeIndex]; }
-            catch { return; }
-
-            characterWebhook.LastCharacterMsgId = newCharacterMessage.MessageId;
-            characterWebhook.LastRequestTokensUsage = newCharacterMessage.TokensUsed;
+            var newCharacterMessage = convo.AvailableMessages.ElementAt(cw.CurrentSwipeIndex);
+            cw.LastCharacterMsgId = newCharacterMessage.MessageId;
+            cw.LastRequestTokensUsage = newCharacterMessage.TokensUsed;
 
             // Add image or/and quote to the message
             var embeds = new List<Embed>();
@@ -197,17 +163,14 @@ namespace CharacterEngineDiscord.Handlers
             if (quoteEmbed is not null)
                 embeds.Add(quoteEmbed);
 
-            if (imageUrl is not null && await ImageIsAvailable(imageUrl, _integration.ImagesHttpClient))
+            if (imageUrl is not null && await CheckIfImageIsAvailableAsync(imageUrl, _integration.ImagesHttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
             // Add text to the message
-            string responseText = newCharacterMessage.Text ?? " ";
-            if (responseText.Length > 2000)
-                responseText = responseText[0..1994] + "[...]";
-
-            // Send (update) message
-            string newContent = $"{caller.Mention} {responseText}".Replace("{{user}}", $"**{caller.GetBestName()}**");
-            if (newContent.Length > 2000) newContent = newContent[0..1994] + "[max]";
+            string responseText = newCharacterMessage.Text ?? string.Empty;
+            string newContent = $"{userCalled.Mention} {responseText}".Replace("{{user}}", $"**{userCalled.GetBestName()}**");
+            if (newContent.Length > 2000)
+                newContent = newContent[0..1994] + "[...]";
 
             try
             {
@@ -223,16 +186,60 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-            // If message was swiped, "forget" last option
-            if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
+            // If message was swiped, replace the last one
+            var type = cw.IntegrationType;
+            if (type is IntegrationType.OpenAI)
             {
-                characterWebhook.StoredHistoryMessages.Remove(characterWebhook.StoredHistoryMessages.Last());
-                db.StoredHistoryMessages.Add(new() { Role = "assistant", Content = responseText, CharacterWebhookId = characterWebhookId });
+                cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
+                db.StoredHistoryMessages.Add(new() { Role = "assistant", Content = responseText, CharacterWebhookId = cw.Id });
+            }
+            else if (type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
+            {
+                cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
+                db.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = responseText, CharacterWebhookId = cw.Id });
+            }
+        }
+
+        private async Task<bool> TryToFetchNewCharacterMessageAsync(LastCharacterCall convo, CharacterWebhook cw, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe)
+        {
+            Models.Common.CharacterResponse characterResponse;
+            if (cw.IntegrationType is IntegrationType.CharacterAI)
+                characterResponse = await SwipeCaiMessageAsync(cw, _integration.CaiClient!);
+            else if (cw.IntegrationType is IntegrationType.Aisekai)
+                characterResponse = await SwipeAisekaiMessageAsync(cw, _integration.AisekaiClient);
+            else if (cw.IntegrationType is IntegrationType.OpenAI)
+                characterResponse = await SwipeOpenAiMessageAsync(cw, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
+            else if (cw.IntegrationType is IntegrationType.KoboldAI)
+                characterResponse = await SwipeKoboldAiMessageAsync(cw, _integration.CommonHttpClient);
+            else if (cw.IntegrationType is IntegrationType.HordeKoboldAI)
+                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, _integration.CommonHttpClient);
+            else return false;
+
+            if (!characterResponse.IsSuccessful)
+            {
+                await webhookClient.ModifyMessageAsync(characterOriginalMessage.Id, msg =>
+                {
+                    msg.Embeds = new List<Embed> { characterResponse.Text.ToInlineEmbed(Color.Red) };
+                    msg.AllowedMentions = AllowedMentions.All;
+                });
+                return false;
             }
 
-            await TryToSaveDbChangesAsync(db);
-            //var tm = TranslatedMessages.Find(tm => tm.MessageId == message.Id);
-            //if (tm is not null) tm.IsTranslated = false;
+            // Add to the storage
+            var newResponse = new AvailableCharacterResponse()
+            {
+                MessageId = characterResponse.CharacterMessageId!,
+                Text = isSwipe ? characterResponse.Text : MentionRegex().Replace(characterOriginalMessage.Content, "") + " " + characterResponse.Text,
+                ImageUrl = characterResponse.ImageRelPath,
+                TokensUsed = characterResponse.TokensUsed
+            };
+
+            if (isSwipe)
+                convo.AvailableMessages.Add(newResponse);
+            else // continue-crutch
+                convo.AvailableMessages[cw.CurrentSwipeIndex] = newResponse;
+
+            return true;
         }
 
         private static async Task<Models.Common.CharacterResponse> SwipeKoboldAiMessageAsync(CharacterWebhook cw, HttpClient httpClient)
@@ -323,7 +330,7 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCharacterAiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient client)
         {
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;

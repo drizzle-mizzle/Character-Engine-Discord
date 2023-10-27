@@ -42,8 +42,9 @@ namespace CharacterEngineDiscord.Services
             return characterWebhook;
         }
 
-        internal static string GetBestName(this SocketGuildUser user)
-            => user.Nickname ?? user.DisplayName ?? user.Username;
+        internal static string GetBestName(this IGuildUser user)
+            => user.Nickname ?? user.DisplayName ?? user.Username ?? "???";
+
 
         internal static bool IsHoster(this SocketGuildUser? user)
         {
@@ -125,9 +126,12 @@ namespace CharacterEngineDiscord.Services
                                             $"*`/update call-prefix webhook-id-or-prefix:{characterWebhook.CallPrefix} new-call-prefix:ai`*")
                 .WithFooter($"Created by {character.AuthorName}");
 
-            if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
-                emb.WithImageUrl(characterWebhook.Character.AvatarUrl);
-
+            string? imageUrl = characterWebhook.Character.AvatarUrl;
+            if (imageUrl is not null && imageUrl.IsValidURL())
+            {
+                emb.WithImageUrl(imageUrl);
+            }
+            
             return emb.Build();
         }
 
@@ -268,5 +272,6 @@ namespace CharacterEngineDiscord.Services
             HordeKoboldAI,
             Empty
         }
+
     }
 }

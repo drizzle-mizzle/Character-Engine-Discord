@@ -28,8 +28,10 @@ namespace CharacterEngineDiscord.Models.Database
         public required bool ReferencesEnabled { get; set; }
         public required bool SwipesEnabled { get; set; }
         public required bool CrutchEnabled { get; set; }
+        public required bool StopBtnEnabled { get; set; }
         public required bool FromChub { get; set; } = true;
         public bool SkipNextBotMessage { get; set; } = false;
+        public bool SkipNextErrorMessage { get; set; } = false;
         public int LastRequestTokensUsage { get; set; } = 0;
 
         public int CurrentSwipeIndex { get; set; } = 0;

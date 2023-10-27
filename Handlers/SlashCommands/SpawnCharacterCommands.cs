@@ -10,9 +10,7 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
-using CharacterEngineDiscord.Services.AisekaiIntegration;
 using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
-using CharacterEngineDiscord.Services.AisekaiIntegration.Models;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -29,23 +27,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _integration = services.GetRequiredService<IntegrationsService>();
         }
 
+
         [SlashCommand("cai-character", "Add new CharacterAI character to this channel")]
-        public async Task SpawnCaiCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false)
-        {
-            await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId);
-        }
+        public async Task SpawnCaiCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
+            => await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId, silent);
+
 
         [SlashCommand("aisekai-character", "Add new Aisekai character to this channel")]
-        public async Task SpawnAisekaiCharacter([Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNsfw = true, SearchSort sort = SearchSort.desc, SearchTime time = SearchTime.all, SearchType type = SearchType.best)
-        {
-            await SpawnAisekaiCharacterAsync(searchQueryOrCharacterId, setWithId, tags, allowNsfw, sort, time, type);
-        }
+        public async Task SpawnAisekaiCharacter([Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNsfw = true, SearchSort sort = SearchSort.desc, SearchTime time = SearchTime.all, SearchType type = SearchType.best, bool silent = false)
+            => await SpawnAisekaiCharacterAsync(searchQueryOrCharacterId, setWithId, tags, allowNsfw, sort, time, type, silent);
 
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
-        public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular)
-        {
-            await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId);
-        }
+        public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool silent = false)
+            => await SpawnChubCharacterAsync(apiType, searchQueryOrCharacterId, tags, allowNSFW, sortBy, setWithId, silent);
 
         [SlashCommand("custom-character", "Add a new character to this channel with full customization")]
         public async Task SpawnCustomTavernCharacter()
@@ -58,13 +52,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Long stuff ////
         ////////////////////
 
-        private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId)
+        private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId, bool silent)
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: silent);
 
             if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
             {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple));
+                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
                 return;
             }
 
@@ -75,7 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await FollowupAsync(embed: WAIT_MESSAGE);
+                await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
                 var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.CommonHttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
@@ -83,7 +77,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else // set with search
             {
-                await FollowupAsync(embed: WAIT_MESSAGE);
+                await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
                 var response = await SearchChubCharactersAsync(new()
                 {
@@ -101,13 +95,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool setWithId = false)
+        private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: silent);
 
             if (_integration.CaiClient is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red));
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
@@ -118,13 +112,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify a CharacterAI auth token for your server first!\n" +
                                             $"How to get CharacterAI auth token: [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides#get-characterai-user-auth-token)\n" +
-                                            $"Command: `/set-server-cai-token`").ToInlineEmbed(Color.Red));
+                                            $"Command: `/set-server-cai-token`").ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
             var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-            await FollowupAsync(embed: WAIT_MESSAGE);
+            await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
             if (setWithId)
             {
@@ -142,13 +136,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type)
+        private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
         {
-            await DeferAsync();
+            await DeferAsync(ephemeral: silent);
 
             if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
             {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple));
+                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
                 return;
             }
 
@@ -158,11 +152,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (string.IsNullOrWhiteSpace(authToken))
             {
                 await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an Aisekai user account for your server first!\n" +                                            
-                                            $"Command: `/set-server-aisekai-auth email:... password:...`").ToInlineEmbed(Color.Red));
+                                            $"Command: `/set-server-aisekai-auth email:... password:...`").ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
-            await FollowupAsync(embed: WAIT_MESSAGE);
+            await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
             if (setWithId)
             {
@@ -196,7 +190,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
+                await ModifyOriginalResponseAsync(r => r.Embed = $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
             }
         }
 
@@ -246,14 +240,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == newSQ.ChannelId);
 
-            lock (_integration.SearchQueries)
+            await _integration.SearchQueriesLock.WaitAsync();
+            try
             {
-                // Stop tracking last query in this channel
-                if (lastSQ is not null)
+                if (lastSQ is not null) // stop tracking the last query in this channel
                     _integration.SearchQueries.Remove(lastSQ);
 
-                // Start tracking this one
-                _integration.SearchQueries.Add(newSQ);
+                _integration.SearchQueries.Add(newSQ); // and start tracking this one
+            }
+            finally
+            {
+                _integration.SearchQueriesLock.Release();
             }
         }
 

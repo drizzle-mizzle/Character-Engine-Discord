@@ -8,10 +8,10 @@ namespace CharacterEngineDiscord.Services
 {
     internal static partial class CommonService
     {
-        // Simply checks whether image is avalable.
-        public static async Task<bool> ImageIsAvailable(string url, HttpClient httpClient)
+        public static async Task<bool> CheckIfImageIsAvailableAsync(string url, HttpClient httpClient)
         {
             if (string.IsNullOrWhiteSpace(url)) return false;
+            if (!url.IsValidURL()) return false;
 
             for (int i = 0; i < 5; i++)
             {
@@ -113,8 +113,6 @@ namespace CharacterEngineDiscord.Services
                 {
                     string refName = refMsg.Author is SocketGuildUser refGuildUser ? (refGuildUser.GetBestName()) : refMsg.Author.Username;
                     string refContent = refMsg.Content.Replace("\n", " ");
-                    if (refContent.StartsWith("<"))
-                        refContent = MentionRegex().Replace(refContent, "", 1);
 
                     int refL = Math.Min(refContent.Length, 150);
                     str = str.Replace("{{ref_msg_user}}", refName)
@@ -126,6 +124,14 @@ namespace CharacterEngineDiscord.Services
 
             return str;
         }
+
+        public static bool IsValidURL(this string URL)
+            => HttpUrlPattern().IsMatch(URL);
+
+
+        [GeneratedRegex("^(?:http(s)?:\\/\\/)?[\\w.-]+(?:\\.[\\w\\.-]+)+[\\w\\-\\._~:/?#[\\]@!\\$&'\\(\\)\\*\\+,;=.]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+        private static partial Regex HttpUrlPattern();
+
 
         [GeneratedRegex("\\<(.*?)\\>")]
         public static partial Regex MentionRegex();

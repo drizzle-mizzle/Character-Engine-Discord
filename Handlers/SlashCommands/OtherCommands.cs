@@ -24,7 +24,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
 
         [SlashCommand("help", "All basic info about bot")]
-        public async Task BaicsHelp()
+        public async Task BaicsHelp(bool silent = true)
         {
             var embed = new EmbedBuilder().WithTitle("Character Engine").WithColor(Color.Gold)
                                           .WithDescription("**How to use**\n" +
@@ -38,11 +38,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                            "Each character can use different credentials.")
                                           .AddField("Also", "It's really recommended to look into `/help-messages-format`");
                                           
-            await RespondAsync(embed: embed.Build());
+            await RespondAsync(embed: embed.Build(), ephemeral: silent);
         }
 
         [SlashCommand("help-messages-format", "Info about messages format")]
-        public async Task MessagesFormatHelp()
+        public async Task MessagesFormatHelp(bool silent = true)
         {
             var embed = new EmbedBuilder().WithTitle("Messages format").WithColor(Color.Gold)
                                           .AddField("Description", "This setting allows you to change the format of messages that character will get from users.")
@@ -57,7 +57,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                                "Inputs:\n- referenced message with text *`Hello`* from user *`Dude`*;\n- user with name *`Average AI Enjoyer`*;\n- message with text *`Do you love donuts?`*\n" +
                                                                "Result (what character will see):\n*`((In response to 'Hello' from 'Dude'))\nAverage AI Enjoyer says:\nDo you love donuts?`*\n" +
                                                                "Example above is used by default, but you are free to play with it the way you want, or you can simply disable it by setting the default message format with `{{msg}}`.");
-            await RespondAsync(embed: embed.Build());
+            await RespondAsync(embed: embed.Build(), ephemeral: silent);
         }
 
 

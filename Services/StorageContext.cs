@@ -68,9 +68,18 @@ namespace CharacterEngineDiscord.Services
             catch (DbUpdateConcurrencyException e)
             {
                 foreach (var entry in e.Entries)
+                {
                     entry.Reload();
+                }
 
-                db.SaveChanges();
+                try
+                {
+                    db.SaveChanges();
+                }
+                catch
+                {
+                    return;
+                }
             }
         }
 

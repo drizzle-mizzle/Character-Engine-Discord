@@ -31,6 +31,7 @@ namespace CharacterEngineDiscord.Services
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
         internal ulong MessagesSent { get; set; } = 0;
         internal List<SearchQuery> SearchQueries { get; } = new();
+        internal SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
 
         internal HttpClient ImagesHttpClient { get; } = new();
         internal HttpClient CommonHttpClient { get; } = new();
@@ -418,14 +419,16 @@ namespace CharacterEngineDiscord.Services
                 if (type is IntegrationType.CharacterAI)
                 {
                     if (integration.CaiClient is null) throw new();
-                    var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(caiToken)) throw new();
-                    var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-                    var info = await integration.CaiClient.GetInfoAsync(character.Id, customAuthToken: caiToken, customPlusMode: plusMode);
+                    string? caiToken = channel.Guild.GuildCaiUserToken;
+                    if (string.IsNullOrWhiteSpace(caiToken)) throw new();
+
+                    bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
+
+                    var info = await integration.CaiClient.GetInfoAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
                     character.Tgt = info.Tgt;
 
-                    historyId = await integration.CaiClient.CreateNewChatAsync(character.Id, customAuthToken: caiToken, customPlusMode: plusMode);
+                    historyId = await integration.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (historyId is null) throw new();
                 }
                 else if (type is IntegrationType.Aisekai)
@@ -458,13 +461,14 @@ namespace CharacterEngineDiscord.Services
                     CallPrefix = callPrefix,
                     ReferencesEnabled = false,
                     SwipesEnabled = true,
+                    StopBtnEnabled = true,
+                    CrutchEnabled = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai,
                     FromChub = fromChub,
-                    CrutchEnabled = type is not IntegrationType.CharacterAI,
                     ResponseDelay = 1,
                     IntegrationType = type,
                     ReplyChance = 0,
                     ActiveHistoryID = historyId,
-                    CharacterId = character.Id,
+                    CharacterId = character.Id ?? string.Empty,
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,
                     MessagesSent = 1

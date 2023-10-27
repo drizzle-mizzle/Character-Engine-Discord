@@ -7,10 +7,6 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
-using CharacterEngineDiscord.Models.Common;
-using Polly;
-using CharacterEngineDiscord.Models.Database;
-using CharacterEngineDiscord.Models.CharacterHub;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -122,13 +118,19 @@ namespace CharacterEngineDiscord.Handlers
                         image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
                     }
                     image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-                    await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
 
+                    await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
                     await webhookClient.SendMessageAsync(characterMessage);
 
-                    lock (_integration.SearchQueries)
+                    await _integration.SearchQueriesLock.WaitAsync();
+                    try
+                    {
                         _integration.SearchQueries.Remove(searchQuery);
-
+                    }
+                    finally
+                    {
+                        _integration.SearchQueriesLock.Release();
+                    }
                     return;
                 default:
                     return;

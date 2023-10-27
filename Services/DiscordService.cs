@@ -163,7 +163,7 @@ namespace CharacterEngineDiscord.Services
                 await TryToCreateSlashCommandsAndRoleAsync(guild, silent: false);
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
-                string log = $"Sever name: {guild.Name} ({guild.Id})\n" +
+                string log = $"Server name: {guild.Name} ({guild.Id})\n" +
                                 $"Owner: {guildOwner?.Username}{(guildOwner?.GlobalName is string gn ? $" ({gn})" : "")}\n" +
                                 $"Members: {guild.MemberCount}\n" +
                                 $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
@@ -175,8 +175,8 @@ namespace CharacterEngineDiscord.Services
 
         private Task OnGuildLeft(SocketGuild guild)
         {
-            string log = $"Sever name: {guild.Name} ({guild.Id})\n" +
-                         $"Owner: {guild.Owner.Username}\n" +
+            string log = $"Server name: {guild.Name} ({guild.Id})\n" +
+                         $"Owner: {guild.Owner?.Username}\n" +
                          $"Members: {guild.MemberCount}\n" +
                          $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
 
