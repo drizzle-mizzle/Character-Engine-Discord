@@ -352,6 +352,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                 : api is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
                                 : api is ApiTypeForChub.HordeKoboldAI ? IntegrationType.HordeKoboldAI
                                 : IntegrationType.Empty;
+
+            characterWebhook.IntegrationType = integrationType;
+            await TryToSaveDbChangesAsync(_db);
+
+            await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
 
         [SlashCommand("open-ai-settings", "Change OpenAI integration settings")]
