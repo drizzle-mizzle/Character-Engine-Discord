@@ -147,7 +147,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var context = new InteractionContext(_client, modal, modal.Channel);
-            var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration, false);
+            var characterWebhook = await _integration.CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration, false);
             if (characterWebhook is null) return;
             
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);

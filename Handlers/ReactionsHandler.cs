@@ -152,7 +152,10 @@ namespace CharacterEngineDiscord.Handlers
             }
             convo.LastUpdated = DateTime.UtcNow;
 
-            var newCharacterMessage = convo.AvailableMessages.ElementAt(cw.CurrentSwipeIndex);
+            AvailableCharacterResponse newCharacterMessage;
+            try { newCharacterMessage = convo.AvailableMessages.ElementAt(cw.CurrentSwipeIndex); }
+            catch { return; }
+
             cw.LastCharacterMsgId = newCharacterMessage.MessageId;
             cw.LastRequestTokensUsage = newCharacterMessage.TokensUsed;
 
@@ -198,7 +201,7 @@ namespace CharacterEngineDiscord.Handlers
                 cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
                 db.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = responseText, CharacterWebhookId = cw.Id });
             }
-        }
+            }
 
         private async Task<bool> TryToFetchNewCharacterMessageAsync(LastCharacterCall convo, CharacterWebhook cw, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe)
         {
@@ -274,7 +277,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 return new()
                 {
-                    Text = $"{WARN_SIGN_DISCORD} Failed to fetch character response: `{hordeKoboldAiResponse?.ErrorReason ?? "Something went wrong"}`",
+                    Text = $"{WARN_SIGN_DISCORD} **Failed to fetch character response:** ```\n{hordeKoboldAiResponse?.ErrorReason ?? "Something went wrong"}\n```",
                     IsSuccessful = false
                 };
             }
@@ -371,11 +374,11 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (response.Code == 401)
             {
-                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
-                if (newToken is null)
+                string? newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                if (newAuthToken is null)
                     message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
                 else
-                    return await SwipeAisekaiMessageAsync(characterWebhook, aisekaiClient, newToken);
+                    return await SwipeAisekaiMessageAsync(characterWebhook, aisekaiClient, newAuthToken);
             }
             else
             {

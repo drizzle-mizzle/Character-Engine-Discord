@@ -11,6 +11,7 @@ using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
+using System.ComponentModel;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -54,13 +55,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId, bool silent)
         {
-            await DeferAsync(ephemeral: silent);
-
-            if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-            {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                return;
+            try
+            {   if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
+                {
+                    await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
+                    return;
+                }
             }
+            catch (NullReferenceException)
+            {
+                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
+            }
+
+            await DeferAsync(ephemeral: silent);
 
             IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI
                                             : apiType is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
@@ -71,8 +78,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
-                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? "", _integration.CommonHttpClient);
-                var character = CharacterFromChubCharacterInfo(chubCharacter);
+                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? string.Empty, _integration.CommonHttpClient);
+                var character = CharacterFromChubCharacterInfo(chubCharacter);                 
                 await FinishSpawningAsync(integrationType, character);
             }
             else // set with search
@@ -97,6 +104,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
         {
+            try { _ = (Context.Channel is ITextChannel tc && !tc.IsNsfw); }
+            catch (NullReferenceException)
+            {
+                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
+            }
+
             await DeferAsync(ephemeral: silent);
 
             if (_integration.CaiClient is null)
@@ -138,13 +151,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
         {
-            await DeferAsync(ephemeral: silent);
-
-            if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-            {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                return;
+            try
+            {   if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
+                {
+                    await RespondAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
+                    return;
+                }
             }
+            catch (NullReferenceException)
+            {
+                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
+            }
+
+            await DeferAsync(ephemeral: silent);
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
             string? authToken = channel.Guild.GuildAisekaiAuthToken;
@@ -160,7 +179,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await SpawnAisekaiCharacterWithIdAsync(channel, searchQueryOrCharacterId ?? "", authToken);
+                await SpawnAisekaiCharacterWithIdAsync(channel, searchQueryOrCharacterId ?? string.Empty, authToken);
             }
             else // set with search
             {
@@ -204,7 +223,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
             var fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
-            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, _integration, fromChub);
+            var characterWebhook = await _integration.CreateCharacterWebhookAsync(type, Context, character, _integration, fromChub);
 
             if (characterWebhook is null)
             {
@@ -216,6 +235,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
             var originalMessage = await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
+            if (type is IntegrationType.Aisekai)
+                await Context.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
 
             string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
             if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";

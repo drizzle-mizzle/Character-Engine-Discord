@@ -91,7 +91,7 @@ namespace CharacterEngineDiscord.Services
             string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
                                  $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"
                                : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
-                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: {character.Interactions}\nLikes: `{character.Stars}`"
+                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: `{character.Interactions}`\nLikes: `{character.Stars}`"
                                : characterWebhook.FromChub ?
                                  $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: `{character.Stars}`"
                                : "Custom character";
@@ -104,11 +104,13 @@ namespace CharacterEngineDiscord.Services
                          $"Horde KoboldAI ({characterWebhook.PersonalApiModel ?? characterWebhook.Channel.Guild.GuildHordeModel})"
                        : characterWebhook.IntegrationType.ToString();
 
-            string title = string.IsNullOrWhiteSpace(character.Title) ? "No title" : $"*\"{character.Title}\"*";
+            string title = string.IsNullOrWhiteSpace(character.Title) ? "No title" : character.Title;
+                
+
             string desc = string.IsNullOrWhiteSpace(character.Description) ? "No description" : character.Description;
             string info = $"Use *`\"{characterWebhook.CallPrefix}\"`* prefix or replies to call the character.\n\n" +
                           $"**{character.Name ?? "No name"}**\n" +
-                          $"*{title.Replace("\n\n", "\n")}*\n\n" +
+                          $"{title.Replace("\n\n", "\n")}\n\n" +
                           $"**Description**\n{desc.Replace("\n\n", "\n")}";
             if (info.Length > 4096) info = info[0..4090] + "[...]";
 

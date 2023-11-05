@@ -176,7 +176,6 @@ namespace CharacterEngineDiscord.Services
         private Task OnGuildLeft(SocketGuild guild)
         {
             string log = $"Server name: {guild.Name} ({guild.Id})\n" +
-                         $"Owner: {guild.Owner?.Username}\n" +
                          $"Members: {guild.MemberCount}\n" +
                          $"{(guild.Description is string desc ? $"Description: \"{desc}\"" : "")}";
 

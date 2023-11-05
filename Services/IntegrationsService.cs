@@ -352,7 +352,7 @@ namespace CharacterEngineDiscord.Services
             return hordeParams;
         }
 
-        internal static async Task<ChubSearchResponse> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
+        internal static async Task<ChubSearchResponse?> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
         {
             string uri = "https://v2.chub.ai/search?" +
                 $"&search={searchParams.Text}" +
@@ -362,23 +362,30 @@ namespace CharacterEngineDiscord.Services
                 $"&page={searchParams.Page}" +
                 $"&sort={searchParams.SortFieldValue}" +
                 $"&nsfw={searchParams.AllowNSFW}";
-                
-            var response = await client.GetAsync(uri);
-            string originalQuery = $"{searchParams.Text ?? "no input"}";
-            originalQuery += string.IsNullOrWhiteSpace(searchParams.Tags) ? "" : $" (tags: {searchParams.Tags})";
 
-            return new(response, originalQuery);
+            try
+            {
+                var response = await client.GetAsync(uri);
+                string originalQuery = $"{searchParams.Text ?? "no input"}";
+                originalQuery += string.IsNullOrWhiteSpace(searchParams.Tags) ? "" : $" (tags: {searchParams.Tags})";
+
+                return new(response, originalQuery);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         internal static async Task<ChubCharacter?> GetChubCharacterInfo(string characterId, HttpClient client)
         {
-            string uri = $"https://v2.chub.ai/api/characters/{characterId}?full=true";
-            var response = await client.GetAsync(uri);
-            var content = await response.Content.ReadAsStringAsync();
-            var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
-
+            string url = $"https://v2.chub.ai/api/characters/{characterId}?full=true";
+            
             try
             {
+                var response = await client.GetAsync(url);
+                var content = await response.Content.ReadAsStringAsync();
+                var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
                 return new(node, true);
             }
             catch
@@ -387,7 +394,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration, bool fromChub)
+        internal async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration, bool fromChub)
         {
             if (context.Channel is not IIntegrationChannel discordChannel) return null;
 
@@ -418,10 +425,10 @@ namespace CharacterEngineDiscord.Services
                 
                 if (type is IntegrationType.CharacterAI)
                 {
-                    if (integration.CaiClient is null) throw new();
+                    if (integration.CaiClient is null) return null;
 
                     string? caiToken = channel.Guild.GuildCaiUserToken;
-                    if (string.IsNullOrWhiteSpace(caiToken)) throw new();
+                    if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
                     bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
@@ -429,21 +436,32 @@ namespace CharacterEngineDiscord.Services
                     character.Tgt = info.Tgt;
 
                     historyId = await integration.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
-                    if (historyId is null) throw new();
+                    if (historyId is null) return null;
                 }
                 else if (type is IntegrationType.Aisekai)
                 {
                     var authToken = channel.Guild.GuildAisekaiAuthToken;
-                    if (string.IsNullOrWhiteSpace(authToken)) throw new();
+                    if (string.IsNullOrWhiteSpace(authToken)) return null;
 
                     var response = await integration.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
-                    if (!response.IsSuccessful) throw new();
+                    if (response.Code == 401)
+                    {
+                        string? newAuthToken = await UpdateGuildAisekaiAuthTokenAsync(channel.Guild.Id, channel.Guild.GuildAisekaiRefreshToken ?? string.Empty);
+                        if (newAuthToken is null)
+                            return null;
+                        else
+                            return await CreateCharacterWebhookAsync(type, context, unsavedCharacter, integration, fromChub);
+                    }
+                    else if (!response.IsSuccessful)
+                    {
+                        throw new($"Aisekai GetChatInfo()\nCode: {response.Code}\nError: {response.ErrorReason}");
+                    }
 
                     historyId = response.ChatId!;
                     character.Greeting = response.GreetingMessage!;
 
                     bool tim = await integration.AisekaiClient.PatchToggleInitMessageAsync(authToken, historyId, false);
-                    if (!tim) throw new();
+                    if (!tim) throw new($"Aisekai PatchToggleInitMessageAsync()");
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
@@ -480,10 +498,10 @@ namespace CharacterEngineDiscord.Services
             catch (Exception e)
             {
                 LogException(new[] { e });
-                TryToReportInLogsChannel(context.Client, "Exception", "Failed to spawn a character", e.ToString(), Color.Red, true);
+                TryToReportInLogsChannel(context.Client, "Exception", $"Failed to spawn a character:\n```cs\n{e}\n```", null, Color.Red, true);
 
                 if (channelWebhook is not null)
-                    await channelWebhook.DeleteAsync();
+                    try { await channelWebhook.DeleteAsync(); } catch { }
 
                 return null;
             }
@@ -508,16 +526,22 @@ namespace CharacterEngineDiscord.Services
 
             foreach (var c in response.Characters)
             {
-                var cc = CharacterFromAisekaiCharacterInfo(c);
-                if (cc is not null) characters.Add(cc);
+                try
+                {
+                    var cc = CharacterFromAisekaiCharacterInfo(c);
+                    characters.Add(cc);
+                }
+                catch { continue; }
             }
 
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.Aisekai) { ErrorReason = response.ErrorReason };
         }
 
-        internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse response)
+        internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse? response)
         {
             var characters = new List<Models.Database.Character>();
+            if (response is null)
+                return new(characters, string.Empty, type);
 
             foreach (var c in response.Characters)
             {
@@ -525,7 +549,7 @@ namespace CharacterEngineDiscord.Services
                 if (cc is not null) characters.Add(cc);
             }
 
-            return new(characters.ToList(), response.OriginalQuery, type) { ErrorReason = response.ErrorReason };
+            return new(characters, response.OriginalQuery, type) { ErrorReason = response.ErrorReason };
         }
 
         internal static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
@@ -549,13 +573,13 @@ namespace CharacterEngineDiscord.Services
             };
         }
 
-        internal static Models.Database.Character? CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
+        internal static Models.Database.Character CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
         {
             return new()
             {
                 Id = aisekaiCharacter.Id,
                 Name = aisekaiCharacter.Name,
-                Title = $"Tags: {(aisekaiCharacter.Tags is null ? "none" : string.Join(", ", aisekaiCharacter.Tags))}\nNSFW: {aisekaiCharacter.NSFW}",
+                Title = $"Tags: `{(aisekaiCharacter.Tags is null ? "none" : string.Join(", ", aisekaiCharacter.Tags))}`\nNSFW: `{aisekaiCharacter.NSFW}`",
                 Greeting = string.Empty,
                 Description = aisekaiCharacter.Description,
                 AuthorName = aisekaiCharacter.Author,

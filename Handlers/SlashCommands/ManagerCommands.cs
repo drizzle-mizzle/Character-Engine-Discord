@@ -567,14 +567,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else if (response.Code == 401)
             {
-                string? newToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? "");
-                if (newToken is null)
+                string? newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? "");
+                if (newAuthToken is null)
                 {
                     await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`").ToInlineEmbed(Color.Red), ephemeral: silent);
                     return false;
                 }
 
-                return await ResetAisekaiCharacterAsync(characterWebhook, newToken, silent);
+                return await ResetAisekaiCharacterAsync(characterWebhook, newAuthToken, silent);
             }
             else
             {

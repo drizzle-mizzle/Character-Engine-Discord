@@ -30,28 +30,40 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             data.password = password;
             data.returnSecureToken = true;
 
-            var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                string message = response.StatusCode is HttpStatusCode.BadRequest ? "Wrong email or password" : response.ReasonPhrase ?? "Something went wrong";
+                var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
+                if (!response.IsSuccessStatusCode)
+                {
+                    string message = response.StatusCode is HttpStatusCode.BadRequest ? "Wrong email or password" : response.ReasonPhrase ?? "Something went wrong";
+                    return new()
+                    {
+                        Message = message,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Message = response.ReasonPhrase ?? "Something went wrong",
+                        IsSuccessful = false
+                    };
+                }
+
+                return ParsedLoginResponse(content);
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
                 return new()
                 {
-                    Message = message,
+                    Message = e.Message,
                     IsSuccessful = false
                 };
             }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
-            {
-                return new()
-                {
-                    Message = response.ReasonPhrase ?? "Something went wrong",
-                    IsSuccessful = false
-                };
-            }
-
-            return ParsedLoginResponse(content);
         }
 
         public async Task<string?> RefreshUserTokenAsync(string refreshToken)
@@ -62,10 +74,18 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             data.grant_type = "refresh_token";
             data.refresh_token = refreshToken;
 
-            var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
-            var content = await response.Content.ReadAsJsonAsync();
+            try
+            {
+                var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
+                var content = await response.Content.ReadAsJsonAsync();
 
-            return content?.access_token;
+                return content?.access_token;
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return null;
+            }
         }
 
         public async Task<bool> PatchToggleInitMessageAsync(string authToken, string historyId, bool enable)
@@ -75,16 +95,24 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             dynamic data = new ExpandoObject();
             data.allowInitMessage = enable;
 
-            var requestMessage = new HttpRequestMessage(HttpMethod.Patch, url)
+            try
             {
-                Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
-                Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
-            };
+                var requestMessage = new HttpRequestMessage(HttpMethod.Patch, url)
+                {
+                    Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
+                    Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
+                };
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            var content = await response.Content.ReadAsJsonAsync();
+                var response = await _httpClient.SendAsync(requestMessage);
+                var content = await response.Content.ReadAsJsonAsync();
 
-            return content?.success ?? false;
+                return content?.success ?? false;
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return false;
+            }
         }
 
         public async Task<SearchResponse> GetSearchAsync(string authToken, string? query, SearchTime time, SearchType type, SearchSort sort, bool nsfw, int page, int size, string? tags = null)
@@ -107,17 +135,32 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                 Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } }
             };
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            var characters = await TryToGetCharactersAsync(response);
-
-            return new()
+            try
             {
-                Code = (int)response.StatusCode,
-                OriginalQuery = query ?? "",
-                ErrorReason = response.IsSuccessStatusCode ? null : response.ReasonPhrase ?? "Something went wrong",
-                IsSuccessful = response.IsSuccessStatusCode,
-                Characters = characters
-            };
+                var response = await _httpClient.SendAsync(requestMessage);
+                var characters = await TryToGetCharactersAsync(response);
+
+                return new()
+                {
+                    Code = (int)response.StatusCode,
+                    OriginalQuery = query ?? "",
+                    ErrorReason = response.IsSuccessStatusCode ? null : response.ReasonPhrase ?? "Something went wrong",
+                    IsSuccessful = response.IsSuccessStatusCode,
+                    Characters = characters
+                };
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return new()
+                {
+                    Code = 0,
+                    ErrorReason = "Something went wrong",
+                    IsSuccessful = false,
+                    OriginalQuery = string.Empty,
+                    Characters = new()
+                };
+            }
         }
 
         public async Task<CharacterInfoResponse> GetCharacterInfoAsync(string authToken, string characterId)
@@ -129,34 +172,47 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                 Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } }
             };
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                var response = await _httpClient.SendAsync(requestMessage);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
+                    Character = ParsedCharacter(content),
                     Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
+                    IsSuccessful = true
                 };
             }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
+            catch (Exception e)
             {
+                LogException(new[] { e.ToString() });
                 return new()
                 {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
+                    Code = 0,
+                    IsSuccessful = false,
+                    ErrorReason = e.Message
                 };
             }
-
-            return new()
-            {
-                Character = ParsedCharacter(content),
-                Code = (int)response.StatusCode,
-                IsSuccessful = true
-            };
         }
 
         public async Task<EditResponse> PatchEditMessageAsync(string authToken, string historyId, string messageId, string text)
@@ -167,28 +223,41 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             data.content = text;
             data.createdAt = DateTime.UtcNow.ToString();
 
-            var requestMessageContent = new HttpRequestMessage(HttpMethod.Patch, url)
+            try
             {
-                Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
-                Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
-            };
+                var requestMessageContent = new HttpRequestMessage(HttpMethod.Patch, url)
+                {
+                    Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
+                    Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
+                };
 
-            var responseContent = await _httpClient.SendAsync(requestMessageContent);
-            if (!responseContent.IsSuccessStatusCode)
-            {
+                var responseContent = await _httpClient.SendAsync(requestMessageContent);
+                if (!responseContent.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)responseContent.StatusCode,
+                        ErrorReason = responseContent.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
                     Code = (int)responseContent.StatusCode,
-                    ErrorReason = responseContent.ReasonPhrase,
+                    IsSuccessful = true
+                };
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return new()
+                {
+                    Code = 0,
+                    ErrorReason = "Something went wrong",
                     IsSuccessful = false
                 };
             }
-
-            return new()
-            {
-                Code = (int)responseContent.StatusCode,
-                IsSuccessful = true
-            };
         }
 
         public async Task<CallResponse> PostChatMessageAsync(string authToken, string historyId, string text)
@@ -199,36 +268,36 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             data.action = "";
             data.content = text;
 
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
-                Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
-            };
-
-            var response = await _httpClient.SendAsync(requestMessage);
-            if (!response.IsSuccessStatusCode)
-            {
-                return new()
-                {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
-                };
-            }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
-            {
-                return new()
-                {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
-                };
-            }
-
             try
             {
+                var requestMessage = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } },
+                    Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
+                };
+
+                var response = await _httpClient.SendAsync(requestMessage);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
                     CharacterResponse = new CharacterResponse()
@@ -245,8 +314,8 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                 LogException(new[] { e.ToString() });
                 return new()
                 {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase ?? "Failed to parse character response",
+                    Code = 0,
+                    ErrorReason = "Failed to fetch character response",
                     IsSuccessful = false
                 };
             }
@@ -264,75 +333,101 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
             dynamic data = new ExpandoObject();
             data.chatMessageId = lastMessageId;
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                var response = await _httpClient.SendAsync(requestMessage);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
+                    Content = content.content,
                     Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
+                    IsSuccessful = true
                 };
             }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
+            catch (Exception e)
             {
+                LogException(new[] { e.ToString() });
                 return new()
                 {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
+                    Code = 0,
+                    ErrorReason = "Something went wrong",
+                    IsSuccessful = false,
                 };
             }
-
-            return new()
-            {
-                Content = content.content,
-                Code = (int)response.StatusCode,
-                IsSuccessful = true
-            };
         }
 
         public async Task<ChatInfoResponse> GetChatInfoAsync(string authToken, string characterId)
         {
-            string url = $"https://api.aisekai.ai/api/v1/characters/{characterId}/chats";
+            string url = $"https://api.aisekai.ai/api/v1/characters/{characterId}/chats?size=99999";
 
             var requestMessage = new HttpRequestMessage(HttpMethod.Get, url)
             {
                 Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } }
             };
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                var response = await _httpClient.SendAsync(requestMessage);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
+                    ChatId = content._id,
+                    GreetingMessage = ((JArray)content.messages).First!["content"]!.Value<string>(),
+                    InitiatorEngineEnabled = content.allowInitMessage,
                     Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
+                    IsSuccessful = true
+                };
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return new()
+                {
+                    Code = 0,
+                    ErrorReason = "Something went wrong",
                     IsSuccessful = false
                 };
             }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
-            {
-                return new()
-                {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
-                };
-            }
-
-            return new()
-            {
-                ChatId = content._id,
-                GreetingMessage = content.messages[0].content,
-                InitiatorEngineEnabled = content.allowInitMessage,
-                Code = (int)response.StatusCode,
-                IsSuccessful = true
-            };
         }
 
         public async Task<ResetResponse> ResetChatHistoryAsync(string authToken, string historyId)
@@ -344,38 +439,51 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                 Headers = { { HttpRequestHeader.Authorization.ToString(), $"Bearer {authToken}" } }
             };
 
-            var response = await _httpClient.SendAsync(requestMessage);
-            if (!response.IsSuccessStatusCode)
+            try
             {
+                var response = await _httpClient.SendAsync(requestMessage);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
+                var content = await response.Content.ReadAsJsonAsync();
+                if (content is null)
+                {
+                    return new()
+                    {
+                        Code = (int)response.StatusCode,
+                        ErrorReason = response.ReasonPhrase,
+                        IsSuccessful = false
+                    };
+                }
+
                 return new()
                 {
+                    Greeting = content.content,
                     Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
+                    IsSuccessful = true
+                };
+            }
+            catch (Exception e)
+            {
+                LogException(new[] { e.ToString() });
+                return new()
+                {
+                    Code = 0,
+                    ErrorReason = "Something went wrong",
                     IsSuccessful = false
                 };
             }
-
-            var content = await response.Content.ReadAsJsonAsync();
-            if (content is null)
-            {
-                return new()
-                {
-                    Code = (int)response.StatusCode,
-                    ErrorReason = response.ReasonPhrase,
-                    IsSuccessful = false
-                };
-            }
-
-            return new()
-            {
-                Greeting = content.content,
-                Code = (int)response.StatusCode,
-                IsSuccessful = true
-            };
         }
 
 
-        public static string TryToGetAuthErrors(dynamic content)
+        private static string TryToGetAuthErrors(dynamic content)
         {
             var errors = content.userNotifications;
             if (errors is null)
@@ -418,6 +526,9 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
         private static Character? ParsedCharacter(dynamic c)
         {
+            IEnumerable<string> tags;
+            try { tags = JsonConvert.DeserializeObject<string[]>(((JArray)c.tags).ToString())!.ToList(); }
+            catch { tags = new List<string>(); }
             try
             {
                 return new()
@@ -426,7 +537,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                     Name = c.name,
                     AvatarUrl = c.picture,
                     Description = c.description,
-                    Tags = JsonConvert.DeserializeObject<string[]>(((JArray)c.tags).ToString()),
+                    Tags = tags,
                     ChatCount = c.chatCount ?? 0u,
                     MessageCount = c.messageCount ?? 0u,
                     LikeCount = c.likeCount ?? 0u,

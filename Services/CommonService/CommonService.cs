@@ -15,8 +15,15 @@ namespace CharacterEngineDiscord.Services
 
             for (int i = 0; i < 5; i++)
             {
-                var response = await httpClient.GetAsync(url);
-                if (response.IsSuccessStatusCode) return true;
+                try
+                {
+                    var response = await httpClient.GetAsync(url);
+                    if (response.IsSuccessStatusCode) return true;
+                }
+                catch
+                {
+                    break;
+                }
                 
                 await Task.Delay(2000);
             }

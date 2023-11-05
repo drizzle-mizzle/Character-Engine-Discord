@@ -54,7 +54,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             await component.DeferAsync();
 
-            var searchQuery = _integration.SearchQueries.Find(sq => sq.ChannelId == component.ChannelId);
+            var searchQuery = _integration.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId);
             if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
             if (searchQuery.AuthorId != component.User.Id) return;
             if (await UserIsBannedCheckOnly(component.User.Id)) return;
@@ -90,21 +90,23 @@ namespace CharacterEngineDiscord.Handlers
                     catch { return; }
 
                     int index = (searchQuery.CurrentPage - 1) * 10 + searchQuery.CurrentRow - 1;
-                    var character = searchQuery.SearchQueryData.Characters[index];
+                    Models.Database.Character character;
+                    try { character = searchQuery.SearchQueryData.Characters[index]; }
+                    catch { return; }
 
                     var type = searchQuery.SearchQueryData.IntegrationType;
-                    if (character is null) return;
-
                     var context = new InteractionContext(_client, component, component.Channel);
                     bool fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
 
-                    var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
+                    var characterWebhook = await _integration.CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
                     if (characterWebhook is null) return;
 
                     var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
                     _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
+                    if (type is IntegrationType.Aisekai)
+                        await component.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
 
                     string characterMessage = $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
                     if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
