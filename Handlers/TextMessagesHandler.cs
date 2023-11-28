@@ -148,8 +148,9 @@ namespace CharacterEngineDiscord.Handlers
             var formatTemplate = characterWebhook.PersonalMessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             text = formatTemplate.Replace("{{user}}", $"{userName}")
                                  .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
-                                 .Replace("\\n", "\n")
-                                 .AddRefQuote(context.Message.ReferencedMessage);
+                                 .Replace("\\n", "\n");
+
+            text = await text.AddRefQuoteAsync(context.Message.ReferencedMessage);
 
              ////////////////////////
             /// Get character response
@@ -286,9 +287,13 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task<Models.Common.CharacterResponse> CallCaiCharacterAsync(CharacterWebhook cw, string text)
         {
-            var caiToken = cw.Channel.Guild.GuildCaiUserToken ?? string.Empty;
-            var plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
-            var response = await _integration.CaiClient!.CallCharacterAsync(cw.Character.Id, cw.Character.Tgt!, cw.ActiveHistoryID!, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            string caiToken = cw.Channel.Guild.GuildCaiUserToken ?? string.Empty;
+            bool plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
+            string charId = cw.Character.Id ?? string.Empty;
+            string tgt = cw.Character.Tgt ?? string.Empty;
+            string historyId = cw.ActiveHistoryID ?? string.Empty;
+
+            var response = await _integration.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
             string message;
             bool success;

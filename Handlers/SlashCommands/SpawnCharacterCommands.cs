@@ -44,9 +44,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         [SlashCommand("custom-character", "Add a new character to this channel with full customization")]
         public async Task SpawnCustomTavernCharacter()
-        {
-            await RespondWithCustomCharModalasync();
-        }
+            => await RespondWithCustomCharModalasync();
 
 
         ////////////////////
@@ -78,8 +76,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
-                var chubCharacter = await GetChubCharacterInfo(searchQueryOrCharacterId ?? string.Empty, _integration.CommonHttpClient);
-                var character = CharacterFromChubCharacterInfo(chubCharacter);                 
+                var chubCharacter = await GetChubCharacterInfoAsync(searchQueryOrCharacterId ?? string.Empty, _integration.ChubAiHttpClient);
+                var character = CharacterFromChubCharacterInfo(chubCharacter);
                 await FinishSpawningAsync(integrationType, character);
             }
             else // set with search
@@ -95,7 +93,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     Page = 1,
                     SortBy = sortBy,
                     AllowNSFW = allowNSFW
-                }, _integration.CommonHttpClient);
+                }, _integration.ChubAiHttpClient);
 
                 var searchQueryData = SearchQueryDataFromChubResponse(integrationType, response);
                 await FinishSearchAsync(searchQueryData);
@@ -249,7 +247,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
             }
             image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-            await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
+            
+            try { await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image)); }
+            finally { await image.DisposeAsync(); }
 
             await webhookClient.SendMessageAsync(characterMessage);
         }

@@ -3,6 +3,7 @@ using Discord;
 using Discord.WebSocket;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -17,7 +18,7 @@ namespace CharacterEngineDiscord.Services
             {
                 try
                 {
-                    var response = await httpClient.GetAsync(url);
+                    using var response = await httpClient.GetAsync(url);
                     if (response.IsSuccessStatusCode) return true;
                 }
                 catch
@@ -37,8 +38,7 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await httpClient.GetAsync(url);
-                return await response.Content.ReadAsStreamAsync();
+                return await httpClient.GetStreamAsync(url);
             }
             catch
             {
@@ -105,7 +105,7 @@ namespace CharacterEngineDiscord.Services
             return result;
         }
 
-        public static string AddRefQuote(this string str, IUserMessage? refMsg)
+        public async static Task<string> AddRefQuoteAsync(this string str, IUserMessage? refMsg)
         {
             if (str.Contains("{{ref_msg_text}}"))
             {
@@ -120,6 +120,18 @@ namespace CharacterEngineDiscord.Services
                 {
                     string refName = refMsg.Author is SocketGuildUser refGuildUser ? (refGuildUser.GetBestName()) : refMsg.Author.Username;
                     string refContent = refMsg.Content.Replace("\n", " ");
+
+                    // Replace @mentions with normal names
+                    var userMentions = MentionRegex().Matches(refContent).ToArray();
+                    foreach (var mention in userMentions)
+                    {   try
+                        {
+                            var userId = MentionUtils.ParseUser(mention.Value);
+                            if (await refMsg.Channel.GetUserAsync(userId) is not IGuildUser user) continue;
+                            else refContent = refContent.Replace(mention.ToString(), (user.IsBot || user.IsWebhook) ? user.Username : user.GetBestName());
+                        }
+                        catch { continue; }
+                    }
 
                     int refL = Math.Min(refContent.Length, 150);
                     str = str.Replace("{{ref_msg_user}}", refName)

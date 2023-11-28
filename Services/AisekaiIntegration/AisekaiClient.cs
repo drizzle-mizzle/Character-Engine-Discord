@@ -6,19 +6,28 @@ using System.Text;
 using CharacterEngineDiscord.Services.AisekaiIntegration.Models;
 using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
 using static CharacterEngineDiscord.Services.CommonService;
+using CharacterEngineDiscord.Models.Common;
+using CharacterResponse = CharacterEngineDiscord.Services.AisekaiIntegration.Models.CharacterResponse;
 
 namespace CharacterEngineDiscord.Services.AisekaiIntegration
 {
     internal class AisekaiClient
     {
-        private readonly HttpClient _httpClient;
+        private readonly HttpClient _aisekaiHttpClient;
+        private readonly HttpClient _authHttpClient;
 
         public AisekaiClient()
         {
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
-            _httpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
-            _httpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36");
+            _aisekaiHttpClient = new HttpClient();
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.5");
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("User-Agent", ConfigFile.DefaultHttpClientUA.Value);
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("Origin", "https://www.aisekai.ai");
+            _aisekaiHttpClient.DefaultRequestHeaders.Add("Referer", "https://www.aisekai.ai/");
+            _aisekaiHttpClient.Timeout = new(0, 2, 0);
+
+            _authHttpClient = new();
         }
 
         public async Task<LoginResponse> AuthorizeUserAsync(string email, string password)
@@ -32,7 +41,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
+                using var response = await _authHttpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
                 if (!response.IsSuccessStatusCode)
                 {
                     string message = response.StatusCode is HttpStatusCode.BadRequest ? "Wrong email or password" : response.ReasonPhrase ?? "Something went wrong";
@@ -76,7 +85,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
+                using var response = await _authHttpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"));
                 var content = await response.Content.ReadAsJsonAsync();
 
                 return content?.access_token;
@@ -103,7 +112,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                     Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
                 };
 
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 var content = await response.Content.ReadAsJsonAsync();
 
                 return content?.success ?? false;
@@ -137,7 +146,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 var characters = await TryToGetCharactersAsync(response);
 
                 return new()
@@ -174,7 +183,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new()
@@ -231,7 +240,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                     Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
                 };
 
-                var responseContent = await _httpClient.SendAsync(requestMessageContent);
+                using var responseContent = await _aisekaiHttpClient.SendAsync(requestMessageContent);
                 if (!responseContent.IsSuccessStatusCode)
                 {
                     return new()
@@ -276,7 +285,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
                     Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
                 };
 
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new()
@@ -335,7 +344,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new()
@@ -387,7 +396,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new()
@@ -441,7 +450,7 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration
 
             try
             {
-                var response = await _httpClient.SendAsync(requestMessage);
+                using var response = await _aisekaiHttpClient.SendAsync(requestMessage);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new()

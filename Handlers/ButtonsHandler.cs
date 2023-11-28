@@ -113,15 +113,18 @@ namespace CharacterEngineDiscord.Handlers
 
                     // Try to set avatar
                     Stream? image = null;
+
                     if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
                     {
                         var originalMessage = await component.GetOriginalResponseAsync();
-                        var imageUrl = originalMessage.Embeds?.Single()?.Image?.ProxyUrl;
+                        var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
                         image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
                     }
                     image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
-                    await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
+                    try { await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image)); }
+                    finally { await image.DisposeAsync(); }
+
                     await webhookClient.SendMessageAsync(characterMessage);
 
                     await _integration.SearchQueriesLock.WaitAsync();

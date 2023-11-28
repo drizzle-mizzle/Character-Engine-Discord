@@ -114,7 +114,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await RespondWithModalAsync(modal);
         }
 
-       
+
         [SlashCommand("avatar", "Change character avatar")]
         public async Task SetAvatar(string webhookIdOrPrefix, string avatarUrl, bool silent = true)
         {
@@ -131,10 +131,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var channel = (SocketTextChannel)Context.Channel;
             var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
 
-            var image = await TryToDownloadImageAsync(avatarUrl, _integration.ImagesHttpClient);
-            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
-
-            await channelWebhook.ModifyAsync(cw => cw.Image = new Image(image));
+            using (Stream? image = await TryToDownloadImageAsync(avatarUrl, _integration.ImagesHttpClient))
+            {
+                await channelWebhook.ModifyAsync(cw
+                    => cw.Image = new Image(image ?? new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"))));
+            };
 
             characterWebhook.Character.AvatarUrl = avatarUrl;
             await TryToSaveDbChangesAsync(_db);

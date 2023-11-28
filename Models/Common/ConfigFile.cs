@@ -27,7 +27,8 @@ namespace CharacterEngineDiscord.Models.Common
 
         public static ConfigField DefaultJailbreakPrompt { get; } = new("default_jailbreak_prompt");
         public static ConfigField DefaultMessagesFormat { get; } = new("default_messages_format");
-        
+
+        public static ConfigField DefaultHttpClientUA { get; } = new("http_client_user_agent");
 
         private static JObject ConfigParsed { get; } = CommonService.TryToParseConfigFile();
 

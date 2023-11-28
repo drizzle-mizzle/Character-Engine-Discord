@@ -34,7 +34,9 @@ namespace CharacterEngineDiscord.Services
         internal SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
 
         internal HttpClient ImagesHttpClient { get; } = new();
+        internal HttpClient ChubAiHttpClient { get; } = new();
         internal HttpClient CommonHttpClient { get; } = new();
+
         internal AisekaiClient AisekaiClient { get; } = new();
         internal CharacterAIClient? CaiClient { get; set; }
 
@@ -66,13 +68,15 @@ namespace CharacterEngineDiscord.Services
         {
             ImagesHttpClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
             ImagesHttpClient.DefaultRequestHeaders.Add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
-            ImagesHttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
-            ImagesHttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36");
-            ImagesHttpClient.Timeout = new(0, 0, 10);
+            ImagesHttpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            ImagesHttpClient.DefaultRequestHeaders.Add("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+            ImagesHttpClient.DefaultRequestHeaders.Add("User-Agent", ConfigFile.DefaultHttpClientUA.Value);
+            ImagesHttpClient.Timeout = new(0, 1, 0);
 
             CommonHttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
-            CommonHttpClient.DefaultRequestHeaders.Add("AcceptEncoding", "gzip, deflate, br");
-            CommonHttpClient.DefaultRequestHeaders.Add("UserAgent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36");
+            CommonHttpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            CommonHttpClient.DefaultRequestHeaders.Add("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+            CommonHttpClient.DefaultRequestHeaders.Add("User-Agent", ConfigFile.DefaultHttpClientUA.Value);
             CommonHttpClient.Timeout = new(0, 3, 0);
 
             if (ConfigFile.CaiEnabled.Value.ToBool())
@@ -128,7 +132,7 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await httpClient.SendAsync(httpRequestMessage);
+                using var response = await httpClient.SendAsync(httpRequestMessage);
                 return new(response);
             }
             catch
@@ -170,7 +174,7 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await httpClient.SendAsync(httpRequestMessage);
+                using var response = await httpClient.SendAsync(httpRequestMessage);
                 return new(response);
             }
             catch
@@ -217,7 +221,7 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await httpClient.SendAsync(httpRequestMessage);
+                using var response = await httpClient.SendAsync(httpRequestMessage);
                 return new(response);
             }
             catch
@@ -354,8 +358,8 @@ namespace CharacterEngineDiscord.Services
 
         internal static async Task<ChubSearchResponse?> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
         {
-            string uri = "https://v2.chub.ai/search?" +
-                $"&search={searchParams.Text}" +
+            string uri = "https://api.chub.ai/search?" +
+                $"search={searchParams.Text}" +
                 $"&first={searchParams.Amount}" +
                 $"&topics={searchParams.Tags}" +
                 $"&excludetopics={searchParams.ExcludeTags}" +
@@ -365,31 +369,33 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await client.GetAsync(uri);
+                using var response = await client.GetAsync(uri);
                 string originalQuery = $"{searchParams.Text ?? "no input"}";
                 originalQuery += string.IsNullOrWhiteSpace(searchParams.Tags) ? "" : $" (tags: {searchParams.Tags})";
 
                 return new(response, originalQuery);
             }
-            catch
+            catch (Exception e)
             {
+                LogException(new[] { e });
                 return null;
             }
         }
 
-        internal static async Task<ChubCharacter?> GetChubCharacterInfo(string characterId, HttpClient client)
+        internal static async Task<ChubCharacter?> GetChubCharacterInfoAsync(string characterId, HttpClient client)
         {
-            string url = $"https://v2.chub.ai/api/characters/{characterId}?full=true";
-            
+            string url = $"https://api.chub.ai/api/characters/{characterId}?full=true";
+
             try
             {
-                var response = await client.GetAsync(url);
-                var content = await response.Content.ReadAsStringAsync();
+                var content = await client.GetStringAsync(url);
+                LogGreen(content);
                 var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
                 return new(node, true);
             }
-            catch
+            catch (Exception e)
             {
+                LogException(new[] { e });
                 return null;
             }
         }
@@ -412,7 +418,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red));
+                await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create character webhook: {e.Message}".ToInlineEmbed(Color.Red));
                 return null;
             }
 
@@ -422,7 +428,13 @@ namespace CharacterEngineDiscord.Services
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
 
                 string? historyId = null;
-                
+
+                if (fromChub)
+                {
+                    var chubCharacterFull = await GetChubCharacterInfoAsync(unsavedCharacter.Id, ChubAiHttpClient);
+                    unsavedCharacter = CharacterFromChubCharacterInfo(chubCharacterFull)!;
+                }
+
                 if (type is IntegrationType.CharacterAI)
                 {
                     if (integration.CaiClient is null) return null;
@@ -626,7 +638,7 @@ namespace CharacterEngineDiscord.Services
 
             try
             {
-                var response = await httpClient.GetAsync(url);
+                using var response = await httpClient.GetAsync(url);
                 var content = await response.Content.ReadAsJsonAsync();
 
                 if ($"{content!.done}".ToBool())

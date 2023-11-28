@@ -378,7 +378,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
 
             string url = "https://horde.koboldai.net/api/v2/workers?type=text";
-            var response = await _integration.CommonHttpClient.GetAsync(url);
+            using var response = await _integration.CommonHttpClient.GetAsync(url);
 
             Embed embed;
             if (response.IsSuccessStatusCode)
@@ -526,7 +526,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Long stuff ////
         ////////////////////
 
-        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook characterWebhook, bool silent)
+        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook cw, bool silent)
         {
             if (_integration.CaiClient is null)
             {
@@ -534,10 +534,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return false;
             }
 
-            string? caiToken = characterWebhook.PersonalApiToken ?? characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
-            bool plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
+            string charId = cw.CharacterId ?? string.Empty; 
+            string caiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildCaiUserToken ?? string.Empty;
+            bool plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(characterWebhook.CharacterId, caiToken, plusMode);
+            var newHisoryId = await _integration.CaiClient.CreateNewChatAsync(charId, caiToken, plusMode);
             if (newHisoryId is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character".ToInlineEmbed(Color.Red), ephemeral: silent);
@@ -545,7 +546,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                characterWebhook.ActiveHistoryID = newHisoryId;
+                cw.ActiveHistoryID = newHisoryId;
                 await TryToSaveDbChangesAsync(_db);
 
                 await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
@@ -602,18 +603,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             string name = characterWebhook.Character.Name.ToLower().Contains("discord") ? characterWebhook.Character.Name.Replace('o', 'о').Replace('c', 'с') : characterWebhook.Character.Name;
-            var image = await TryToDownloadImageAsync(characterWebhook.Character.AvatarUrl, _integration.ImagesHttpClient);
-            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
             IWebhook channelWebhook;
-            try
-            {
-                channelWebhook = await discordChannel.CreateWebhookAsync(name, image);
-            }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return;
+            using (Stream? image = await TryToDownloadImageAsync(characterWebhook.Character.AvatarUrl, _integration.ImagesHttpClient))
+            {                
+                try { channelWebhook = await discordChannel.CreateWebhookAsync(name, image); }
+                catch (Exception e)
+                {
+                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create webhook: {e.Message}".ToInlineEmbed(Color.Red), ephemeral: silent);
+                    return;
+                }
             }
 
             try
