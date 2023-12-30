@@ -11,7 +11,6 @@ using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
-using System.ComponentModel;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -53,19 +52,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SpawnChubCharacterAsync(ApiTypeForChub apiType, string? searchQueryOrCharacterId, string? tags, bool allowNSFW, SortField sortBy, bool setWithId, bool silent)
         {
-            try
-            {   if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-                {
-                    await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                    return;
-                }
-            }
-            catch (NullReferenceException)
-            {
-                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
-            }
-
             await DeferAsync(ephemeral: silent);
+            EnsureCanSendMessages();
+
+            if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
+            {
+                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
+                return;
+            }
 
             IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI
                                             : apiType is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
@@ -102,13 +96,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
         private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
         {
-            try { _ = (Context.Channel is ITextChannel tc && !tc.IsNsfw); }
-            catch (NullReferenceException)
-            {
-                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
-            }
-
             await DeferAsync(ephemeral: silent);
+            EnsureCanSendMessages();
 
             if (_integration.CaiClient is null)
             {
@@ -147,21 +136,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
+        
+
         private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
         {
-            try
-            {   if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-                {
-                    await RespondAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                    return;
-                }
-            }
-            catch (NullReferenceException)
-            {
-                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute its commands here!");
-            }
-
             await DeferAsync(ephemeral: silent);
+            EnsureCanSendMessages();
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
             string? authToken = channel.Guild.GuildAisekaiAuthToken;
@@ -309,6 +289,21 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                             .Build();
 
             await RespondWithModalAsync(modal);
+        }
+
+        private void EnsureCanSendMessages()
+        {
+            try
+            {
+                if (Context.Channel is not ITextChannel tc)
+                    throw new();
+                else if (tc.Name is null)
+                    throw new();
+            }
+            catch
+            {
+                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute commands here!");
+            }
         }
     }
 }

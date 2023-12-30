@@ -261,18 +261,18 @@ namespace CharacterEngineDiscord.Services
         public enum OpenAiModel
         {
             [ChoiceDisplay("gpt-3.5-turbo")]
-            GPT_3_5_turbo,
+            GPT_3_5_turbo = 1,
 
             [ChoiceDisplay("gpt-4")]
-            GPT_4
+            GPT_4 = 2,
         }
 
         public enum ApiTypeForChub
         {
-            OpenAI,
-            KoboldAI,
-            HordeKoboldAI,
-            Empty
+            Empty = 0,
+            KoboldAI = 1,
+            HordeKoboldAI = 2,
+            OpenAI = 3,
         }
 
     }

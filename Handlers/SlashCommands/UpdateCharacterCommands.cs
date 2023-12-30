@@ -16,13 +16,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     public class UpdateCharacterCommands : InteractionModuleBase<InteractionContext>
     {
         private readonly IntegrationsService _integration;
-        //private readonly DiscordSocketClient _client;
         private readonly StorageContext _db;
 
         public UpdateCharacterCommands(IServiceProvider services)
         {
             _integration = services.GetRequiredService<IntegrationsService>();
-            //_client = services.GetRequiredService<DiscordSocketClient>();
             _db = new StorageContext();
         }
 
@@ -258,6 +256,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: SuccessEmbed($"Crutch {(enable ? "enabled" : "disabled")}"), ephemeral: silent);
         }
+
 
         [SlashCommand("toggle-stop-btn", "Enable/disable STOP button button")]
         public async Task ToggleStop(string webhookIdOrPrefix, bool enable, bool silent = false)

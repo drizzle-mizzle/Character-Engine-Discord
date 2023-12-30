@@ -2,26 +2,25 @@
 using Microsoft.EntityFrameworkCore;
 using static CharacterEngineDiscord.Services.CommonService;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Services
 {
-    internal class StorageContext : DbContext
+    public class StorageContext : DbContext, IStorageContext
     {
-        internal DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
-        internal DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
-        internal DbSet<Models.Database.Channel> Channels { get; set; }
-        internal DbSet<Models.Database.Character> Characters { get; set; }
-        internal DbSet<Models.Database.CharacterWebhook> CharacterWebhooks { get; set; }
-        internal DbSet<Models.Database.Guild> Guilds { get; set; }
-        internal DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
-        internal DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
+        public DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
+        public DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
+        public DbSet<Models.Database.Channel> Channels { get; set; }
+        public DbSet<Models.Database.Character> Characters { get; set; }
+        public DbSet<Models.Database.CharacterWebhook> CharacterWebhooks { get; set; }
+        public DbSet<Models.Database.Guild> Guilds { get; set; }
+        public DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
+        public DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
-#pragma warning disable CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
         public StorageContext()
         {
 
         }
-#pragma warning restore CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -59,7 +58,7 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
-        protected internal static async Task TryToSaveDbChangesAsync(StorageContext db)
+        public static async Task TryToSaveDbChangesAsync(StorageContext db)
         {
             try
             {
@@ -83,9 +82,15 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
+        public static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
         {
-            db ??= new StorageContext();
+            bool gottaDispose = false;
+            if (db is null)
+            {
+                db = new StorageContext();
+                gottaDispose = true;
+            }
+
             var guild = await db.Guilds.FindAsync(guildId);
 
             if (guild is null)
@@ -96,12 +101,21 @@ namespace CharacterEngineDiscord.Services
                 return await FindOrStartTrackingGuildAsync(guildId, db);
             }
 
+            if (gottaDispose)
+                await db.DisposeAsync();
+
             return guild;
         }
 
-        protected internal static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
+        public static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
         {
-            db ??= new StorageContext();
+            bool gottaDispose = false;
+            if (db is null)
+            {
+                db = new StorageContext();
+                gottaDispose = true;
+            }
+
             var channel = await db.Channels.FindAsync(channelId);
 
             if (channel is null)
@@ -112,12 +126,21 @@ namespace CharacterEngineDiscord.Services
                 return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
             }
 
+            if (gottaDispose)
+                await db.DisposeAsync();
+
             return channel;
         }
 
-        protected internal static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null)
+        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null)
         {
-            db ??= new StorageContext();
+            bool gottaDispose = false;
+            if (db is null)
+            {
+                db = new StorageContext();
+                gottaDispose = true;
+            }
+
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
 
             if (character is null)
@@ -137,6 +160,9 @@ namespace CharacterEngineDiscord.Services
                 character.Definition = notSavedCharacter.Definition;
                 character.AvatarUrl = notSavedCharacter.AvatarUrl;
             }
+
+            if (gottaDispose)
+                await db.DisposeAsync();
 
             return character;
         }

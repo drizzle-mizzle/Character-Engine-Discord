@@ -14,41 +14,40 @@ namespace CharacterEngineDiscord.Handlers
 {
     internal class ModalsHandler
     {
-        private readonly IServiceProvider _services;
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integration;
+        private readonly IDiscordClient _client;
+        private readonly IntegrationsService _integrations;
 
-        public ModalsHandler(IServiceProvider services)
+        public ModalsHandler(IServiceProvider services, IDiscordClient client)
         {
-            _services = services;
-            _integration = _services.GetRequiredService<IntegrationsService>();
-            _client = _services.GetRequiredService<DiscordSocketClient>();
-
-            _client.ModalSubmitted += (modal) =>
-            {
-                Task.Run(async () => {
-                    try { await HandleModalAsync(modal); }
-                    catch (Exception e)
-                    {
-                        LogException(new[] { e });
-                        var channel = modal.Channel as SocketGuildChannel;
-                        var guild = channel?.Guild;
-                        TryToReportInLogsChannel(_client, title: "Modal Exception",
-                                                          desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
-                                                                $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
-                                                                $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
-                                                                $"User: `{modal.User.Username}`\n" +
-                                                                $"Modal ID: `{modal.Data.CustomId}`",
-                                                          content: e.ToString(),
-                                                          color: Color.Red,
-                                                          error: true);
-                    }
-                });
-                return Task.CompletedTask;
-            };
+            _client = client;
+            _integrations = services.GetRequiredService<IntegrationsService>();
         }
 
-        internal async Task HandleModalAsync(SocketModal modal)
+        public Task HandleModal(SocketModal modal)
+        {
+            Task.Run(async () => {
+                try { await HandleModalAsync(modal); }
+                catch (Exception e)
+                {
+                    LogException(new[] { e });
+                    var channel = modal.Channel as SocketGuildChannel;
+                    var guild = channel?.Guild;
+                    TryToReportInLogsChannel(_client, title: "Modal Exception",
+                                                      desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
+                                                            $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
+                                                            $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
+                                                            $"User: `{modal.User.Username}`\n" +
+                                                            $"Modal ID: `{modal.Data.CustomId}`",
+                                                      content: e.ToString(),
+                                                      color: Color.Red,
+                                                      error: true);
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        private async Task HandleModalAsync(SocketModal modal)
         {
             await modal.DeferAsync();
             if (await UserIsBannedCheckOnly(modal.User.Id)) return;
@@ -69,7 +68,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task UpdateGuildAsync(SocketModal modal)
         {
-            var db = new StorageContext();
+            using var db = new StorageContext();
             string guildId = modal.Data.CustomId.Split('~').Last();
 
             var context = new InteractionContext(_client, modal, modal.Channel);
@@ -86,7 +85,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task UpdateCharacterAsync(SocketModal modal)
         {
-            var db = new StorageContext();
+            using var db = new StorageContext();
             string webhookIdOrPrefix = modal.Data.CustomId.Split('~').Last();
 
             var context = new InteractionContext(_client, modal, modal.Channel);
@@ -147,11 +146,11 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var context = new InteractionContext(_client, modal, modal.Channel);
-            var characterWebhook = await _integration.CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integration, false);
+            var characterWebhook = await _integrations.CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, _integrations, false);
             if (characterWebhook is null) return;
             
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-            _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
+            _integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
             await modal.FollowupAsync(embed: SpawnCharacterEmbed(characterWebhook));
             await webhookClient.SendMessageAsync($"{modal.User.Mention} {characterWebhook.Character.Greeting}");

@@ -6,30 +6,30 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
+using Microsoft.VisualBasic;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CharacterEngineDiscord.Handlers
 {
     internal class ButtonsHandler
     {
-        private readonly IServiceProvider _services;
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integration;
+        private readonly IDiscordClient _client;
+        private readonly IntegrationsService _integrations;
 
-        public ButtonsHandler(IServiceProvider services)
+        public ButtonsHandler(IServiceProvider services, IDiscordClient client)
         {
-            _services = services;
-            _integration = _services.GetRequiredService<IntegrationsService>();
-            _client = _services.GetRequiredService<DiscordSocketClient>();
+            _client = client;
+            _integrations = services.GetRequiredService<IntegrationsService>();
+        }
 
-            _client.ButtonExecuted += (component) =>
-            {
-                Task.Run(async () => {
-                    try { await HandleButtonAsync(component); }
-                    catch (Exception e) { await HandleButtonException(component, e); }
-                });
-                return Task.CompletedTask;
-            };
+        public Task HandleButton(SocketMessageComponent component)
+        {
+            Task.Run(async () => {
+                try { await HandleButtonAsync(component); }
+                catch (Exception e) { await HandleButtonException(component, e); }
+            });
+
+            return Task.CompletedTask;
         }
 
         private async Task HandleButtonException(SocketMessageComponent component, Exception e)
@@ -54,7 +54,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             await component.DeferAsync();
 
-            var searchQuery = _integration.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId);
+            var searchQuery = _integrations.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId);
             if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
             if (searchQuery.AuthorId != component.User.Id) return;
             if (await UserIsBannedCheckOnly(component.User.Id)) return;
@@ -98,11 +98,11 @@ namespace CharacterEngineDiscord.Handlers
                     var context = new InteractionContext(_client, component, component.Channel);
                     bool fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
 
-                    var characterWebhook = await _integration.CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
+                    var characterWebhook = await _integrations.CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integrations, fromChub);
                     if (characterWebhook is null) return;
 
                     var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                    _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
+                    _integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
                     if (type is IntegrationType.Aisekai)
@@ -118,7 +118,7 @@ namespace CharacterEngineDiscord.Handlers
                     {
                         var originalMessage = await component.GetOriginalResponseAsync();
                         var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
-                        image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
+                        image = await TryToDownloadImageAsync(imageUrl, _integrations.ImagesHttpClient);
                     }
                     image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
 
@@ -127,14 +127,14 @@ namespace CharacterEngineDiscord.Handlers
 
                     await webhookClient.SendMessageAsync(characterMessage);
 
-                    await _integration.SearchQueriesLock.WaitAsync();
+                    await _integrations.SearchQueriesLock.WaitAsync();
                     try
                     {
-                        _integration.SearchQueries.Remove(searchQuery);
+                        _integrations.SearchQueries.Remove(searchQuery);
                     }
                     finally
                     {
-                        _integration.SearchQueriesLock.Release();
+                        _integrations.SearchQueriesLock.Release();
                     }
                     return;
                 default:

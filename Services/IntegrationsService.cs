@@ -16,10 +16,9 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
 using CharacterEngineDiscord.Models.KoboldAI;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
-using System.Runtime.InteropServices;
 using Newtonsoft.Json.Linq;
+using System.Data.Entity;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -55,12 +54,12 @@ namespace CharacterEngineDiscord.Services
         /// </summary>
         public enum IntegrationType
         {
-            CharacterAI,
-            Aisekai,
-            OpenAI,
-            KoboldAI,
-            HordeKoboldAI,
-            Empty
+            Empty = 0,
+            Aisekai = 1,
+            OpenAI = 2,
+            KoboldAI = 3,
+            HordeKoboldAI = 4,
+            CharacterAI = 5,
         }
 
 
@@ -408,7 +407,7 @@ namespace CharacterEngineDiscord.Services
             int l = Math.Min(2, unsavedCharacter.Name.Length-1);
             string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch"
 
-            var db = new StorageContext();
+            using var db = new StorageContext();
 
             IWebhook? channelWebhook;
             try
@@ -688,7 +687,10 @@ namespace CharacterEngineDiscord.Services
         }
 
         internal static async Task<bool> UserIsBannedCheckOnly(ulong userId)
-            => (await new StorageContext().BlockedUsers.FindAsync(userId)) is not null;
+        {
+            using var db = new StorageContext();
+            return await db.BlockedUsers.AnyAsync(bu => bu.Id.Equals(userId));
+        }
 
         internal async Task<bool> UserIsBanned(SocketCommandContext context)
         {
@@ -698,7 +700,7 @@ namespace CharacterEngineDiscord.Services
             return await CheckIfUserIsBannedAsync(user, channel, context.Client);
         }
 
-        internal async Task<bool> UserIsBanned(SocketReaction reaction, DiscordSocketClient client)
+        internal async Task<bool> UserIsBanned(SocketReaction reaction, IDiscordClient client)
         {
             var user = reaction.User.GetValueOrDefault();
             var channel = reaction.Channel;
@@ -707,41 +709,43 @@ namespace CharacterEngineDiscord.Services
             return await CheckIfUserIsBannedAsync(user, channel, client);
         }
 
-        internal async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, DiscordSocketClient client)
+        internal async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, IDiscordClient client)
         {
-            var db = new StorageContext();
-            
-            var blockedUser = await db.BlockedUsers.FindAsync(user.Id);
-            if (blockedUser is not null) return true;
-
-            int currentMinuteOfDay = DateTime.UtcNow.Minute + DateTime.UtcNow.Hour * 60;
-
-            // Start watching for user
-            if (!_watchDog.ContainsKey(user.Id))
-                _watchDog.Add(user.Id, new(-1, 0)); // user id : (current minute : count)
-
-            // Drop + update user stats if he replies in another minute
-            if (_watchDog[user.Id].Key != currentMinuteOfDay)
-                _watchDog[user.Id] = new(currentMinuteOfDay, 0);
-
-            // Update interactions count within current minute
-            _watchDog[user.Id] = new(_watchDog[user.Id].Key, _watchDog[user.Id].Value + 1);
-
-            int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
-
-            if (_watchDog[user.Id].Value == rateLimit - 2)
+            using (var db = new StorageContext())
             {
-                await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {MentionUtils.MentionUser(user.Id)} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
-                return false;
-            }
 
-            if (_watchDog[user.Id].Value <= rateLimit)
-            {
-                return false;
-            }
+                var blockedUser = await db.BlockedUsers.FindAsync(user.Id);
+                if (blockedUser is not null) return true;
 
-            await db.BlockedUsers.AddAsync(new() { Id = user.Id, From = DateTime.UtcNow, Hours = 24 });
-            await TryToSaveDbChangesAsync(db);
+                int currentMinuteOfDay = DateTime.UtcNow.Minute + DateTime.UtcNow.Hour * 60;
+
+                // Start watching for user
+                if (!_watchDog.ContainsKey(user.Id))
+                    _watchDog.Add(user.Id, new(-1, 0)); // user id : (current minute : count)
+
+                // Drop + update user stats if he replies in another minute
+                if (_watchDog[user.Id].Key != currentMinuteOfDay)
+                    _watchDog[user.Id] = new(currentMinuteOfDay, 0);
+
+                // Update interactions count within current minute
+                _watchDog[user.Id] = new(_watchDog[user.Id].Key, _watchDog[user.Id].Value + 1);
+
+                int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
+
+                if (_watchDog[user.Id].Value == rateLimit - 2)
+                {
+                    await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {MentionUtils.MentionUser(user.Id)} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
+                    return false;
+                }
+
+                if (_watchDog[user.Id].Value <= rateLimit)
+                {
+                    return false;
+                }
+
+                await db.BlockedUsers.AddAsync(new() { Id = user.Id, From = DateTime.UtcNow, Hours = 24 });
+                await TryToSaveDbChangesAsync(db);
+            }
 
             _watchDog.Remove(user.Id);
 
@@ -764,7 +768,7 @@ namespace CharacterEngineDiscord.Services
 
             if (newToken is not null)
             {
-                var db = new StorageContext();
+                using var db = new StorageContext();
                 var guild = await FindOrStartTrackingGuildAsync(guildId, db);
                 guild.GuildAisekaiAuthToken = newToken;
                 await TryToSaveDbChangesAsync(db);

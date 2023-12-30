@@ -6,8 +6,11 @@ using CharacterEngineDiscord.Handlers;
 using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
+using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
+using CharacterEngineDiscord.Interfaces;
+using System.Data.Entity;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -17,34 +20,33 @@ namespace CharacterEngineDiscord.Services
         private DiscordSocketClient _client = null!;
         private IntegrationsService _integration = null!;
         private InteractionService _interactions = null!;
+
         private bool _firstLaunch = true;
 
-        internal async Task SetupDiscordClient()
+        internal async Task BotLaunchAsync()
         {
             _services = CreateServices();
 
-            _client = _services.GetRequiredService<DiscordSocketClient>();
             _integration = _services.GetRequiredService<IntegrationsService>();
-            _interactions = _services.GetRequiredService<InteractionService>();
-            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
-
-            // Initialize handlers
-            _services.GetRequiredService<ReactionsHandler>();
-            _services.GetRequiredService<ButtonsHandler>();
-            _services.GetRequiredService<SlashCommandsHandler>();
-            _services.GetRequiredService<TextMessagesHandler>();
-            _services.GetRequiredService<ModalsHandler>();
-
-            BindEvents();
             SetupIntegrationAsync();
+
+            _interactions = _services.GetRequiredService<InteractionService>();
+            _client = _services.GetRequiredService<DiscordSocketClient>();
+
+            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+            BindClientEvents();
+            
+            _interactions.InteractionExecuted += (info, context, result)
+                => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
 
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
 
             await RunJobsAsync();
         }
+        
 
-        private void BindEvents()
+        private void BindClientEvents()
         {
             _client.Log += (msg) =>
             {
@@ -65,6 +67,12 @@ namespace CharacterEngineDiscord.Services
             };
 
             _client.LeftGuild += OnGuildLeft;
+
+            _client.ButtonExecuted += _services.GetRequiredService<ButtonsHandler>().HandleButton;
+            _client.ModalSubmitted += _services.GetRequiredService<ModalsHandler>().HandleModal;
+            _client.ReactionAdded += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
+            _client.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleCommand;
+            _client.MessageReceived += _services.GetRequiredService<TextMessagesHandler>().HandleMessage;
         }
 
         private async Task RunJobsAsync()
@@ -89,14 +97,19 @@ namespace CharacterEngineDiscord.Services
 
         private void DoJobs()
         {
-            var db = new StorageContext();
-
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
-            int blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
+
+            int blockedUsersCount;
+            int blockedGuildsCount;
+            using (var db = new StorageContext())
+            {
+                blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
+                blockedGuildsCount = db.BlockedGuilds.Count();
+            }
 
             string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
                           $"Messages sent: `{_integration.MessagesSent}`\n" +
-                          $"Blocked: `{blockedUsersCount} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`";
+                          $"Blocked: `{blockedUsersCount} user(s)` | `{blockedGuildsCount} guild(s)`";
 
             TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
             UnblockUsers();
@@ -105,12 +118,11 @@ namespace CharacterEngineDiscord.Services
 
         private static void UnblockUsers()
         {
-            var db = new StorageContext();
+            using var db = new StorageContext();
 
             var blockedUsersToUnblock = db.BlockedUsers.Where(user => user.Hours != 0 && (user.From.AddHours(user.Hours) <= DateTime.UtcNow));
             db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
-
-            db.SaveChanges();
+            TryToSaveDbChangesAsync(db).Wait();
         }
 
         private void ClearTempsAndRelaunchCai()
@@ -154,11 +166,14 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-                if ((await new StorageContext().BlockedGuilds.FindAsync(guild.Id)) is not null)
+                using (var db = new StorageContext())
                 {
-                    await guild.LeaveAsync();
-                    return;
-                };
+                    if (await db.BlockedGuilds.AnyAsync(bg => bg.Id.Equals(guild.Id)))
+                    {
+                        await guild.LeaveAsync();
+                        return;
+                    };
+                }
 
                 await TryToCreateSlashCommandsAndRoleAsync(guild, silent: false);
 
@@ -188,15 +203,22 @@ namespace CharacterEngineDiscord.Services
         internal static ServiceProvider CreateServices()
         {
             var discordClient = CreateDiscordClient();
+            var integrationsService = new IntegrationsService();
+            var interactionService = new InteractionService(discordClient.Rest);
+
             var services = new ServiceCollection()
-                .AddSingleton(discordClient)
-                .AddSingleton<SlashCommandsHandler>()
-                .AddSingleton<TextMessagesHandler>()
-                .AddSingleton<ReactionsHandler>()
-                .AddSingleton<ButtonsHandler>()
-                .AddSingleton<ModalsHandler>()
-                .AddSingleton<IntegrationsService>()
-                .AddSingleton(new InteractionService(discordClient.Rest));
+                // Database
+                .AddScoped<IStorageContext, StorageContext>()
+                // Singletones
+                .AddSingleton<IDiscordClient>(discordClient)
+                .AddSingleton<IntegrationsService>(integrationsService)
+                .AddSingleton<InteractionService>(interactionService)
+                // Handlers
+                .AddTransient<ButtonsHandler>()
+                .AddTransient<ModalsHandler>()
+                .AddTransient<ReactionsHandler>()
+                .AddTransient<SlashCommandsHandler>()
+                .AddTransient<TextMessagesHandler>();
 
             return services.BuildServiceProvider();
         }
@@ -250,6 +272,41 @@ namespace CharacterEngineDiscord.Services
         {
             string gamePath = $"{EXE_DIR}{SC}storage{SC}lastgame.txt";
             return File.Exists(gamePath) ? File.ReadAllText(gamePath) : string.Empty;
+        }
+
+
+        private static Task HandleInteractionException(IInteractionContext context, IResult result)
+        {
+            Task.Run(async () =>
+            {
+                LogRed(result.ErrorReason + "\n");
+                string message = result.ErrorReason;
+
+                try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+                catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+
+                var channel = context.Channel;
+                var guild = context.Guild;
+
+                // don't need that shit in logs
+                bool ignore = result.Error.GetValueOrDefault().ToString().Contains("UnmetPrecondition") || result.ErrorReason.Contains("was not in a correct format");
+                if (ignore) return;
+
+                var originalResponse = await context.Interaction.GetOriginalResponseAsync();
+                var owner = (await guild.GetOwnerAsync()) as SocketGuildUser;
+
+                TryToReportInLogsChannel(context.Client, title: "Slash Command Exception",
+                                                         desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
+                                                               $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
+                                                               $"Channel: `{channel.Name} ({channel.Id})`\n" +
+                                                               $"User: `{context.User.Username}`\n" +
+                                                               $"Slash command: `/{originalResponse.Interaction.Name}`",
+                                                         content: $"{message}\n\n{result.Error.GetValueOrDefault()}",
+                                                         color: Color.Red,
+                                                         error: true);
+            });
+
+            return Task.CompletedTask;
         }
     }
 }

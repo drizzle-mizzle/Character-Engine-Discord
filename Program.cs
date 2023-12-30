@@ -24,12 +24,10 @@ namespace CharacterEngineDiscord
                 sw.Close();
             };
 
-            Log("Working directory: ");
-            LogYellow(EXE_DIR + '\n');
+            using (var db = new StorageContext())
+                await db.Database.MigrateAsync();
 
-            await new StorageContext().Database.MigrateAsync();
-            await SetupDiscordClient();
-
+            await BotLaunchAsync();
             await Task.Delay(-1);
         }
     }
