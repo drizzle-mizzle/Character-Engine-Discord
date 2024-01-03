@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
        <OutputType>Exe</OutputType>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <RootNamespace>CharacterEngineDiscord</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -30,17 +30,17 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Discord.Net" Version="3.12.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="7.0.13" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.13" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.13">
+        <PackageReference Include="Discord.Net" Version="3.13.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="8.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="PuppeteerExtraSharp" Version="2.0.0" />
-        <PackageReference Include="PuppeteerSharp" Version="11.0.6" />
+        <PackageReference Include="PuppeteerSharp" Version="13.0.2" />
         <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
     </ItemGroup>
 

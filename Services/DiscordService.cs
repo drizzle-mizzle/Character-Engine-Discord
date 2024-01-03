@@ -18,7 +18,7 @@ namespace CharacterEngineDiscord.Services
     {
         private ServiceProvider _services = null!;
         private DiscordSocketClient _client = null!;
-        private IntegrationsService _integration = null!;
+        private IntegrationsService _integrations = null!;
         private InteractionService _interactions = null!;
 
         private bool _firstLaunch = true;
@@ -27,7 +27,7 @@ namespace CharacterEngineDiscord.Services
         {
             _services = CreateServices();
 
-            _integration = _services.GetRequiredService<IntegrationsService>();
+            _integrations = _services.GetRequiredService<IntegrationsService>();
             SetupIntegrationAsync();
 
             _interactions = _services.GetRequiredService<InteractionService>();
@@ -108,7 +108,7 @@ namespace CharacterEngineDiscord.Services
             }
 
             string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
-                          $"Messages sent: `{_integration.MessagesSent}`\n" +
+                          $"Messages sent: `{_integrations.MessagesSent}`\n" +
                           $"Blocked: `{blockedUsersCount} user(s)` | `{blockedGuildsCount} guild(s)`";
 
             TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
@@ -129,17 +129,17 @@ namespace CharacterEngineDiscord.Services
         {
             if (_firstLaunch) return;
 
-            _integration.WatchDogClear();
-            _integration.WebhookClients.Clear();
+            _integrations.WatchDogClear();
+            _integrations.WebhookClients.Clear();
 
-            var oldConvosToStopTrack = _integration.Conversations.Where(c => (DateTime.UtcNow - c.Value.LastUpdated).Hours > 5);
+            var oldConvosToStopTrack = _integrations.Conversations.Where(c => (DateTime.UtcNow - c.Value.LastUpdated).Hours > 5);
             foreach (var convo in oldConvosToStopTrack)
-                _integration.Conversations.Remove(convo.Key);
+                _integrations.Conversations.Remove(convo.Key);
 
-            if (_integration.CaiClient is not null)
+            if (_integrations.CaiClient is not null)
             {
-                _integration.CaiClient.KillBrowser();
-                _integration.CaiClient.LaunchBrowser(killDuplicates: true);
+                _integrations.CaiClient.KillBrowser();
+                _integrations.CaiClient.LaunchBrowser(killDuplicates: true);
             }
         }
 
@@ -264,7 +264,7 @@ namespace CharacterEngineDiscord.Services
 
         private void SetupIntegrationAsync()
         {
-            try { _integration.Initialize(); }
+            try { _integrations.Initialize(); }
             catch (Exception e) { LogException(new[] { e }); }
         }
 
