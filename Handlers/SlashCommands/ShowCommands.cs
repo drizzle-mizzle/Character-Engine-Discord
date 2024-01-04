@@ -3,19 +3,17 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord;
 using CharacterEngineDiscord.Models.Common;
+using Discord.WebSocket;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireContext(ContextType.Guild)]
     [Group("show", "Show-commands")]
-    public class ShowCommands : InteractionModuleBase<InteractionContext>
+    public class ShowCommands() : InteractionModuleBase<InteractionContext>
     {
-        public ShowCommands() //IServiceProvider services)
-        {
-        }
+        //private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
 
 
         [SlashCommand("all-characters", "Show all characters in this channel")]
@@ -24,8 +22,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
 
             var channelId = Context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : Context.Channel.Id;
-            var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id);
-            if (channel is null || channel.CharacterWebhooks.Count == 0)
+
+            await using var db = new StorageContext();
+            var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
+            if (channel.CharacterWebhooks.Count == 0)
             {
                 await FollowupAsync(embed: $"{OK_SIGN_DISCORD} No characters were found in this channel".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
@@ -246,7 +246,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (webhookIdOrPrefix is null)
             {
-                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+                await using var db = new StorageContext();
+                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
                 title = "Default messages format";
                 format = channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
@@ -297,7 +298,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (webhookIdOrPrefix is null)
             {
-                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+                await using var db = new StorageContext();
+                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
 
                 title = "Default jailbreak prompt";
                 prompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;

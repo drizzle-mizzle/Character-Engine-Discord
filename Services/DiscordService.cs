@@ -10,7 +10,6 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using CharacterEngineDiscord.Interfaces;
-using System.Data.Entity;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -18,7 +17,7 @@ namespace CharacterEngineDiscord.Services
     {
         private ServiceProvider _services = null!;
         private DiscordSocketClient _client = null!;
-        private IntegrationsService _integrations = null!;
+        private IIntegrationsService _integrations = null!;
         private InteractionService _interactions = null!;
 
         private bool _firstLaunch = true;
@@ -27,16 +26,16 @@ namespace CharacterEngineDiscord.Services
         {
             _services = CreateServices();
 
-            _integrations = _services.GetRequiredService<IntegrationsService>();
+            _integrations = _services.GetRequiredService<IIntegrationsService>();
             SetupIntegrationAsync();
 
             _interactions = _services.GetRequiredService<InteractionService>();
-            _client = _services.GetRequiredService<DiscordSocketClient>();
+            _client = (_services.GetRequiredService<IDiscordClient>() as DiscordSocketClient)!;
 
             await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
             BindClientEvents();
             
-            _interactions.InteractionExecuted += (info, context, result)
+            _interactions.InteractionExecuted += (_, context, result)
                 => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
 
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
@@ -71,6 +70,7 @@ namespace CharacterEngineDiscord.Services
             _client.ButtonExecuted += _services.GetRequiredService<ButtonsHandler>().HandleButton;
             _client.ModalSubmitted += _services.GetRequiredService<ModalsHandler>().HandleModal;
             _client.ReactionAdded += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
+            _client.ReactionRemoved += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
             _client.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleCommand;
             _client.MessageReceived += _services.GetRequiredService<TextMessagesHandler>().HandleMessage;
         }
@@ -103,7 +103,7 @@ namespace CharacterEngineDiscord.Services
             int blockedGuildsCount;
             using (var db = new StorageContext())
             {
-                blockedUsersCount = db.BlockedUsers.Where(bu => bu.GuildId == null).Count();
+                blockedUsersCount = db.BlockedUsers.Count(bu => bu.GuildId == null);
                 blockedGuildsCount = db.BlockedGuilds.Count();
             }
 
@@ -166,9 +166,9 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-                using (var db = new StorageContext())
+                await using (var db = new StorageContext())
                 {
-                    if (await db.BlockedGuilds.AnyAsync(bg => bg.Id.Equals(guild.Id)))
+                    if (db.BlockedGuilds.Any(bg => bg.Id.Equals(guild.Id)))
                     {
                         await guild.LeaveAsync();
                         return;
@@ -203,16 +203,13 @@ namespace CharacterEngineDiscord.Services
         internal static ServiceProvider CreateServices()
         {
             var discordClient = CreateDiscordClient();
-            var integrationsService = new IntegrationsService();
             var interactionService = new InteractionService(discordClient.Rest);
 
             var services = new ServiceCollection()
-                // Database
-                .AddScoped<IStorageContext, StorageContext>()
                 // Singletones
+                .AddSingleton(interactionService)
+                .AddSingleton<IIntegrationsService, IntegrationsService>()
                 .AddSingleton<IDiscordClient>(discordClient)
-                .AddSingleton<IntegrationsService>(integrationsService)
-                .AddSingleton<InteractionService>(interactionService)
                 // Handlers
                 .AddTransient<ButtonsHandler>()
                 .AddTransient<ModalsHandler>()
@@ -247,7 +244,7 @@ namespace CharacterEngineDiscord.Services
         private static DiscordSocketClient CreateDiscordClient()
         {
             // Define GatewayIntents
-            var intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
+            const GatewayIntents intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
 
             // Create client
             var clientConfig = new DiscordSocketConfig
@@ -265,7 +262,7 @@ namespace CharacterEngineDiscord.Services
         private void SetupIntegrationAsync()
         {
             try { _integrations.Initialize(); }
-            catch (Exception e) { LogException(new[] { e }); }
+            catch (Exception e) { LogException(new object?[] { e }); }
         }
 
         private static string GetLastGameStatus()

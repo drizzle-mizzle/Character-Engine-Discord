@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using static CharacterEngineDiscord.Services.CommonService;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -17,7 +18,9 @@ namespace CharacterEngineDiscord.Services
         public DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
         public DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         public StorageContext()
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
 
         }
@@ -28,15 +31,16 @@ namespace CharacterEngineDiscord.Services
                    $"Data Source={EXE_DIR}{SC}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
-            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
+            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies();
 
-            if (Environment.GetEnvironmentVariable("READY") is not null)
-            { 
-                if (ConfigFile.DbLogEnabled.Value.ToBool())
-                    optionsBuilder.LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name })
-                                  .EnableSensitiveDataLogging(true)
-                                  .EnableDetailedErrors(true);
-            }
+            if (Environment.GetEnvironmentVariable("READY") is null)
+                return;
+
+            if (ConfigFile.DbLogEnabled.Value.ToBool())
+                optionsBuilder.ConfigureWarnings(w => w.Ignore(CoreEventId.LazyLoadOnDisposedContextWarning))
+                    .EnableSensitiveDataLogging()
+                    .EnableDetailedErrors()
+                    .LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });
         }
 
 
@@ -68,16 +72,16 @@ namespace CharacterEngineDiscord.Services
             {
                 foreach (var entry in e.Entries)
                 {
-                    entry.Reload();
+                    await entry.ReloadAsync();
                 }
 
                 try
                 {
-                    db.SaveChanges();
+                    await db.SaveChangesAsync();
                 }
                 catch
                 {
-                    return;
+                    //
                 }
             }
         }
@@ -95,7 +99,7 @@ namespace CharacterEngineDiscord.Services
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, MessagesSent = 0 };
+                guild = new Guild { Id = guildId, MessagesSent = 0 };
                 await db.Guilds.AddAsync(guild);
                 await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingGuildAsync(guildId, db);
@@ -120,7 +124,7 @@ namespace CharacterEngineDiscord.Services
 
             if (channel is null)
             {
-                channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
+                channel = new Channel { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
                 await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
@@ -132,14 +136,14 @@ namespace CharacterEngineDiscord.Services
             return channel;
         }
 
-        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null)
+        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext db)
         {
-            bool gottaDispose = false;
-            if (db is null)
-            {
-                db = new StorageContext();
-                gottaDispose = true;
-            }
+            //bool gottaDispose = false;
+            //if (db is null)
+            //{
+            //    db = new StorageContext();
+            //    gottaDispose = true;
+            //}
 
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
 
@@ -161,8 +165,8 @@ namespace CharacterEngineDiscord.Services
                 character.AvatarUrl = notSavedCharacter.AvatarUrl;
             }
 
-            if (gottaDispose)
-                await db.DisposeAsync();
+            //if (gottaDispose)
+            //    await db.DisposeAsync();
 
             return character;
         }

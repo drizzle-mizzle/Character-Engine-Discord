@@ -18,50 +18,36 @@ using Discord.Commands;
 using CharacterEngineDiscord.Models.KoboldAI;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Newtonsoft.Json.Linq;
-using System.Data.Entity;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Services
 {
-    public class IntegrationsService
+    public class IntegrationsService : IIntegrationsService
     {
         /// <summary>
         /// (User ID : [current minute : interactions count])
         /// </summary>
         private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
-        internal ulong MessagesSent { get; set; } = 0;
-        internal List<SearchQuery> SearchQueries { get; } = new();
-        internal SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
+        public ulong MessagesSent { get; set; } = 0;
+        public List<SearchQuery> SearchQueries { get; } = new();
+        public SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
 
-        internal HttpClient ImagesHttpClient { get; } = new();
-        internal HttpClient ChubAiHttpClient { get; } = new();
-        internal HttpClient CommonHttpClient { get; } = new();
+        public HttpClient ImagesHttpClient { get; } = new();
+        public HttpClient ChubAiHttpClient { get; } = new();
+        public HttpClient CommonHttpClient { get; } = new();
 
-        internal AisekaiClient AisekaiClient { get; } = new();
-        internal CharacterAIClient? CaiClient { get; set; }
+        public AisekaiClient AisekaiClient { get; } = new();
+        public CharacterAIClient? CaiClient { get; set; }
 
         /// <summary>
         /// Webhook ID : WebhookClient
         /// </summary>
-        internal Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; } = new();
+        public Dictionary<ulong, DiscordWebhookClient> WebhookClients { get; } = new();
 
         /// <summary>
         /// Stored swiped messages (Character-webhook ID : LastCharacterCall)
         /// </summary>
-        internal Dictionary<ulong, LastCharacterCall> Conversations { get; } = new();
-
-        /// <summary>
-        /// For internal use only
-        /// </summary>
-        public enum IntegrationType
-        {
-            Empty = 0,
-            Aisekai = 1,
-            OpenAI = 2,
-            KoboldAI = 3,
-            HordeKoboldAI = 4,
-            CharacterAI = 5,
-        }
-
+        public Dictionary<ulong, LastCharacterCall> Conversations { get; } = new();
 
         public void Initialize()
         {
@@ -95,14 +81,18 @@ namespace CharacterEngineDiscord.Services
 
         public DiscordWebhookClient? GetWebhookClient(ulong webhookId, string webhookToken)
         {
-            if (!WebhookClients.TryGetValue(webhookId, out DiscordWebhookClient? client))
+            if (WebhookClients.TryGetValue(webhookId, out DiscordWebhookClient? client))
+                return client;
+
+            try
             {
-                try
-                {
-                    client = new DiscordWebhookClient(webhookId, webhookToken);
-                    WebhookClients.TryAdd(webhookId, client);
-                }
-                catch { return null; }
+                client = new DiscordWebhookClient(webhookId, webhookToken);
+                WebhookClients.TryAdd(webhookId, client);
+            }
+            catch (Exception e)
+            {
+                LogException(new object[] { e, webhookId, webhookToken });
+                return null;
             }
 
             return client;
@@ -111,7 +101,7 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// Temporary "raw" solution, will be redone into a library later
         /// </summary>
-        internal static async Task<OpenAiChatResponse?> SendOpenAiRequestAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
+        public static async Task<OpenAiChatResponse?> SendOpenAiRequestAsync(OpenAiChatRequestParams requestParams, HttpClient httpClient)
         {
             // Build data payload
             dynamic content = new ExpandoObject();
@@ -140,7 +130,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<KoboldAiResponse?> SendKoboldAiRequestAsync(string characterName, KoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        public static async Task<KoboldAiResponse?> SendKoboldAiRequestAsync(string characterName, KoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
         {
             string prompt = "";
             foreach (var msg in requestParams.Messages)
@@ -182,7 +172,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<HordeKoboldAiResponse?> SendHordeKoboldAiRequestAsync(string characterName, HordeKoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
+        public static async Task<HordeKoboldAiResponse?> SendHordeKoboldAiRequestAsync(string characterName, HordeKoboldAiRequestParams requestParams, HttpClient httpClient, bool continueRequest)
         {
             string prompt = "";
             foreach (var msg in requestParams.KoboldAiSettings.Messages)
@@ -229,7 +219,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false, bool isContinue = false)
+        public static OpenAiChatRequestParams BuildChatOpenAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false, bool isContinue = false)
         {
             string jailbreakPrompt = characterWebhook.PersonalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             string fullSystemPrompt = $"{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")}  " +
@@ -283,7 +273,7 @@ namespace CharacterEngineDiscord.Services
             return openAiParams;
         }
 
-        internal static KoboldAiRequestParams BuildKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
+        public static KoboldAiRequestParams BuildKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
         {
             string jailbreakPrompt = characterWebhook.PersonalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             string fullSystemPrompt = $"[SYSTEM INFO] \n{jailbreakPrompt.Replace("{{char}}", $"{characterWebhook.Character.Name}")} \n" +
@@ -343,7 +333,7 @@ namespace CharacterEngineDiscord.Services
             return koboldAiParams;
         }
 
-        internal static HordeKoboldAiRequestParams BuildHordeKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
+        public static HordeKoboldAiRequestParams BuildHordeKoboldAiRequestPayload(CharacterWebhook characterWebhook, bool isSwipe = false)
         {
             var hordeParams = new HordeKoboldAiRequestParams()
             {
@@ -355,7 +345,7 @@ namespace CharacterEngineDiscord.Services
             return hordeParams;
         }
 
-        internal static async Task<ChubSearchResponse?> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
+        public static async Task<ChubSearchResponse?> SearchChubCharactersAsync(ChubSearchParams searchParams, HttpClient client)
         {
             string uri = "https://api.chub.ai/search?" +
                 $"search={searchParams.Text}" +
@@ -381,7 +371,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<ChubCharacter?> GetChubCharacterInfoAsync(string characterId, HttpClient client)
+        public static async Task<ChubCharacter?> GetChubCharacterInfoAsync(string characterId, HttpClient client)
         {
             string url = $"https://api.chub.ai/api/characters/{characterId}?full=true";
 
@@ -399,7 +389,7 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IntegrationsService integration, bool fromChub)
+        public static async Task<CharacterWebhook?> CreateCharacterWebhookAsync(IntegrationType type, InteractionContext context, Models.Database.Character unsavedCharacter, IIntegrationsService integrations, bool fromChub)
         {
             if (context.Channel is not IIntegrationChannel discordChannel) return null;
 
@@ -407,7 +397,7 @@ namespace CharacterEngineDiscord.Services
             int l = Math.Min(2, unsavedCharacter.Name.Length-1);
             string callPrefix = $"..{unsavedCharacter.Name![..l].ToLower()}"; // => "..ch"
 
-            using var db = new StorageContext();
+            await using var db = new StorageContext();
 
             IWebhook? channelWebhook;
             try
@@ -421,6 +411,7 @@ namespace CharacterEngineDiscord.Services
                 return null;
             }
 
+            CharacterWebhook? result;
             try
             {
                 var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
@@ -430,23 +421,23 @@ namespace CharacterEngineDiscord.Services
 
                 if (fromChub)
                 {
-                    var chubCharacterFull = await GetChubCharacterInfoAsync(unsavedCharacter.Id, ChubAiHttpClient);
+                    var chubCharacterFull = await GetChubCharacterInfoAsync(unsavedCharacter.Id, integrations.ChubAiHttpClient);
                     unsavedCharacter = CharacterFromChubCharacterInfo(chubCharacterFull)!;
                 }
 
                 if (type is IntegrationType.CharacterAI)
                 {
-                    if (integration.CaiClient is null) return null;
+                    if (integrations.CaiClient is null) return null;
 
                     string? caiToken = channel.Guild.GuildCaiUserToken;
                     if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
                     bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-                    var info = await integration.CaiClient.GetInfoAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
+                    var info = await integrations.CaiClient.GetInfoAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
                     character.Tgt = info.Tgt;
 
-                    historyId = await integration.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
+                    historyId = await integrations.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (historyId is null) return null;
                 }
                 else if (type is IntegrationType.Aisekai)
@@ -454,25 +445,25 @@ namespace CharacterEngineDiscord.Services
                     var authToken = channel.Guild.GuildAisekaiAuthToken;
                     if (string.IsNullOrWhiteSpace(authToken)) return null;
 
-                    var response = await integration.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
+                    var response = await integrations.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
                     if (response.Code == 401)
                     {
-                        string? newAuthToken = await UpdateGuildAisekaiAuthTokenAsync(channel.Guild.Id, channel.Guild.GuildAisekaiRefreshToken ?? string.Empty);
+                        string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(channel.Guild.Id, channel.Guild.GuildAisekaiRefreshToken ?? string.Empty);
                         if (newAuthToken is null)
                             return null;
-                        else
-                            return await CreateCharacterWebhookAsync(type, context, unsavedCharacter, integration, fromChub);
+                        
+                        return await CreateCharacterWebhookAsync(type, context, unsavedCharacter, integrations, fromChub);
                     }
-                    else if (!response.IsSuccessful)
-                    {
+
+                    if (!response.IsSuccessful)
                         throw new($"Aisekai GetChatInfo()\nCode: {response.Code}\nError: {response.ErrorReason}");
-                    }
 
                     historyId = response.ChatId!;
                     character.Greeting = response.GreetingMessage!;
 
-                    bool tim = await integration.AisekaiClient.PatchToggleInitMessageAsync(authToken, historyId, false);
-                    if (!tim) throw new($"Aisekai PatchToggleInitMessageAsync()");
+                    bool tim = await integrations.AisekaiClient.PatchToggleInitMessageAsync(authToken, historyId, false);
+                    if (!tim)
+                        throw new($"Aisekai PatchToggleInitMessageAsync()");
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
@@ -483,7 +474,7 @@ namespace CharacterEngineDiscord.Services
                     db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = $"\n<{character.Name}>\n", Content = character.Greeting });
                 }
 
-                var characterWebhook = (await db.CharacterWebhooks.AddAsync(new CharacterWebhook()
+                var newCw = new CharacterWebhook()
                 {
                     Id = channelWebhook.Id,
                     WebhookToken = channelWebhook.Token,
@@ -501,10 +492,12 @@ namespace CharacterEngineDiscord.Services
                     ChannelId = channel.Id,
                     LastCallTime = DateTime.UtcNow,
                     MessagesSent = 1
-                })).Entity;
+                };
 
+                await db.CharacterWebhooks.AddAsync(newCw);
                 await TryToSaveDbChangesAsync(db);
-                return characterWebhook;
+
+                result = newCw;
             }
             catch (Exception e)
             {
@@ -514,11 +507,13 @@ namespace CharacterEngineDiscord.Services
                 if (channelWebhook is not null)
                     try { await channelWebhook.DeleteAsync(); } catch { }
 
-                return null;
+                result = null;
             }
+
+            return result;
         }
 
-        internal static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
+        public static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
         {
             var characters = new List<Models.Database.Character>();
 
@@ -531,7 +526,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
-        internal static SearchQueryData SearchQueryDataFromAisekaiResponse(AisekaiIntegration.Models.SearchResponse response)
+        public static SearchQueryData SearchQueryDataFromAisekaiResponse(AisekaiIntegration.Models.SearchResponse response)
         {
             var characters = new List<Models.Database.Character>();
 
@@ -548,7 +543,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.Aisekai) { ErrorReason = response.ErrorReason };
         }
 
-        internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse? response)
+        public static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse? response)
         {
             var characters = new List<Models.Database.Character>();
             if (response is null)
@@ -563,7 +558,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters, response.OriginalQuery, type) { ErrorReason = response.ErrorReason };
         }
 
-        internal static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
+        public static Models.Database.Character? CharacterFromCaiCharacterInfo(CharacterAI.Models.Character caiCharacter)
         {
             if (caiCharacter.IsEmpty) return null;
 
@@ -584,7 +579,7 @@ namespace CharacterEngineDiscord.Services
             };
         }
 
-        internal static Models.Database.Character CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
+        public static Models.Database.Character CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
         {
             return new()
             {
@@ -601,7 +596,7 @@ namespace CharacterEngineDiscord.Services
             };
         }
 
-        internal static Models.Database.Character? CharacterFromChubCharacterInfo(ChubCharacter? chubCharacter)
+        public static Models.Database.Character? CharacterFromChubCharacterInfo(ChubCharacter? chubCharacter)
         {
             if (chubCharacter is null) return null;
 
@@ -686,13 +681,13 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        internal static async Task<bool> UserIsBannedCheckOnly(ulong userId)
+        public static async Task<bool> UserIsBannedCheckOnly(ulong userId)
         {
-            using var db = new StorageContext();
-            return await db.BlockedUsers.AnyAsync(bu => bu.Id.Equals(userId));
+            await using var db = new StorageContext();
+            return db.BlockedUsers.Any(bu => bu.Id.Equals(userId));
         }
 
-        internal async Task<bool> UserIsBanned(SocketCommandContext context)
+        public async Task<bool> UserIsBanned(SocketCommandContext context)
         {
             var user = context.Message.Author;
             var channel = context.Channel;
@@ -700,7 +695,7 @@ namespace CharacterEngineDiscord.Services
             return await CheckIfUserIsBannedAsync(user, channel, context.Client);
         }
 
-        internal async Task<bool> UserIsBanned(SocketReaction reaction, IDiscordClient client)
+        public async Task<bool> UserIsBanned(SocketReaction reaction, IDiscordClient client)
         {
             var user = reaction.User.GetValueOrDefault();
             var channel = reaction.Channel;
@@ -709,7 +704,7 @@ namespace CharacterEngineDiscord.Services
             return await CheckIfUserIsBannedAsync(user, channel, client);
         }
 
-        internal async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, IDiscordClient client)
+        private async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, IDiscordClient client)
         {
             using (var db = new StorageContext())
             {
@@ -762,13 +757,13 @@ namespace CharacterEngineDiscord.Services
             return true;
         }
 
-        internal async Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken)
+        public async Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken)
         {
             var newToken = await AisekaiClient.RefreshUserTokenAsync(refreshToken);
 
             if (newToken is not null)
             {
-                using var db = new StorageContext();
+                await using var db = new StorageContext();
                 var guild = await FindOrStartTrackingGuildAsync(guildId, db);
                 guild.GuildAisekaiAuthToken = newToken;
                 await TryToSaveDbChangesAsync(db);
@@ -782,7 +777,7 @@ namespace CharacterEngineDiscord.Services
             _watchDog.Clear();
         }
 
-        internal static Embed SuccessEmbed(string message = "Success", string? imageUrl = null)
+        public static Embed SuccessEmbed(string message = "Success", string? imageUrl = null)
             => $"{OK_SIGN_DISCORD} {message}".ToInlineEmbed(Color.Green, imageUrl: imageUrl);
     }
 }

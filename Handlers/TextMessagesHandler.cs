@@ -9,21 +9,14 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class TextMessagesHandler
+    internal class TextMessagesHandler(IDiscordClient client, IIntegrationsService integrations)
     {
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integrations;
-
-        public TextMessagesHandler(IDiscordClient client, IServiceProvider services)
-        {
-            _client = (DiscordSocketClient)client;
-            _integrations = services.GetRequiredService<IntegrationsService>();
-        }
-
         public Task HandleMessage(SocketMessage message)
         {
             Task.Run(async () => {
@@ -37,10 +30,10 @@ namespace CharacterEngineDiscord.Handlers
         private async Task HandleMessageAsync(SocketMessage sm)
         {
             var userMessage = sm as SocketUserMessage;
-            bool invalidInput = userMessage is null || Equals(userMessage.Author.Id, _client.CurrentUser.Id) || userMessage.Content.StartsWith("~ignore");
+            bool invalidInput = userMessage is null || Equals(userMessage.Author.Id, client.CurrentUser.Id) || userMessage.Content.StartsWith("~ignore");
             if (invalidInput) return;
 
-            var context = new SocketCommandContext(_client, userMessage);
+            var context = new SocketCommandContext(client as DiscordSocketClient, userMessage);
             if (context.Channel is not IGuildChannel guildChannel) return;
 
             // It throws NullReferenceException sometimes for some reason
@@ -61,7 +54,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var calledCharacters = await DetermineCalledCharacters(userMessage!, channelId);
-            if (calledCharacters.Count == 0 || await _integrations.UserIsBanned(context)) return;
+            if (calledCharacters.Count == 0 || await integrations.UserIsBanned(context)) return;
 
             foreach (var characterWebhook in calledCharacters)
             {
@@ -78,7 +71,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task TryToCallCharacterAsync(ulong characterWebhookId, SocketCommandContext context, bool isThread)
         {
-            using var db = new StorageContext();
+            await using var db = new StorageContext();
 
              /////////////////
             /// Prevalidations
@@ -96,7 +89,7 @@ namespace CharacterEngineDiscord.Handlers
             // Can be `true` when two characters speak to each other, and one of them suddenly sends error message.
             // In this case, bot will let one error message pass as a normal message (so 2nd character could see it),
             // but it will brace to ignore the second message if it will return an error again.
-            bool isErrorMessage = context.Message.Embeds.Any() && string.IsNullOrEmpty(context.Message.Content);
+            bool isErrorMessage = context.Message.Embeds.Count != 0 && string.IsNullOrEmpty(context.Message.Content);
 
             // If this one is true, it means that the last message was containing some error...
             if (characterWebhook.SkipNextErrorMessage)
@@ -186,8 +179,8 @@ namespace CharacterEngineDiscord.Handlers
         /// <returns>Message ID or 0 if sending failed</returns>
         private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, Models.Common.CharacterResponse characterResponse, SocketCommandContext context, string userName, bool isThread)
         {
-            _integrations.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
-            var convo = _integrations.Conversations[characterWebhook.Id];
+            integrations.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
+            var convo = integrations.Conversations[characterWebhook.Id];
 
             await convo.Locker.WaitAsync();
             try
@@ -207,10 +200,10 @@ namespace CharacterEngineDiscord.Handlers
                 convo.Locker.Release();
             }
 
-            var webhookClient = _integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+            var webhookClient = integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `channel webhook was not found`".ToInlineEmbed(Color.Red));
+                await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `Channel webhook was not found`".ToInlineEmbed(Color.Red));
                 return 0;
             }
 
@@ -255,7 +248,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 if (characterResponse.ImageRelPath is not null)
                 {
-                    bool canGetImage = await CheckIfImageIsAvailableAsync(characterResponse.ImageRelPath, _integrations.ImagesHttpClient);
+                    bool canGetImage = await CheckIfImageIsAvailableAsync(characterResponse.ImageRelPath, integrations.ImagesHttpClient);
                     if (canGetImage) embeds.Add(new EmbedBuilder().WithImageUrl(characterResponse.ImageRelPath).Build());
                 }
             }
@@ -269,7 +262,7 @@ namespace CharacterEngineDiscord.Handlers
                 else
                     messageId = await webhookClient.SendMessageAsync(characterMsgText, embeds: embeds);
 
-                _integrations.MessagesSent++;
+                integrations.MessagesSent++;
 
                 if (!errorMessage)
                     await TryToAddButtonsAsync(characterWebhook, context.Channel, messageId, responseToBot: (context.User.IsWebhook || context.User.IsBot));
@@ -295,7 +288,7 @@ namespace CharacterEngineDiscord.Handlers
             string tgt = cw.Character.Tgt ?? string.Empty;
             string historyId = cw.ActiveHistoryID ?? string.Empty;
 
-            var response = await _integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var response = await integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
 
             string message;
             bool success;
@@ -325,7 +318,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             authToken ??= characterWebhook.Channel.Guild.GuildAisekaiAuthToken!;
             
-            _integrations.Conversations.TryGetValue(characterWebhook.Id, out var convo);
+            integrations.Conversations.TryGetValue(characterWebhook.Id, out var convo);
             
             if (convo is not null && convo.AvailableMessages.Count > 1) // there was a swipe
             {   // Try to edit character message
@@ -348,7 +341,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             string? lastMessageId = null;
 
-            var response = await _integrations.AisekaiClient.PostChatMessageAsync(authToken, characterWebhook.ActiveHistoryID!, text);
+            var response = await integrations.AisekaiClient.PostChatMessageAsync(authToken, characterWebhook.ActiveHistoryID!, text);
 
             if (response.IsSuccessful)
             {
@@ -357,7 +350,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (response.Code == 401)
             {
-                string? newAuthToken = await _integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
                 if (newAuthToken is null)
                     message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
                 else
@@ -378,7 +371,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task<KeyValuePair<bool, string?>> EditLastAisekaiCharacterMessageAsync(CharacterWebhook characterWebhook, string authToken, LastCharacterCall convo)
         {
-            var response = await _integrations.AisekaiClient.PatchEditMessageAsync(authToken, characterWebhook.ActiveHistoryID!, convo.AvailableMessages[0].MessageId!, convo.AvailableMessages[characterWebhook.CurrentSwipeIndex].Text!);
+            var response = await integrations.AisekaiClient.PatchEditMessageAsync(authToken, characterWebhook.ActiveHistoryID!, convo.AvailableMessages[0].MessageId!, convo.AvailableMessages[characterWebhook.CurrentSwipeIndex].Text!);
 
             if (response.IsSuccessful)
             {
@@ -386,7 +379,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             if (response.Code == 401)
             {
-                string? newAuthToken = await _integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
                 if (newAuthToken is null)
                     return new(false, $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`");
                 else
@@ -418,7 +411,7 @@ namespace CharacterEngineDiscord.Handlers
             int tokens = 0;
             string? charMsgId = null;
 
-            var openAiResponse = await SendOpenAiRequestAsync(openAiRequestParams, _integrations.CommonHttpClient);
+            var openAiResponse = await SendOpenAiRequestAsync(openAiRequestParams, integrations.CommonHttpClient);
 
             if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
@@ -468,7 +461,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var kobkoldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiRequestParams, _integrations.CommonHttpClient, continueRequest: false);
+            var kobkoldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiRequestParams, integrations.CommonHttpClient, continueRequest: false);
 
             if (kobkoldAiResponse is null || kobkoldAiResponse.IsFailure || kobkoldAiResponse.Message.IsEmpty())
             {
@@ -511,7 +504,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var hordeResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeRequestParams, _integrations.CommonHttpClient, continueRequest: false);
+            var hordeResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeRequestParams, integrations.CommonHttpClient, continueRequest: false);
 
             if (hordeResponse is null || hordeResponse.IsFailure || hordeResponse.Id.IsEmpty())
             {
@@ -521,7 +514,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {   // Remember character message
-                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.Id, _integrations.CommonHttpClient, 0);
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.Id, integrations.CommonHttpClient, 0);
                 if (hordeResult.IsSuccessful)
                 {
                     cw.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = hordeResult.Message!, CharacterWebhookId = cw.Id });
@@ -649,9 +642,10 @@ namespace CharacterEngineDiscord.Handlers
         {
             List<CharacterWebhook> characterWebhooks = new();
 
-            Channel? channel;
-            using (var db = new StorageContext())
-                channel = await db.Channels.FindAsync(channelId);
+            await using var db = new StorageContext();
+            var channel = await db.Channels.Include(c => c.CharacterWebhooks)
+                                           .ThenInclude(cw => cw.HuntedUsers)
+                                           .FirstOrDefaultAsync(c => c.Id == channelId);
 
             if (channel is null || channel.CharacterWebhooks.Count == 0)
             {
@@ -747,7 +741,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN, STOP_BTN };
                 await Parallel.ForEachAsync(btns, async (btn, ct)
-                    => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+                    => await oldMessage.RemoveReactionAsync(btn, client.CurrentUser));
             });
         }
 
@@ -759,7 +753,7 @@ namespace CharacterEngineDiscord.Handlers
 
             var channel = message.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
-            TryToReportInLogsChannel(_client, title: "Message Exception",
+            TryToReportInLogsChannel(client, title: "Message Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
                                                     $"Channel: `{channel?.Name} ({channel?.Id})`\n" +

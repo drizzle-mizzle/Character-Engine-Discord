@@ -5,24 +5,18 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-using System.Security.AccessControl;
+using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireManagerAccess]
     [Group("update", "Change character settings")]
-    public class UpdateCharacterCommands : InteractionModuleBase<InteractionContext>
+    public class UpdateCharacterCommands(IIntegrationsService integrations) : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        private readonly StorageContext _db;
+        //private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
 
-        public UpdateCharacterCommands(IServiceProvider services)
-        {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _db = new StorageContext();
-        }
 
 
         [SlashCommand("call-prefix", "Change character call prefix")]
@@ -30,7 +24,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -39,7 +34,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.CallPrefix = newCallPrefix;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
@@ -50,7 +45,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -76,7 +72,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.PersonalMessagesFormat = newFormat;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             string text = newFormat.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
 
@@ -118,7 +114,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -129,14 +126,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var channel = (SocketTextChannel)Context.Channel;
             var channelWebhook = await channel.GetWebhookAsync(characterWebhook.Id);
 
-            using (Stream? image = await TryToDownloadImageAsync(avatarUrl, _integration.ImagesHttpClient))
+            await using (Stream? image = await TryToDownloadImageAsync(avatarUrl, integrations.ImagesHttpClient))
             {
                 await channelWebhook.ModifyAsync(cw
                     => cw.Image = new Image(image ?? new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"))));
             };
 
             characterWebhook.Character.AvatarUrl = avatarUrl;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"{characterWebhook.Character.Name} avatar updated", imageUrl: avatarUrl), ephemeral: silent);
         }
@@ -147,7 +144,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -164,7 +162,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.Character.Name;
             characterWebhook.Character.Name = name;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Character name was changed from {before} to {name}"), ephemeral: silent);
         }
@@ -175,7 +173,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -185,7 +184,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.ResponseDelay.ToString();
             characterWebhook.ResponseDelay = seconds;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Response delay was changed from {before}s to {seconds}s"), ephemeral: silent);
         }
@@ -196,7 +195,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -205,7 +205,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.ReferencesEnabled = enable;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Quotes {(enable ? "enabled" : "disabled")}"), ephemeral: silent);
         }
@@ -216,7 +216,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -225,7 +226,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.SwipesEnabled = enable;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Swipes {(enable ? "enabled" : "disabled")}"), ephemeral: silent);
         }
@@ -236,7 +237,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -252,7 +254,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.CrutchEnabled = enable;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Crutch {(enable ? "enabled" : "disabled")}"), ephemeral: silent);
         }
@@ -263,7 +265,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -272,7 +275,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             characterWebhook.StopBtnEnabled = enable;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"STOP button {(enable ? "enabled" : "disabled")}"), ephemeral: silent);
         }
@@ -283,7 +286,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -293,7 +297,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             string before = characterWebhook.ReplyChance.ToString();
             characterWebhook.ReplyChance = chance;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed($"Random reply chance for {characterWebhook.Character.Name} was changed from {before} to {chance}"), ephemeral: silent);
         }
@@ -304,7 +308,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -323,7 +328,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 message += $".\nEntered history ID has length that is different from expected ({newHistoryId.Length}/43). Make sure it's correct.";
 
             characterWebhook.ActiveHistoryID = newHistoryId;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: message.ToInlineEmbed(Color.Green), ephemeral: silent);
         }
@@ -333,7 +338,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -342,7 +348,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var type = characterWebhook.IntegrationType;
-            if (type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai)
+            if (type is IntegrationType.CharacterAI or IntegrationType.Aisekai)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't change API type for {type} character".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -354,7 +360,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                 : IntegrationType.Empty;
 
             characterWebhook.IntegrationType = integrationType;
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
@@ -364,7 +370,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, _db);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -452,7 +459,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 characterWebhook.PersonalApiEndpoint = personalApiEndpoint;
             }
 
-            await TryToSaveDbChangesAsync(_db);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: embed.Build(), ephemeral: silent);
         }

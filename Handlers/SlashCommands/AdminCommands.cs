@@ -4,36 +4,28 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 using System.Diagnostics;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireHosterAccess]
     [Group("admin", "Admin commands")]
-    public class AdminCommands : InteractionModuleBase<InteractionContext>
+    public class AdminCommands(IIntegrationsService integrations, IDiscordClient client) : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
-        private readonly StorageContext _db;
-
-        public AdminCommands(IServiceProvider services)
-        {
-            _integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
-            _db = new StorageContext();
-        }
-
+        private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
 
         [SlashCommand("status", "-")]
         public async Task AdminStatus(bool silent = true)
         {
             await DeferAsync(ephemeral: silent);
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+
+            await using var db = new StorageContext();
             string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
-                          $"Blocked: `{_db.BlockedUsers.Where(bu => bu.GuildId == null).Count()} user(s)` | `{_db.BlockedGuilds.Count()} guild(s)`\n" +
-                          $"Stats: `{_integration.WebhookClients.Count}wc/{_integration.SearchQueries.Count}sq`";
+                          $"Blocked: `{db.BlockedUsers.Count(bu => bu.GuildId == null)} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
+                          $"Stats: `{integrations.WebhookClients.Count}wc/{integrations.SearchQueries.Count}sq`";
 
             await FollowupAsync(embed: text.ToInlineEmbed(Color.Green, false), ephemeral: silent);
         }
@@ -86,8 +78,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
+            await using var db = new StorageContext();
             ulong guildId = ulong.Parse(serverId.Trim());
-            var guild = await _db.Guilds.FindAsync(guildId);
+            var guild = await db.Guilds.FindAsync(guildId);
 
             if (guild is null)
             {
@@ -95,15 +88,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if ((await _db.BlockedGuilds.FindAsync(guild.Id)) is not null)
+            if ((await db.BlockedGuilds.FindAsync(guild.Id)) is not null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Server is aready blocked".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
             }
 
-            await _db.BlockedGuilds.AddAsync(new() { Id = guildId });
-            _db.Guilds.Remove(guild); // Remove from db
-            await TryToSaveDbChangesAsync(_db);
+            await db.BlockedGuilds.AddAsync(new() { Id = guildId });
+            db.Guilds.Remove(guild); // Remove from db
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: $"{OK_SIGN_DISCORD} Server was removed from the database".ToInlineEmbed(Color.Red), ephemeral: silent);
 
@@ -126,7 +119,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var blockedGuild = await _db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
+            await using var db = new StorageContext();
+            var blockedGuild = await db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
 
             if (blockedGuild is null)
             {
@@ -134,8 +128,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            _db.BlockedGuilds.Remove(blockedGuild);
-            await TryToSaveDbChangesAsync(_db);
+            db.BlockedGuilds.Remove(blockedGuild);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
@@ -154,14 +148,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            if ((await _db.BlockedUsers.FindAsync(uUserId)) is not null)
+            await using var db = new StorageContext();
+            if ((await db.BlockedUsers.FindAsync(uUserId)) is not null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
-            await _db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = 0 });
-            await TryToSaveDbChangesAsync(_db);
+            await db.BlockedUsers.AddAsync(new() { Id = uUserId, From = DateTime.UtcNow, Hours = 0 });
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
@@ -180,22 +175,23 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var blockedUser = await _db.BlockedUsers.FindAsync(uUserId);
+            await using var db = new StorageContext();
+            var blockedUser = await db.BlockedUsers.FindAsync(uUserId);
             if (blockedUser is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
-            _db.BlockedUsers.Remove(blockedUser);
-            await TryToSaveDbChangesAsync(_db);
+            db.BlockedUsers.Remove(blockedUser);
+            await TryToSaveDbChangesAsync(db);
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
 
 
         [SlashCommand("broadcast", "Send a message in each channel where bot was ever called")]
-        public async Task AdminShoutOut(string title, string? desc = null, string? imageUrl = null, bool silent = true)
+        public async Task AdminShoutOut(string? title, string? desc = null, string? imageUrl = null, bool silent = true)
         {
             await DeferAsync(ephemeral: silent);
 
@@ -205,7 +201,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (imageUrl is not null) embedB.WithImageUrl(imageUrl);
             var embed = embedB.Build();
 
-            var channelIds = _db.Channels.Select(c => c.Id).ToList();
+            await using var db = new StorageContext();
+            var channelIds = db.Channels.Select(c => c.Id).ToList();
             var channels = new List<IMessageChannel>();
 
             await Parallel.ForEachAsync(channelIds, async (channelId, ct) =>
@@ -256,10 +253,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, _db);
-            var allCharacters = _db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
+            await using var db = new StorageContext();
+            var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, db);
+            var allCharacters = db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
 
-            if (allCharacters is null || !allCharacters.Any())
+            if (!allCharacters.Any())
             {
                 await FollowupAsync(embed: $"No records ({dbGuild.MessagesSent})".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
@@ -295,7 +293,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            if (_integration.CaiClient is null)
+            if (integrations.CaiClient is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -303,7 +301,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange), ephemeral: silent);
 
-            try { _integration.CaiClient.KillBrowser(); }
+            try { integrations.CaiClient.KillBrowser(); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
@@ -320,7 +318,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            if (_integration.CaiClient is null)
+            if (integrations.CaiClient is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -328,7 +326,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting Puppeteer down...".ToInlineEmbed(Color.LightOrange), ephemeral: silent);
 
-            try { _integration.CaiClient.KillBrowser(); }
+            try { integrations.CaiClient.KillBrowser(); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
@@ -338,7 +336,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple), ephemeral: silent);
 
-            try { _integration.CaiClient.LaunchBrowser(killDuplicates: true); }
+            try { integrations.CaiClient.LaunchBrowser(killDuplicates: true); }
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));

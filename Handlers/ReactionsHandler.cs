@@ -7,25 +7,15 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Discord.Webhook;
-using System.Threading.Channels;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class ReactionsHandler
+    internal class ReactionsHandler(IDiscordClient client, IIntegrationsService integrations)
     {
-        private readonly IDiscordClient _client;
-        private readonly IntegrationsService _integrations;
-
-        public ReactionsHandler(IServiceProvider services, IDiscordClient client)
-        {
-            _client = client;
-            _integrations = services.GetRequiredService<IntegrationsService>();
-        }
-
         public Task HandleReaction(Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
         {
             Task.Run(async () =>
@@ -69,7 +59,7 @@ namespace CharacterEngineDiscord.Handlers
 
             if ((reaction.Emote?.Name == ARROW_LEFT.Name) && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
-                if (await _integrations.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
 
                 characterWebhook.CurrentSwipeIndex--;
                 await TryToSaveDbChangesAsync(db);
@@ -77,7 +67,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
-                if (await _integrations.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
 
                 characterWebhook.CurrentSwipeIndex++;
                 await TryToSaveDbChangesAsync(db);
@@ -85,7 +75,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
             {   // proceed generation
-                if (await _integrations.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
 
                 await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
             }
@@ -93,21 +83,21 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task SwipeCharacterMessageAsync(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser userCalled, bool isSwipe)
         {
-            bool messageIsNotTracked = !_integrations.Conversations.ContainsKey(characterWebhookId);
+            bool messageIsNotTracked = !integrations.Conversations.ContainsKey(characterWebhookId);
             if (messageIsNotTracked) return;
 
             using var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
-            var webhookClient = _integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+            var webhookClient = integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
                 await characterOriginalMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            var convo = _integrations.Conversations[characterWebhookId];
+            var convo = integrations.Conversations[characterWebhookId];
             await convo.Locker.WaitAsync();
             try
             {
@@ -155,7 +145,7 @@ namespace CharacterEngineDiscord.Handlers
             if (quoteEmbed is not null)
                 embeds.Add(quoteEmbed);
 
-            if (imageUrl is not null && await CheckIfImageIsAvailableAsync(imageUrl, _integrations.ImagesHttpClient))
+            if (imageUrl is not null && await CheckIfImageIsAvailableAsync(imageUrl, integrations.ImagesHttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
             // Add text to the message
@@ -196,15 +186,15 @@ namespace CharacterEngineDiscord.Handlers
         {
             Models.Common.CharacterResponse characterResponse;
             if (cw.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await SwipeCaiMessageAsync(cw, _integrations.CaiClient!);
+                characterResponse = await SwipeCaiMessageAsync(cw, integrations.CaiClient!);
             else if (cw.IntegrationType is IntegrationType.Aisekai)
-                characterResponse = await SwipeAisekaiMessageAsync(cw, _integrations.AisekaiClient);
+                characterResponse = await SwipeAisekaiMessageAsync(cw, integrations.AisekaiClient);
             else if (cw.IntegrationType is IntegrationType.OpenAI)
-                characterResponse = await SwipeOpenAiMessageAsync(cw, _integrations.CommonHttpClient, isSwipeOrContinue: isSwipe);
+                characterResponse = await SwipeOpenAiMessageAsync(cw, integrations.CommonHttpClient, isSwipeOrContinue: isSwipe);
             else if (cw.IntegrationType is IntegrationType.KoboldAI)
-                characterResponse = await SwipeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient);
+                characterResponse = await SwipeKoboldAiMessageAsync(cw, integrations.CommonHttpClient);
             else if (cw.IntegrationType is IntegrationType.HordeKoboldAI)
-                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient);
+                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, integrations.CommonHttpClient);
             else return false;
 
             if (!characterResponse.IsSuccessful)
@@ -272,7 +262,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {
-                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeKoboldAiResponse.Id, _integrations.CommonHttpClient, 0);
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeKoboldAiResponse.Id, integrations.CommonHttpClient, 0);
 
                 string message;
                 bool success;
@@ -363,7 +353,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (response.Code == 401)
             {
-                string? newAuthToken = await _integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
                 if (newAuthToken is null)
                     message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
                 else
@@ -389,7 +379,7 @@ namespace CharacterEngineDiscord.Handlers
             var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
             var guild = guildChannel?.Guild;
 
-            TryToReportInLogsChannel(_client, title: "Reaction Exception",
+            TryToReportInLogsChannel(client, title: "Reaction Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
                                                     $"Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +

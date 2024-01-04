@@ -6,23 +6,15 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    public class OtherCommands : InteractionModuleBase<InteractionContext>
+    public class OtherCommands(IDiscordClient client) : InteractionModuleBase<InteractionContext>
     {
-        //private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
-        //private readonly StorageContext _db;
+        private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
 
-        public OtherCommands(IServiceProvider services)
-        {
-            //_integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
-            //_db = new StorageContext();
-        }
-
-
+        
         [SlashCommand("help", "All basic info about bot")]
         public async Task BaicsHelp(bool silent = true)
         {
