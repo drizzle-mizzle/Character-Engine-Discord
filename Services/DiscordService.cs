@@ -154,6 +154,8 @@ namespace CharacterEngineDiscord.Services
         {
             if (!_firstLaunch) return;
 
+            LogGreen(_client.CurrentUser.Username + "\n");
+            
             if (!noreg)
             {
                 Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");

@@ -1,4 +1,5 @@
-﻿using Discord;
+﻿using System.Data.Entity;
+using Discord;
 using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
@@ -257,7 +258,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, db);
-            var allCharacters = db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
+            var allCharacters = await db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id).ToListAsync();
 
             if (!allCharacters.Any())
             {

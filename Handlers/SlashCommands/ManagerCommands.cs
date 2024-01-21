@@ -455,7 +455,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
-            var blockedUsers = db.BlockedUsers.Where(bu => bu.GuildId == guild.Id);
+            var blockedUsers = await db.BlockedUsers.Where(bu => bu.GuildId == guild.Id).ToListAsync();
 
             ulong uUserId;
             if (user is null)
@@ -514,7 +514,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             await using var db = new StorageContext();
-            var blockedUsers = db.BlockedUsers.Where(bu => bu.GuildId == Context.Guild.Id);
+            var blockedUsers = await db.BlockedUsers.Where(bu => bu.GuildId == Context.Guild.Id).ToListAsync();
 
             var blockedUser = blockedUsers.FirstOrDefault(bu => bu.Id == uUserId && bu.GuildId == Context.Guild.Id);
             if (blockedUser is null)
