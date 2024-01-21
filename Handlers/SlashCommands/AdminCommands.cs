@@ -258,7 +258,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, db);
-            var allCharacters = await db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id).ToListAsync();
+            var allCharacters = db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id).ToListAsync();
 
             if (!allCharacters.Any())
             {

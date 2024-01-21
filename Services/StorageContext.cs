@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Services
                    $"Data Source={EXE_DIR}{SC}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
-            optionsBuilder.UseSqlite(connString);
+            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies();
 
             if (Environment.GetEnvironmentVariable("READY") is null)
                 return;

@@ -82,27 +82,12 @@ namespace CharacterEngineDiscord.Handlers
             if (characterWebhook is null) return;
             if (characterWebhook.IntegrationType is IntegrationType.Empty) return;
 
-            var channel = await db.Channels.FindAsync(characterWebhook.ChannelId);
-            if (channel is null) return;
-
-            var guild = await db.Guilds.FindAsync(channel.GuildId);
-            if (guild is null) return;
-
-
             if ((context.User.IsWebhook || context.User.IsBot) && characterWebhook.SkipNextBotMessage)
             {
                 characterWebhook.SkipNextBotMessage = false;
                 await TryToSaveDbChangesAsync(db);
                 return;
             }
-
-            var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
-            var storedHistoryMessages = await db.StoredHistoryMessages.Where(m => m.CharacterWebhookId == characterWebhook.Id).ToListAsync();
-
-            channel.Guild = guild;
-            characterWebhook.Channel = channel;
-            characterWebhook.Character = character;
-            characterWebhook.StoredHistoryMessages = storedHistoryMessages;
 
             // Can be `true` when two characters speak to each other, and one of them suddenly sends error message.
             // In this case, bot will let one error message pass as a normal message (so 2nd character could see it),
@@ -157,7 +142,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Bring to format template
-            var formatTemplate = characterWebhook.PersonalMessagesFormat ?? guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+            var formatTemplate = characterWebhook.PersonalMessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             text = formatTemplate.Replace("{{user}}", $"{userName}")
                                  .Replace("{{msg}}", $"{text.RemovePrefix(characterWebhook.CallPrefix)}")
                                  .Replace("\\n", "\n");
@@ -188,7 +173,7 @@ namespace CharacterEngineDiscord.Handlers
             characterWebhook.LastCallTime = DateTime.UtcNow;
             characterWebhook.MessagesSent++;
             characterWebhook.LastCharacterDiscordMsgId = await messageId;
-            guild.MessagesSent++;
+            characterWebhook.Channel.Guild.MessagesSent++;
 
             await TryToSaveDbChangesAsync(db);
         }
@@ -675,17 +660,13 @@ namespace CharacterEngineDiscord.Handlers
             if (channel is null)
                 return calledCharacters;
 
-            var characterWebhooks = await db.CharacterWebhooks.Where(cw => cw.ChannelId == channel.Id).Include(cw => cw.HuntedUsers).ToListAsync();
-            if (characterWebhooks.Count == 0)
-                return calledCharacters;
-
             var text = userMessage.Content.Trim();
             var rm = userMessage.ReferencedMessage;
             var withRefMessage = rm is not null && rm.Author.IsWebhook;
             var chance = (float)(random.Next(99) + 0.001 + random.NextDouble());
 
             // Try to find one certain character that was called by a prefix
-            var cw = characterWebhooks.FirstOrDefault(cwh => text.StartsWith(cwh.CallPrefix));
+            var cw = channel.CharacterWebhooks.FirstOrDefault(cwh => text.StartsWith(cwh.CallPrefix));
 
             if (cw is not null)
             {
@@ -693,12 +674,12 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (withRefMessage) // or find some other that was called by a reply
             {
-                cw = characterWebhooks.FirstOrDefault(cwh => cwh.Id == rm!.Author.Id);
+                cw = channel.CharacterWebhooks.FirstOrDefault(cwh => cwh.Id == rm!.Author.Id);
                 if (cw is not null) calledCharacters.Add(cw);
             }
 
             // Add characters who hunt the user            
-            var hunters = characterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
+            var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
             if (hunters.Any())
             {
                 foreach (var h in hunters.Where(h => !calledCharacters.Contains(h)))
@@ -708,7 +689,7 @@ namespace CharacterEngineDiscord.Handlers
             // Add some random character (only one) by channel's random reply chance
             if (channel.RandomReplyChance > chance)
             {
-                var characters = characterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
+                var characters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
                 if (characters.Count > 0)
                 {
                     var someRandomCharacter = characters[random.Next(characters.Count)];
@@ -718,7 +699,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Add certain random characters by their personal random reply chance
-            var randomCharacters = characterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
+            var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
             if (randomCharacters.Count > 0)
             {
                 foreach (var rc in randomCharacters.Where(rc => !calledCharacters.Contains(rc)))

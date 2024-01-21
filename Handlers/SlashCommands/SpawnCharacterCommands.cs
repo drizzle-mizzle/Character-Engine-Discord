@@ -100,9 +100,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
-
-            var caiToken = guild.GuildCaiUserToken ?? string.Empty;
+            
+            var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
@@ -112,7 +111,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var plusMode = guild.GuildCaiPlusMode ?? false;
+            var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
             await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
             
@@ -152,9 +151,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
 
-            string? authToken = guild.GuildAisekaiAuthToken;
+            string? authToken = channel.Guild.GuildAisekaiAuthToken;
 
             if (string.IsNullOrWhiteSpace(authToken))
             {
@@ -167,7 +165,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await SpawnAisekaiCharacterWithIdAsync(guild, searchQueryOrCharacterId ?? string.Empty, authToken);
+                await SpawnAisekaiCharacterWithIdAsync(channel.Guild, searchQueryOrCharacterId ?? string.Empty, authToken);
             }
             else // set with search
             {

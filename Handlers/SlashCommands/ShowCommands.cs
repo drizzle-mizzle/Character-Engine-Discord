@@ -26,15 +26,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
-            var characterWebhooks = await db.CharacterWebhooks.Where(cw => cw.ChannelId == channel.Id).ToListAsync();
-
-            if (!characterWebhooks.Any())
+            
+            if (!channel.CharacterWebhooks.Any())
             {
                 await FollowupAsync(embed: $"{OK_SIGN_DISCORD} No characters were found in this channel".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
             }
 
-            var rCharacterWebhooks = Enumerable.Reverse(characterWebhooks).ToList();
+            var rCharacterWebhooks = Enumerable.Reverse(channel.CharacterWebhooks).ToList();
             var embed = new EmbedBuilder().WithColor(Color.Purple);
             int start = (page - 1) * 5;
             int end = (rCharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (rCharacterWebhooks.Count - start - 1);
@@ -253,12 +252,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
-
+            
             if (webhookIdOrPrefix is null)
             {
                 title = "Default messages format";
-                format = guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+                format = channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
             else
             {
@@ -269,11 +267,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     await FollowupAsync(embed: CHARACTER_NOT_FOUND_MESSAGE, ephemeral: silent);
                     return;
                 }
-
-                var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
-
-                title = $"{character.Name}'s messages format";
-                format = characterWebhook.PersonalMessagesFormat ?? guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+                
+                title = $"{characterWebhook.Character.Name}'s messages format";
+                format = characterWebhook.PersonalMessagesFormat ?? channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
 
             string text = format.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
@@ -309,12 +305,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
             
             if (webhookIdOrPrefix is null)
             {
                 title = "Default jailbreak prompt";
-                prompt = guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
+                prompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             }
             else
             {
@@ -333,10 +328,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
 
-                title = $"{character.Name}'s jailbreak prompt";
-                prompt = (characterWebhook.PersonalJailbreakPrompt ?? guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!).Replace("{{char}}", $"{character.Name}");
+                title = $"{characterWebhook.Character.Name}'s jailbreak prompt";
+                prompt = (characterWebhook.PersonalJailbreakPrompt ?? channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!).Replace("{{char}}", $"{characterWebhook.Character.Name}");
             }
 
             var embed = new EmbedBuilder().WithTitle($"**{title}**")

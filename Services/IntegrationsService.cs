@@ -429,7 +429,6 @@ namespace CharacterEngineDiscord.Services
             {
                 var channel = await FindOrStartTrackingChannelAsync(context.Channel.Id, context.Guild.Id, db);
                 var character = await FindOrStartTrackingCharacterAsync(unsavedCharacter, db);
-                var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
 
                 string? historyId = null;
 
@@ -450,10 +449,10 @@ namespace CharacterEngineDiscord.Services
                     integrations.RunningCaiTasks.Add(id);
                     try
                     {
-                        var caiToken = guild.GuildCaiUserToken;
+                        var caiToken = channel.Guild.GuildCaiUserToken;
                         if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
-                        bool plusMode = guild.GuildCaiPlusMode ?? false;
+                        bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
                         var info = await integrations.CaiClient.GetInfoAsync(character.Id, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
                         character.Tgt = info.Tgt;
@@ -465,13 +464,13 @@ namespace CharacterEngineDiscord.Services
                 }
                 else if (type is IntegrationType.Aisekai)
                 {
-                    var authToken = guild.GuildAisekaiAuthToken;
+                    var authToken = channel.Guild.GuildAisekaiAuthToken;
                     if (string.IsNullOrWhiteSpace(authToken)) return null;
 
                     var response = await integrations.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
                     if (response.Code == 401)
                     {
-                        string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? string.Empty);
+                        string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(channel.Guild.Id, channel.Guild.GuildAisekaiRefreshToken ?? string.Empty);
                         if (newAuthToken is null)
                             return null;
                         

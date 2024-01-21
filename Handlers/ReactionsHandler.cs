@@ -42,7 +42,7 @@ namespace CharacterEngineDiscord.Handlers
             if (!originalMessage.Author.IsWebhook) return;
 
             await using var db = new StorageContext();
-            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == discordChannel.Id);
+            var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);

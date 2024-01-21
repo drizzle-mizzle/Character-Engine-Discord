@@ -159,7 +159,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             else if (type is IntegrationType.OpenAI or IntegrationType.KoboldAI or IntegrationType.HordeKoboldAI)
             {
                 characterWebhook.StoredHistoryMessages.Clear();
-                var firstGreetingMessage = new StoredHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
+                var firstGreetingMessage = new StoredHistoryMessage { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
                 await db.StoredHistoryMessages.AddAsync(firstGreetingMessage);
                 await TryToSaveDbChangesAsync(db);
                 result = true;
@@ -455,7 +455,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
-            var blockedUsers = await db.BlockedUsers.Where(bu => bu.GuildId == guild.Id).ToListAsync();
 
             ulong uUserId;
             if (user is null)
@@ -473,7 +472,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 uUserId = user.Id;
             }
 
-            if (blockedUsers.Any(bu => bu.Id == uUserId))
+            if (guild.BlockedUsers.Any(bu => bu.Id == uUserId))
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -621,11 +620,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
-            string name = character.Name.ToLower().Contains("discord") ? character.Name.Replace('o', 'о').Replace('c', 'с') : character.Name;
+            string name = characterWebhook.Character.Name.ToLower().Contains("discord") ? characterWebhook.Character.Name.Replace('o', 'о').Replace('c', 'с') : characterWebhook.Character.Name;
 
             IWebhook channelWebhook;
-            await using (Stream? image = await TryToDownloadImageAsync(character.AvatarUrl, integrations.ImagesHttpClient))
+            await using (Stream? image = await TryToDownloadImageAsync(characterWebhook.Character.AvatarUrl, integrations.ImagesHttpClient))
             {                
                 try { channelWebhook = await discordChannel.CreateWebhookAsync(name, image); }
                 catch (Exception e)
@@ -668,17 +666,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
                 var type = characterWebhook.IntegrationType;
                 if (type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai)
-                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = character.Greeting, Role = "assistant" });
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
                 await TryToSaveDbChangesAsync(db);
 
                 var webhookClient = new DiscordWebhookClient(channelWebhook.Id, channelWebhook.Token);
                 integrations.WebhookClients.TryAdd(channelWebhook.Id, webhookClient);
 
-                string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
+                string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
                 if (characterMessage.Length > 2000) characterMessage = characterMessage[..1994] + "[...]";
 
-                await FollowupAsync(embed: SuccessEmbed($"{character.Name} was successfully copied from {channel.Name}"), ephemeral: silent);
+                await FollowupAsync(embed: SuccessEmbed($"{characterWebhook.Character.Name} was successfully copied from {channel.Name}"), ephemeral: silent);
                 await webhookClient.SendMessageAsync(characterMessage);
             }
             catch (Exception e)
