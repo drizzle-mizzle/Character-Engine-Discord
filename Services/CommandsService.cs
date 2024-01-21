@@ -6,15 +6,16 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Services
 {
     public static partial class CommandsService
     {
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext? _db = null)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext db)
         {
             var channelId = context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : context.Channel.Id; 
-            var channel = await FindOrStartTrackingChannelAsync(channelId, context.Guild.Id, _db);
+            var channel = await FindOrStartTrackingChannelAsync(channelId, context.Guild.Id, db);
             var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
 
             if (characterWebhook is null)
@@ -26,9 +27,9 @@ namespace CharacterEngineDiscord.Services
             return characterWebhook;
         }
 
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, StorageContext _db)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, StorageContext db)
         {
-            var channel = await _db.Channels.FindAsync(channelId);
+            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == channelId);
             if (channel is null) return null;
 
             var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
@@ -75,7 +76,7 @@ namespace CharacterEngineDiscord.Services
                 var filename = ConfigFile.NoPermissionFile.Value;
                 if (filename is null) return;
 
-                using var stream = File.OpenRead($"{EXE_DIR}{SC}storage{SC}{filename}");
+                await using var stream = File.OpenRead($"{EXE_DIR}{SC}storage{SC}{filename}");
                 await context.Interaction.FollowupWithFileAsync(stream, filename);
             }
             catch (Exception e)

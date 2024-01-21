@@ -1,25 +1,10 @@
-﻿using CharacterAI;
-using CharacterEngineDiscord.Models.CharacterHub;
-using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.Database;
-using CharacterEngineDiscord.Models.KoboldAI;
-using CharacterEngineDiscord.Models.OpenAI;
+﻿using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
-using CharacterEngineDiscord.Services;
 using Discord.Commands;
-using Discord.Interactions;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Discord;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Dynamic;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
+using CharacterAI.Client;
 
 namespace CharacterEngineDiscord.Interfaces
 {
@@ -33,7 +18,9 @@ namespace CharacterEngineDiscord.Interfaces
         public HttpClient CommonHttpClient { get; }
 
         public AisekaiClient AisekaiClient { get; }
-        public CharacterAIClient? CaiClient { get; set; }
+        public CharacterAiClient? CaiClient { get; set; }
+        public List<Guid> RunningCaiTasks { get; }
+        public bool CaiReloading { get; set; }
 
         /// <summary>
         /// Webhook ID : WebhookClient
@@ -50,9 +37,12 @@ namespace CharacterEngineDiscord.Interfaces
 
         public Task<bool> UserIsBanned(SocketCommandContext context);
         public Task<bool> UserIsBanned(SocketReaction reaction, IDiscordClient client);
+        public bool GuildIsAbusive(ulong guildId);
+
         public Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken);
 
         public void Initialize();
+        public Task LaunchCaiAsync();
         public void WatchDogClear();
 
     }

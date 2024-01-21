@@ -1,4 +1,4 @@
-﻿using CharacterAI;
+﻿using CharacterAI.Client;
 using Discord;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -11,6 +11,8 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Discord.Webhook;
 using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -31,7 +33,7 @@ namespace CharacterEngineDiscord.Handlers
         private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
             var user = reaction.User.GetValueOrDefault(null);
-            if (user is null || user is not SocketGuildUser userReacted || userReacted.IsBot) return;
+            if (user is not SocketGuildUser userReacted || userReacted.IsBot) return;
 
             IUserMessage originalMessage;
             try { originalMessage = await rawMessage.DownloadAsync(); }
@@ -39,8 +41,8 @@ namespace CharacterEngineDiscord.Handlers
             if (originalMessage is null) return;
             if (!originalMessage.Author.IsWebhook) return;
 
-            using var db = new StorageContext();
-            var channel = await db.Channels.FindAsync(discordChannel.Id);
+            await using var db = new StorageContext();
+            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == discordChannel.Id);
             if (channel is null) return;
 
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
@@ -60,6 +62,8 @@ namespace CharacterEngineDiscord.Handlers
             if ((reaction.Emote?.Name == ARROW_LEFT.Name) && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
                 if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 characterWebhook.CurrentSwipeIndex--;
                 await TryToSaveDbChangesAsync(db);
@@ -68,6 +72,8 @@ namespace CharacterEngineDiscord.Handlers
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
                 if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 characterWebhook.CurrentSwipeIndex++;
                 await TryToSaveDbChangesAsync(db);
@@ -76,6 +82,8 @@ namespace CharacterEngineDiscord.Handlers
             else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
             {   // proceed generation
                 if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
             }
@@ -86,7 +94,7 @@ namespace CharacterEngineDiscord.Handlers
             bool messageIsNotTracked = !integrations.Conversations.ContainsKey(characterWebhookId);
             if (messageIsNotTracked) return;
 
-            using var db = new StorageContext();
+            await using var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
@@ -180,13 +188,21 @@ namespace CharacterEngineDiscord.Handlers
                 cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
                 db.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = responseText, CharacterWebhookId = cw.Id });
             }
-            }
+        }
 
         private async Task<bool> TryToFetchNewCharacterMessageAsync(LastCharacterCall convo, CharacterWebhook cw, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe)
         {
             Models.Common.CharacterResponse characterResponse;
             if (cw.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await SwipeCaiMessageAsync(cw, integrations.CaiClient!);
+            {
+                while (integrations.CaiReloading)
+                    await Task.Delay(5000);
+
+                var id = Guid.NewGuid();
+                integrations.RunningCaiTasks.Add(id);
+                try { characterResponse = await SwipeCaiMessageAsync(cw, integrations.CaiClient!).WithTimeout(60000); }
+                finally { integrations.RunningCaiTasks.Remove(id); }
+            }
             else if (cw.IntegrationType is IntegrationType.Aisekai)
                 characterResponse = await SwipeAisekaiMessageAsync(cw, integrations.AisekaiClient);
             else if (cw.IntegrationType is IntegrationType.OpenAI)
@@ -312,12 +328,12 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAiClient client)
         {
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var caiResponse = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var caiResponse = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, authToken: caiToken, plusMode: plusMode);
 
             if (!caiResponse.IsSuccessful)
             {

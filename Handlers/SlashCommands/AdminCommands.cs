@@ -22,10 +22,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
+            var tasks = integrations.RunningCaiTasks;
             await using var db = new StorageContext();
             string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
+                          $"Messages sent: `{integrations.MessagesSent}`\n" +
                           $"Blocked: `{db.BlockedUsers.Count(bu => bu.GuildId == null)} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
-                          $"Stats: `{integrations.WebhookClients.Count}wc/{integrations.SearchQueries.Count}sq`";
+                          $"Stats: `{integrations.WebhookClients.Count}wh / {integrations.Conversations.Count}cv / {tasks.Count}ct`";
 
             await FollowupAsync(embed: text.ToInlineEmbed(Color.Green, false), ephemeral: silent);
         }
@@ -291,60 +293,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("shutdown", "Shutdown")]
         public async Task AdminShutdownAsync(bool silent = true)
         {
-            await DeferAsync(ephemeral: silent);
+            await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange), ephemeral: silent);
 
-            if (integrations.CaiClient is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return;
-            }
-
-            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange), ephemeral: silent);
-
-            try { integrations.CaiClient.KillBrowser(); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
+            integrations.CaiClient?.Dispose();
             Environment.Exit(0);
-        }
-
-
-        [SlashCommand("relaunch-puppeteer", "-")]
-        public async Task RelaunchBrowser(bool silent = true)
-        {
-            await DeferAsync(ephemeral: silent);
-
-            if (integrations.CaiClient is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return;
-            }
-
-            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting Puppeteer down...".ToInlineEmbed(Color.LightOrange), ephemeral: silent);
-
-            try { integrations.CaiClient.KillBrowser(); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
-            await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple), ephemeral: silent);
-
-            try { integrations.CaiClient.LaunchBrowser(killDuplicates: true); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));
-                LogException(new[] { "Failed to launch Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
 
 

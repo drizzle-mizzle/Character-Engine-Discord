@@ -77,7 +77,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task UpdateCharacterAsync(SocketModal modal)
         {
-            using var db = new StorageContext();
+            await using var db = new StorageContext();
             string webhookIdOrPrefix = modal.Data.CustomId.Split('~').Last();
 
             var context = new InteractionContext(client, modal, modal.Channel);
@@ -108,12 +108,6 @@ namespace CharacterEngineDiscord.Handlers
         private async Task SpawnCustomCharacterAsync(SocketModal modal)
         {
             var channel = await FindOrStartTrackingChannelAsync(modal.Channel.Id, (ulong)modal.GuildId!);
-            if (channel is null)
-            {
-                await modal.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Channel not found".ToInlineEmbed(Color.Orange));
-                return;
-            }
-
             string definition = modal.Data.Components.FirstOrDefault(c => c.CustomId == "definition-1")?.Value! +
                                (modal.Data.Components.FirstOrDefault(c => c.CustomId == "definition-2")?.Value ?? "");
 
@@ -140,7 +134,10 @@ namespace CharacterEngineDiscord.Handlers
             var context = new InteractionContext(client, modal, modal.Channel);
             var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, integrations, false);
             if (characterWebhook is null) return;
-            
+
+            await using var db = new StorageContext();
+            characterWebhook = db.Entry(characterWebhook).Entity;
+
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 

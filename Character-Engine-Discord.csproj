@@ -45,8 +45,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Reference Include="CharacterAI">
-            <HintPath>CharacterAI.dll</HintPath>
+        <Reference Include="CharacterAI.Client">
+            <HintPath>lib\CharacterAI.Client.dll</HintPath>
         </Reference>
         <None Update="env.config.json">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>

@@ -1,4 +1,5 @@
-﻿using CharacterEngineDiscord.Services;
+﻿using System.Text.RegularExpressions;
+using CharacterEngineDiscord.Services;
 using Discord;
 using Discord.Interactions;
 using static CharacterEngineDiscord.Services.CommonService;
@@ -324,7 +325,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             string message = $"{OK_SIGN_DISCORD} **History ID** for this channel was changed from `{characterWebhook.ActiveHistoryID}` to `{newHistoryId}`";
-            if (newHistoryId.Length != 43)
+
+            if (Regex.IsMatch(newHistoryId, @"[\da-z]{4,12}-[\da-z]{4,12}-[\da-z]{4,12}-[\da-z]{4,12}-[\da-z]{4,12}"))
+                message += $"\n{WARN_SIGN_DISCORD} Entered ID belongs to \"chat2\" history and is not compatible with the bot in current moment.";
+            else if (newHistoryId.Length != 43)
                 message += $".\nEntered history ID has length that is different from expected ({newHistoryId.Length}/43). Make sure it's correct.";
 
             characterWebhook.ActiveHistoryID = newHistoryId;

@@ -7,10 +7,10 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
-using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using PuppeteerSharp.Helpers;
 
 
 namespace CharacterEngineDiscord.Handlers
@@ -55,7 +55,9 @@ namespace CharacterEngineDiscord.Handlers
 
             var calledCharacters = await DetermineCalledCharacters(userMessage!, channelId);
             if (calledCharacters.Count == 0 || await integrations.UserIsBanned(context)) return;
-
+            if (integrations.GuildIsAbusive(context.Guild.Id))
+                await Task.Delay(10000);
+            
             foreach (var characterWebhook in calledCharacters)
             {
                 int delay = characterWebhook.ResponseDelay;
@@ -73,9 +75,11 @@ namespace CharacterEngineDiscord.Handlers
         {
             await using var db = new StorageContext();
 
-             /////////////////
+             //////////////////
             /// Prevalidations
-            var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
+            var characterWebhook = await db.CharacterWebhooks.Include(cw => cw.Channel)
+                                                             .ThenInclude(c => c.Guild)
+                                                             .FirstOrDefaultAsync(cw => cw.Id == characterWebhookId);
             if (characterWebhook is null) return;
             if (characterWebhook.IntegrationType is IntegrationType.Empty) return;
 
@@ -112,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-             ///////////////////
+             ////////////////////
             /// Reformat message
             string text;
             if (isErrorMessage)
@@ -124,7 +128,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 text = context.Message.Content ?? string.Empty;
                 if (context.Message.Attachments.FirstOrDefault() is Attachment file)
-                    text = $"((sends file \"{file.Filename}\"))";
+                    text += $"((sends file \"{file.Filename}\"))";
             }
 
             // Replace @mentions with normal names
@@ -146,7 +150,7 @@ namespace CharacterEngineDiscord.Handlers
 
             text = await text.AddRefQuoteAsync(context.Message.ReferencedMessage);
 
-             ////////////////////////
+             //////////////////////////
             /// Get character response
             Models.Common.CharacterResponse characterResponse = null!;
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
@@ -288,30 +292,41 @@ namespace CharacterEngineDiscord.Handlers
             string tgt = cw.Character.Tgt ?? string.Empty;
             string historyId = cw.ActiveHistoryID ?? string.Empty;
 
-            var response = await integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            while (integrations.CaiReloading)
+                await Task.Delay(5000);
 
-            string message;
-            bool success;
-
-            if (response.IsSuccessful)
+            var id = Guid.NewGuid();
+            integrations.RunningCaiTasks.Add(id);
+            try
             {
-                message = response.Response!.Text;
-                success = true;
+                var response = await integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text,
+                    primaryMsgUuId: cw.LastCharacterMsgId, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+
+                string message;
+                bool success;
+
+                if (response.IsSuccessful)
+                {
+                    message = response.Response!.Text;
+                    success = true;
+                }
+                else
+                {
+                    message =
+                        $"{WARN_SIGN_DISCORD} **Failed to fetch character response:** ```\n{response.ErrorReason}\n```";
+                    success = false;
+                }
+
+                return new()
+                {
+                    Text = message,
+                    IsSuccessful = success,
+                    CharacterMessageId = response.Response?.UuId,
+                    ImageRelPath = response.Response?.ImageRelPath,
+                    UserMessageId = response.LastUserMsgUuId
+                };
             }
-            else
-            {
-                message = $"{WARN_SIGN_DISCORD} **Failed to fetch character response:** ```\n{response.ErrorReason}\n```";
-                success = false;
-            }
-
-            return new()
-            {
-                Text = message,
-                IsSuccessful = success,
-                CharacterMessageId = response.Response?.UuId,
-                ImageRelPath = response.Response?.ImageRelPath,
-                UserMessageId = response.LastUserMsgUuId
-            };
+            finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
         private async Task<CharacterResponse> CallAisekaiCharacterAsync(CharacterWebhook characterWebhook, string text, string? authToken = null)
@@ -637,7 +652,7 @@ namespace CharacterEngineDiscord.Handlers
 
         // Other
 
-        private static readonly Random @Random = new();
+        private static readonly Random random = new();
         private static async Task<List<CharacterWebhook>> DetermineCalledCharacters(SocketUserMessage userMessage, ulong channelId)
         {
             List<CharacterWebhook> characterWebhooks = new();
@@ -655,7 +670,7 @@ namespace CharacterEngineDiscord.Handlers
             var text = userMessage.Content.Trim();
             var rm = userMessage.ReferencedMessage;
             var withRefMessage = rm is not null && rm.Author.IsWebhook;
-            var chance = (float)(@Random.Next(99) + 0.001 + @Random.NextDouble());
+            var chance = (float)(random.Next(99) + 0.001 + random.NextDouble());
 
             // Try to find one certain character that was called by a prefix
             var cw = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix));
@@ -666,17 +681,16 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (withRefMessage) // or find some other that was called by a reply
             {
-                cw = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id);
+                cw = channel.CharacterWebhooks.Find(cwh => cwh.Id == rm!.Author.Id);
                 if (cw is not null) characterWebhooks.Add(cw);
             }
 
             // Add characters who hunt the user            
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
-            if (hunters is not null && hunters.Count > 0)
+            if (hunters.Count > 0)
             {
-                foreach (var h in hunters)
-                    if (!characterWebhooks.Contains(h))
-                        characterWebhooks.Add(h);
+                foreach (var h in hunters.Where(h => !characterWebhooks.Contains(h)))
+                    characterWebhooks.Add(h);
             }
 
             // Add some random character (only one) by channel's random reply chance
@@ -685,7 +699,7 @@ namespace CharacterEngineDiscord.Handlers
                 var characters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
                 if (characters.Count > 0)
                 {
-                    var someRandomCharacter = characters[@Random.Next(characters.Count)];
+                    var someRandomCharacter = characters[random.Next(characters.Count)];
                     if (!characterWebhooks.Contains(someRandomCharacter))
                         characterWebhooks.Add(someRandomCharacter);
                 }
@@ -695,8 +709,8 @@ namespace CharacterEngineDiscord.Handlers
             var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
             if (randomCharacters.Count > 0)
             {
-                foreach (var rc in randomCharacters)
-                    if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
+                foreach (var rc in randomCharacters.Where(rc => !characterWebhooks.Contains(rc)))
+                    characterWebhooks.Add(rc);
             }
 
             return characterWebhooks;

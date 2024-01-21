@@ -12,6 +12,7 @@ using Discord.Webhook;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
 using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -19,9 +20,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
     [Group("spawn", "Spawn new character")]
     public class SpawnCharacterCommands(IIntegrationsService integrations) : InteractionModuleBase<InteractionContext>
     {
-        //private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
-
-
         private const string sqDesc = "When use character ID, set 'set-with-id' to 'True'";
         private const string tagsDesc = "Tags separated by ','";
 
@@ -53,11 +51,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
             EnsureCanSendMessages();
 
-            if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-            {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                return;
-            }
+            if (Context.Channel is ITextChannel { IsNsfw: false })
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Warning! Characters provided by chub.ai can contain NSFW avatar pictures and descriptions.".ToInlineEmbed(Color.Purple), ephemeral: silent);
 
             IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI
                                             : apiType is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
@@ -118,21 +113,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
             await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
+            
+            while (integrations.CaiReloading)
+                await Task.Delay(5000);
 
-            if (setWithId)
+            var id = Guid.NewGuid();
+            integrations.RunningCaiTasks.Add(id);
+            try
             {
-                var caiCharacter = await integrations.CaiClient.GetInfoAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
-                var character = CharacterFromCaiCharacterInfo(caiCharacter);
+                if (setWithId)
+                {
+                    var caiCharacter = await integrations.CaiClient.GetInfoAsync(searchQueryOrCharacterId,
+                        authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                    var character = CharacterFromCaiCharacterInfo(caiCharacter);
 
-                await FinishSpawningAsync(IntegrationType.CharacterAI, character);
-            }
-            else // set with search
-            {
-                var response = await integrations.CaiClient.SearchAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
-                var searchQueryData = SearchQueryDataFromCaiResponse(response);
+                    await FinishSpawningAsync(IntegrationType.CharacterAI, character);
+                }
+                else // set with search
+                {
+                    var response = await integrations.CaiClient.SearchAsync(searchQueryOrCharacterId,
+                        authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                    var searchQueryData = SearchQueryDataFromCaiResponse(response);
 
-                await FinishSearchAsync(searchQueryData);
+                    await FinishSearchAsync(searchQueryData);
+                }
             }
+            finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
         
@@ -208,6 +214,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
+            await using var db = new StorageContext();
+            characterWebhook = db.Entry(characterWebhook).Entity;
+
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
@@ -216,7 +225,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 await Context.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
 
             string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
-            if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+            if (characterMessage.Length > 2000) characterMessage = characterMessage[..1994] + "[...]";
 
             // Try to set avatar
             Stream? image = null;

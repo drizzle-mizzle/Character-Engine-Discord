@@ -6,14 +6,16 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "CharacterAI/1.0.0": {
+      "CharacterAI.Client/1.0.0": {
         "dependencies": {
           "Newtonsoft.Json": "13.0.3",
           "PuppeteerExtraSharp": "2.0.0",
-          "PuppeteerSharp": "13.0.2"
+          "PuppeteerLib": "1.0.0",
+          "PuppeteerSharp": "13.0.2",
+          "SharedUtils": "1.0.0"
         },
         "runtime": {
-          "CharacterAI.dll": {}
+          "CharacterAI.Client.dll": {}
         }
       },
       "Microsoft.Bcl.AsyncInterfaces/1.1.0": {
@@ -117,11 +119,27 @@
           }
         }
       },
-      "System.Runtime.CompilerServices.Unsafe/4.4.0": {}
+      "System.Runtime.CompilerServices.Unsafe/4.4.0": {},
+      "PuppeteerLib/1.0.0": {
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3",
+          "PuppeteerExtraSharp": "2.0.0",
+          "PuppeteerSharp": "13.0.2",
+          "SharedUtils": "1.0.0"
+        },
+        "runtime": {
+          "PuppeteerLib.dll": {}
+        }
+      },
+      "SharedUtils/1.0.0": {
+        "runtime": {
+          "SharedUtils.dll": {}
+        }
+      }
     }
   },
   "libraries": {
-    "CharacterAI/1.0.0": {
+    "CharacterAI.Client/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -202,6 +220,16 @@
       "sha512": "sha512-9dLLuBxr5GNmOfl2jSMcsHuteEg32BEfUotmmUkmZjpR3RpVHE8YQwt0ow3p6prwA1ME8WqDVZqrr8z6H8G+Kw==",
       "path": "system.runtime.compilerservices.unsafe/4.4.0",
       "hashPath": "system.runtime.compilerservices.unsafe.4.4.0.nupkg.sha512"
+    },
+    "PuppeteerLib/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SharedUtils/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
     }
   }
 }

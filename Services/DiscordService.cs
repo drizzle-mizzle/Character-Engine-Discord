@@ -22,22 +22,18 @@ namespace CharacterEngineDiscord.Services
 
         private bool _firstLaunch = true;
 
-        internal async Task BotLaunchAsync()
+        internal async Task BotLaunchAsync(bool noreg)
         {
             _services = CreateServices();
 
-            _integrations = _services.GetRequiredService<IIntegrationsService>();
             SetupIntegrationAsync();
 
             _interactions = _services.GetRequiredService<InteractionService>();
             _client = (_services.GetRequiredService<IDiscordClient>() as DiscordSocketClient)!;
 
             await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
-            BindClientEvents();
+            BindClientEvents(noreg);
             
-            _interactions.InteractionExecuted += (_, context, result)
-                => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
-
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
             await _client.StartAsync();
 
@@ -45,7 +41,7 @@ namespace CharacterEngineDiscord.Services
         }
         
 
-        private void BindClientEvents()
+        private void BindClientEvents(bool noreg)
         {
             _client.Log += (msg) =>
             {
@@ -55,7 +51,7 @@ namespace CharacterEngineDiscord.Services
 
             _client.Ready += () =>
             {
-                Task.Run(async () => await OnClientReadyAsync());
+                Task.Run(async () => await OnClientReadyAsync(noreg));
                 return Task.CompletedTask;
             };
 
@@ -73,6 +69,8 @@ namespace CharacterEngineDiscord.Services
             _client.ReactionRemoved += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
             _client.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleCommand;
             _client.MessageReceived += _services.GetRequiredService<TextMessagesHandler>().HandleMessage;
+            _interactions.InteractionExecuted += (_, context, result)
+                => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
         }
 
         private async Task RunJobsAsync()
@@ -113,7 +111,7 @@ namespace CharacterEngineDiscord.Services
 
             TryToReportInLogsChannel(_client, "Status", desc: text, content: null, color: Color.DarkGreen, error: false);
             UnblockUsers();
-            ClearTempsAndRelaunchCai();
+            ClearTempResources();
         }
 
         private static void UnblockUsers()
@@ -125,7 +123,7 @@ namespace CharacterEngineDiscord.Services
             TryToSaveDbChangesAsync(db).Wait();
         }
 
-        private void ClearTempsAndRelaunchCai()
+        private void ClearTempResources()
         {
             if (_firstLaunch) return;
 
@@ -136,27 +134,40 @@ namespace CharacterEngineDiscord.Services
             foreach (var convo in oldConvosToStopTrack)
                 _integrations.Conversations.Remove(convo.Key);
 
-            if (_integrations.CaiClient is not null)
+            if (_integrations.CaiClient is null) return;
+
+            for (int i = 0; i < 10; i++)
             {
-                _integrations.CaiClient.KillBrowser();
-                _integrations.CaiClient.LaunchBrowser(killDuplicates: true);
+                if (_integrations.RunningCaiTasks.Count == 0)
+                    break;
+                Task.Delay(1000);
             }
+
+            _integrations.CaiReloading = true;
+            _integrations.RunningCaiTasks.Clear();
+            _integrations.CaiClient.Dispose();
+            _integrations.LaunchCaiAsync().Wait();
+            _integrations.CaiReloading = false;
         }
 
-        private async Task OnClientReadyAsync()
+        private async Task OnClientReadyAsync(bool noreg)
         {
             if (!_firstLaunch) return;
 
-            Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
-            await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
+            if (!noreg)
             {
-                if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
-                else LogRed(".");
-            });
+                Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
+                await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
+                {
+                    if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
+                    else LogRed(".");
+                });
 
-            LogGreen("\nCommands registered successfully\n");
-            TryToReportInLogsChannel(_client, "Notification", "Commands registered successfully\n", null, Color.Green, error: false);
-            
+                LogGreen("\nCommands registered successfully\n");
+                TryToReportInLogsChannel(_client, "Notification", "Commands registered successfully\n", null,
+                    Color.Green, error: false);
+            }
+
             await _client.SetGameAsync(GetLastGameStatus());
 
             _firstLaunch = false;
@@ -261,7 +272,11 @@ namespace CharacterEngineDiscord.Services
 
         private void SetupIntegrationAsync()
         {
-            try { _integrations.Initialize(); }
+            try
+            {
+                _integrations = _services.GetRequiredService<IIntegrationsService>();
+                _integrations.Initialize();
+            }
             catch (Exception e) { LogException(new object?[] { e }); }
         }
 
@@ -279,14 +294,17 @@ namespace CharacterEngineDiscord.Services
                 LogRed(result.ErrorReason + "\n");
                 string message = result.ErrorReason;
 
-                try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
-                catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+                string er = result.ErrorReason;
+                if (!er.Contains("Microsoft") && !er.Contains("This command"))
+                    try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+                    catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
 
                 var channel = context.Channel;
                 var guild = context.Guild;
 
                 // don't need that shit in logs
-                bool ignore = result.Error.GetValueOrDefault().ToString().Contains("UnmetPrecondition") || result.ErrorReason.Contains("was not in a correct format");
+                string err = result.Error.GetValueOrDefault().ToString();
+                bool ignore = err.Contains("UnmetPrecondition") || result.ErrorReason.Contains("This command") || result.ErrorReason.Contains("was not in a correct format");
                 if (ignore) return;
 
                 var originalResponse = await context.Interaction.GetOriginalResponseAsync();

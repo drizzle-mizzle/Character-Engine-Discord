@@ -35,7 +35,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             int start = (page - 1) * 5;
             int end = (channel.CharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (channel.CharacterWebhooks.Count - start - 1);
 
-            var characterWebhooks = Enumerable.Reverse(channel.CharacterWebhooks);
+            var characterWebhooks = Enumerable.Reverse(channel.CharacterWebhooks).ToList();
             for (int i = start; i <= end; i++)
             {
                 var cw = characterWebhooks.ElementAt(i);
@@ -72,7 +72,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -117,7 +118,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string fullDesc = $"*{_tagline}*\n\n**Description**\n{_characterDesc}";
 
             if (fullDesc.Length > 4096)
-                fullDesc = fullDesc[0..4090] + "[...]";
+                fullDesc = fullDesc[..4090] + "[...]";
 
             var emb = new EmbedBuilder()
                 .WithColor(Color.Gold)
@@ -137,7 +138,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -160,7 +162,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -169,7 +172,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var type = characterWebhook.IntegrationType;
-            if (type is not IntegrationType.OpenAI || type is not IntegrationType.KoboldAI || type is not IntegrationType.HordeKoboldAI)
+            if (type is not IntegrationType.OpenAI && type is not IntegrationType.KoboldAI && type is not IntegrationType.HordeKoboldAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't show history for {type} integration".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -189,7 +192,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 var message = characterWebhook.StoredHistoryMessages[i];
                 int l = Math.Min(message.Content.Length, 250);
-                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[0..l].Replace("\n", "  ").Replace("*", " ")}{(l == 250 ? "..." : "")}*\n");
+                chunks.Add($"{amount--}. **{(message.Role == "user" ? "User" : characterWebhook.Character.Name)}**: *{message.Content[..l].Replace("\n", "  ").Replace("*", " ")}{(l == 250 ? "..." : "")}*\n");
                 if (amount == 0) break;
             }
             chunks.Reverse();
@@ -212,7 +215,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             for (int i = 0; i < Math.Min(result.Count, 5); i++)
             {
                 string newLine = result[i].Length > 1024 ? result[i][0..1018] + "[...]" : result[i];
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", newLine);
+                embed.AddField(@"\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~", newLine);
             }
 
             await FollowupAsync(embed: embed.Build(), ephemeral: silent);
@@ -224,7 +227,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+            await using var db = new StorageContext();
+            var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
             {
@@ -244,16 +248,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string format;
 
+            await using var db = new StorageContext();
             if (webhookIdOrPrefix is null)
             {
-                await using var db = new StorageContext();
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
                 title = "Default messages format";
                 format = channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
             else
             {
-                var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+                var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
                 if (characterWebhook is null)
                 {
@@ -296,9 +300,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string prompt;
 
+            await using var db = new StorageContext();
             if (webhookIdOrPrefix is null)
             {
-                await using var db = new StorageContext();
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
 
                 title = "Default jailbreak prompt";
@@ -306,7 +310,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context);
+                var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
                 if (characterWebhook is null)
                 {
@@ -315,7 +319,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
 
                 var type = characterWebhook.IntegrationType;
-                if (type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai)
+                if (type is IntegrationType.CharacterAI or IntegrationType.Aisekai)
                 {
                     await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for {type} integrations".ToInlineEmbed(Color.Red), ephemeral: silent);
                     return;
@@ -331,7 +335,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var promptChunked = prompt.Chunk(1016);
 
             foreach (var chunk in promptChunked)
-                embed.AddField("\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~\\~", $"```{new string(chunk)}```");
+                embed.AddField(@"\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~", $"```{new string(chunk)}```");
 
             await FollowupAsync(embed: embed.Build(), ephemeral: silent);
         }

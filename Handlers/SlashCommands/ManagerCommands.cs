@@ -12,6 +12,7 @@ using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
 using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
@@ -86,9 +87,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                    select webhook).ToList();
             }
 
-            var trackedWebhookIds = trackedWebhooks.Select(w => w.Id).ToList();
-
-            await Parallel.ForEachAsync(trackedWebhooks, async (tw, ct) =>
+            await Parallel.ForEachAsync(trackedWebhooks, async (tw, _) =>
             {
                 var discordWebhook = discordWebhooks.FirstOrDefault(dw => dw.Id == tw.Id);
                 
@@ -101,7 +100,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             });
 
             await TryToSaveDbChangesAsync(db);
-
             await FollowupAsync(embed: SuccessEmbed($"All characters {(all ? "on this server" : "in the current channel")} were removed successfully"), ephemeral: silent);
         }
 
@@ -180,7 +178,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
-            if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+            if (characterMessage.Length > 2000) characterMessage = characterMessage[..1994] + "[...]";
 
             try
             {
@@ -546,18 +544,29 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string caiToken = cw.PersonalApiToken ?? cw.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             bool plusMode = cw.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var newHisoryId = await integrations.CaiClient.CreateNewChatAsync(charId, caiToken, plusMode);
-            if (newHisoryId is null)
+            while (integrations.CaiReloading)
+                await Task.Delay(5000);
+
+            var id = Guid.NewGuid();
+            integrations.RunningCaiTasks.Add(id);
+            try
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return false;
+                var newHisoryId = await integrations.CaiClient.CreateNewChatAsync(charId, caiToken, plusMode).WithTimeout(60000);
+                if (newHisoryId is null)
+                {
+                    await FollowupAsync(
+                        embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character".ToInlineEmbed(
+                            Color.Red), ephemeral: silent);
+                    return false;
+                }
+
+                cw.ActiveHistoryID = newHisoryId;
+                await TryToSaveDbChangesAsync(db);
+                await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
+
+                return true;
             }
-
-            cw.ActiveHistoryID = newHisoryId;
-            await TryToSaveDbChangesAsync(db);
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-
-            return true;
+            finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
 
@@ -610,10 +619,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            string name = characterWebhook.Character.Name.ToLower().Contains("discord") ? characterWebhook.Character.Name.Replace('o', 'о').Replace('c', 'с') : characterWebhook.Character.Name;
+            var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
+            string name = character.Name.ToLower().Contains("discord") ? character.Name.Replace('o', 'о').Replace('c', 'с') : character.Name;
 
             IWebhook channelWebhook;
-            await using (Stream? image = await TryToDownloadImageAsync(characterWebhook.Character.AvatarUrl, integrations.ImagesHttpClient))
+            await using (Stream? image = await TryToDownloadImageAsync(character.AvatarUrl, integrations.ImagesHttpClient))
             {                
                 try { channelWebhook = await discordChannel.CreateWebhookAsync(name, image); }
                 catch (Exception e)
@@ -656,17 +666,17 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
                 var type = characterWebhook.IntegrationType;
                 if (type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai)
-                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = character.Greeting, Role = "assistant" });
 
                 await TryToSaveDbChangesAsync(db);
 
                 var webhookClient = new DiscordWebhookClient(channelWebhook.Id, channelWebhook.Token);
                 integrations.WebhookClients.TryAdd(channelWebhook.Id, webhookClient);
 
-                string characterMessage = $"{Context.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
-                if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+                string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
+                if (characterMessage.Length > 2000) characterMessage = characterMessage[..1994] + "[...]";
 
-                await FollowupAsync(embed: SuccessEmbed($"{characterWebhook.Character.Name} was successfully copied from {channel.Name}"), ephemeral: silent);
+                await FollowupAsync(embed: SuccessEmbed($"{character.Name} was successfully copied from {channel.Name}"), ephemeral: silent);
                 await webhookClient.SendMessageAsync(characterMessage);
             }
             catch (Exception e)

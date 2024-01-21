@@ -2,7 +2,6 @@
 using Discord.Webhook;
 using Discord.WebSocket;
 using Discord.Interactions;
-using CharacterAI;
 using CharacterEngineDiscord.Models.Database;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
@@ -11,6 +10,7 @@ using Newtonsoft.Json;
 using System.Dynamic;
 using System.Text;
 using System.Net;
+using CharacterAI.Client;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
@@ -19,6 +19,7 @@ using CharacterEngineDiscord.Models.KoboldAI;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Newtonsoft.Json.Linq;
 using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -27,7 +28,9 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// (User ID : [current minute : interactions count])
         /// </summary>
-        private readonly Dictionary<ulong, KeyValuePair<int, int>> _watchDog = new();
+        private readonly Dictionary<ulong, KeyValuePair<int, int>> _userWatchDog = new();
+        private readonly Dictionary<ulong, KeyValuePair<int, int>> _guildWatchDog = new();
+
         public ulong MessagesSent { get; set; } = 0;
         public List<SearchQuery> SearchQueries { get; } = new();
         public SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
@@ -37,7 +40,9 @@ namespace CharacterEngineDiscord.Services
         public HttpClient CommonHttpClient { get; } = new();
 
         public AisekaiClient AisekaiClient { get; } = new();
-        public CharacterAIClient? CaiClient { get; set; }
+        public CharacterAiClient? CaiClient { get; set; }
+        public bool CaiReloading { get; set; } = false;
+        public List<Guid> RunningCaiTasks { get; } = new();
 
         /// <summary>
         /// Webhook ID : WebhookClient
@@ -56,27 +61,36 @@ namespace CharacterEngineDiscord.Services
             ImagesHttpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
             ImagesHttpClient.DefaultRequestHeaders.Add("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
             ImagesHttpClient.DefaultRequestHeaders.Add("User-Agent", ConfigFile.DefaultHttpClientUA.Value);
-            ImagesHttpClient.Timeout = new(0, 1, 0);
+            ImagesHttpClient.Timeout = new TimeSpan(0, 1, 0);
 
             CommonHttpClient.DefaultRequestHeaders.Add("Accept", "*/*");
             CommonHttpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
             CommonHttpClient.DefaultRequestHeaders.Add("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
             CommonHttpClient.DefaultRequestHeaders.Add("User-Agent", ConfigFile.DefaultHttpClientUA.Value);
-            CommonHttpClient.Timeout = new(0, 3, 0);
+            CommonHttpClient.Timeout = new TimeSpan(0, 3, 0);
 
             if (ConfigFile.CaiEnabled.Value.ToBool())
             {
-                CaiClient = new(
-                    customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
-                    customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
-                );
-                CaiClient.LaunchBrowser(killDuplicates: true);
-                AppDomain.CurrentDomain.ProcessExit += (s, args) => CaiClient.KillBrowser();
+                LaunchCaiAsync().Wait();
 
-                Log("CharacterAI client - "); LogGreen("Running\n\n");
+                AppDomain.CurrentDomain.ProcessExit += (s, args)
+                    => CaiClient?.Dispose();
             }
 
             Environment.SetEnvironmentVariable("READY", "1", EnvironmentVariableTarget.Process);
+        }
+
+        public async Task LaunchCaiAsync()
+        {
+            var caiClient = new CharacterAiClient(
+                customBrowserDirectory: ConfigFile.PuppeteerBrowserDir.Value,
+                customBrowserExecutablePath: ConfigFile.PuppeteerBrowserExe.Value
+            );
+            caiClient.EnsureAllChromeInstancesAreKilled();
+            await caiClient.LaunchBrowserAsync();
+            
+            CaiClient = caiClient;
+            Log("CharacterAI client - "); LogGreen("Running\n\n");
         }
 
         public DiscordWebhookClient? GetWebhookClient(ulong webhookId, string webhookToken)
@@ -378,7 +392,6 @@ namespace CharacterEngineDiscord.Services
             try
             {
                 var content = await client.GetStringAsync(url);
-                LogGreen(content);
                 var node = JsonConvert.DeserializeObject<dynamic>(content)?.node;
                 return new(node, true);
             }
@@ -429,16 +442,25 @@ namespace CharacterEngineDiscord.Services
                 {
                     if (integrations.CaiClient is null) return null;
 
-                    string? caiToken = channel.Guild.GuildCaiUserToken;
-                    if (string.IsNullOrWhiteSpace(caiToken)) return null;
+                    while (integrations.CaiReloading)
+                        await Task.Delay(3000);
 
-                    bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
+                    var id = Guid.NewGuid();
+                    integrations.RunningCaiTasks.Add(id);
+                    try
+                    {
+                        var caiToken = channel.Guild.GuildCaiUserToken;
+                        if (string.IsNullOrWhiteSpace(caiToken)) return null;
 
-                    var info = await integrations.CaiClient.GetInfoAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
-                    character.Tgt = info.Tgt;
+                        bool plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
-                    historyId = await integrations.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
-                    if (historyId is null) return null;
+                        var info = await integrations.CaiClient.GetInfoAsync(character.Id, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                        character.Tgt = info.Tgt;
+
+                        historyId = await integrations.CaiClient.CreateNewChatAsync(character.Id, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                        if (historyId is null) return null;
+                    }
+                    finally { integrations.RunningCaiTasks.Remove(id); }
                 }
                 else if (type is IntegrationType.Aisekai)
                 {
@@ -469,7 +491,7 @@ namespace CharacterEngineDiscord.Services
                 {
                     db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = "assistant", Content = character.Greeting });
                 }
-                else if (type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
+                else if (type is IntegrationType.KoboldAI or IntegrationType.HordeKoboldAI)
                 {
                     db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = $"\n<{character.Name}>\n", Content = character.Greeting });
                 }
@@ -704,9 +726,29 @@ namespace CharacterEngineDiscord.Services
             return await CheckIfUserIsBannedAsync(user, channel, client);
         }
 
+        public bool GuildIsAbusive(ulong guildId)
+        {
+            int currentMinuteOfDay = DateTime.UtcNow.Minute + DateTime.UtcNow.Hour * 60;
+
+            // Start watching for guld
+            if (!_guildWatchDog.ContainsKey(guildId))
+                _guildWatchDog.Add(guildId, new(-1, 0)); // guild id : (current minute : count)
+
+            // Drop + update guild stats if he replies in another minute
+            if (_guildWatchDog[guildId].Key != currentMinuteOfDay)
+                _guildWatchDog[guildId] = new(currentMinuteOfDay, 0);
+
+            // Update interactions count within current minute
+            _guildWatchDog[guildId] = new(_guildWatchDog[guildId].Key, _guildWatchDog[guildId].Value + 1);
+
+            const int rateLimit = 30;
+            
+            return _guildWatchDog[guildId].Value > rateLimit;
+        }
+
         private async Task<bool> CheckIfUserIsBannedAsync(IUser user, ISocketMessageChannel channel, IDiscordClient client)
         {
-            using (var db = new StorageContext())
+            await using (var db = new StorageContext())
             {
 
                 var blockedUser = await db.BlockedUsers.FindAsync(user.Id);
@@ -715,25 +757,25 @@ namespace CharacterEngineDiscord.Services
                 int currentMinuteOfDay = DateTime.UtcNow.Minute + DateTime.UtcNow.Hour * 60;
 
                 // Start watching for user
-                if (!_watchDog.ContainsKey(user.Id))
-                    _watchDog.Add(user.Id, new(-1, 0)); // user id : (current minute : count)
+                if (!_userWatchDog.ContainsKey(user.Id))
+                    _userWatchDog.Add(user.Id, new(-1, 0)); // user id : (current minute : count)
 
                 // Drop + update user stats if he replies in another minute
-                if (_watchDog[user.Id].Key != currentMinuteOfDay)
-                    _watchDog[user.Id] = new(currentMinuteOfDay, 0);
+                if (_userWatchDog[user.Id].Key != currentMinuteOfDay)
+                    _userWatchDog[user.Id] = new(currentMinuteOfDay, 0);
 
                 // Update interactions count within current minute
-                _watchDog[user.Id] = new(_watchDog[user.Id].Key, _watchDog[user.Id].Value + 1);
+                _userWatchDog[user.Id] = new(_userWatchDog[user.Id].Key, _userWatchDog[user.Id].Value + 1);
 
                 int rateLimit = int.Parse(ConfigFile.RateLimit.Value!);
 
-                if (_watchDog[user.Id].Value == rateLimit - 2)
+                if (_userWatchDog[user.Id].Value == rateLimit - 2)
                 {
                     await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {MentionUtils.MentionUser(user.Id)} Warning! If you proceed to call the bot so fast, you'll be blocked from using it.".ToInlineEmbed(Color.Orange));
                     return false;
                 }
 
-                if (_watchDog[user.Id].Value <= rateLimit)
+                if (_userWatchDog[user.Id].Value <= rateLimit)
                 {
                     return false;
                 }
@@ -742,7 +784,7 @@ namespace CharacterEngineDiscord.Services
                 await TryToSaveDbChangesAsync(db);
             }
 
-            _watchDog.Remove(user.Id);
+            _userWatchDog.Remove(user.Id);
 
             var textChannel = await client.GetChannelAsync(channel.Id) as SocketTextChannel;
             await channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} {user.Mention}, you were calling the characters way too fast and have exceeded the rate limit.\nYou will not be able to use the bot in next 24 hours.".ToInlineEmbed(Color.Red));
@@ -756,6 +798,7 @@ namespace CharacterEngineDiscord.Services
 
             return true;
         }
+
 
         public async Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken)
         {
@@ -774,7 +817,7 @@ namespace CharacterEngineDiscord.Services
 
         public void WatchDogClear()
         {
-            _watchDog.Clear();
+            _userWatchDog.Clear();
         }
 
         public static Embed SuccessEmbed(string message = "Success", string? imageUrl = null)

@@ -92,41 +92,60 @@ namespace CharacterEngineDiscord.Handlers
                     var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, integrations, fromChub);
                     if (characterWebhook is null) return;
 
-                    var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                    integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
-
-                    await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-                    if (type is IntegrationType.Aisekai)
-                        await component.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
-
-                    string characterMessage = $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
-                    if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
-
-                    // Try to set avatar
-                    Stream? image = null;
-
-                    if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                    await using (var db = new StorageContext())
                     {
-                        var originalMessage = await component.GetOriginalResponseAsync();
-                        var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
-                        image = await TryToDownloadImageAsync(imageUrl, integrations.ImagesHttpClient);
-                    }
-                    image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+                        characterWebhook = db.Entry(characterWebhook).Entity;
 
-                    try { await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image)); }
-                    finally { await image.DisposeAsync(); }
 
-                    await webhookClient.SendMessageAsync(characterMessage);
+                        var webhookClient =
+                            new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                        integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
-                    await integrations.SearchQueriesLock.WaitAsync();
-                    try
-                    {
-                        integrations.SearchQueries.Remove(searchQuery);
+                        await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
+                        if (type is IntegrationType.Aisekai)
+                            await component.Channel.SendMessageAsync(
+                                embed:
+                                ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present."
+                                    .ToInlineEmbed(Color.Gold, false));
+
+                        string characterMessage =
+                            $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
+                        if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+                        // Try to set avatar
+                        Stream? image = null;
+
+                        if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                        {
+                            var originalMessage = await component.GetOriginalResponseAsync();
+                            var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
+                            image = await TryToDownloadImageAsync(imageUrl, integrations.ImagesHttpClient);
+                        }
+
+                        image ??= new MemoryStream(await File.ReadAllBytesAsync($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+
+                        try
+                        {
+                            await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
+                        }
+                        finally
+                        {
+                            await image.DisposeAsync();
+                        }
+
+                        await webhookClient.SendMessageAsync(characterMessage);
+
+                        await integrations.SearchQueriesLock.WaitAsync();
+                        try
+                        {
+                            integrations.SearchQueries.Remove(searchQuery);
+                        }
+                        finally
+                        {
+                            integrations.SearchQueriesLock.Release();
+                        }
                     }
-                    finally
-                    {
-                        integrations.SearchQueriesLock.Release();
-                    }
+
                     return;
                 default:
                     return;
