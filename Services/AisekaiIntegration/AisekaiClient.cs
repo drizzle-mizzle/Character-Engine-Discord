@@ -11,7 +11,7 @@ using CharacterResponse = CharacterEngineDiscord.Services.AisekaiIntegration.Mod
 
 namespace CharacterEngineDiscord.Services.AisekaiIntegration
 {
-    internal class AisekaiClient
+    public class AisekaiClient
     {
         private readonly HttpClient _aisekaiHttpClient;
         private readonly HttpClient _authHttpClient;

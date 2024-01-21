@@ -6,10 +6,10 @@ namespace CharacterEngineDiscord
 {
     internal class Program : DiscordService
     {
-        static void Main()
-            => new Program().MainAsync().GetAwaiter().GetResult();
+        static void Main(string[] args)
+            => new Program().MainAsync(args).GetAwaiter().GetResult();
 
-        private async Task MainAsync()
+        private async Task MainAsync(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += (s, args) =>
             {
@@ -24,12 +24,10 @@ namespace CharacterEngineDiscord
                 sw.Close();
             };
 
-            Log("Working directory: ");
-            LogYellow(EXE_DIR + '\n');
+            await using (var db = new StorageContext())
+                await db.Database.MigrateAsync();
 
-            await new StorageContext().Database.MigrateAsync();
-            await SetupDiscordClient();
-
+            await BotLaunchAsync(args.Contains("-no-reg"));
             await Task.Delay(-1);
         }
     }

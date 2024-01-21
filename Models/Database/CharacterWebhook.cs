@@ -1,4 +1,5 @@
 ﻿using System.Security.Policy;
+using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 
 namespace CharacterEngineDiscord.Models.Database
