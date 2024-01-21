@@ -12,6 +12,7 @@ using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
 using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
@@ -454,6 +455,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
+            var blockedUsers = db.BlockedUsers.Where(bu => bu.GuildId == guild.Id);
 
             ulong uUserId;
             if (user is null)
@@ -468,10 +470,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                uUserId = user!.Id;
+                uUserId = user.Id;
             }
 
-            if (guild.BlockedUsers.Any(bu => bu.Id == uUserId))
+            if (blockedUsers.Any(bu => bu.Id == uUserId))
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -508,13 +510,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else
             {
-                uUserId = user!.Id;
+                uUserId = user.Id;
             }
 
             await using var db = new StorageContext();
-            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
+            var blockedUsers = db.BlockedUsers.Where(bu => bu.GuildId == Context.Guild.Id);
 
-            var blockedUser = guild.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId);
+            var blockedUser = blockedUsers.FirstOrDefault(bu => bu.Id == uUserId && bu.GuildId == Context.Guild.Id);
             if (blockedUser is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red), ephemeral: silent);
