@@ -27,7 +27,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
             
-            if (!channel.CharacterWebhooks.Any())
+            if (channel.CharacterWebhooks.Count == 0)
             {
                 await FollowupAsync(embed: $"{OK_SIGN_DISCORD} No characters were found in this channel".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;

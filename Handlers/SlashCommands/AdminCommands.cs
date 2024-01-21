@@ -258,15 +258,15 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, db);
-            var allCharacters = db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id).ToListAsync();
+            var allCharacters = await db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id).ToListAsync();
 
-            if (!allCharacters.Any())
+            if (allCharacters.Count == 0)
             {
                 await FollowupAsync(embed: $"No records ({dbGuild.MessagesSent})".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
             }
 
-            int charactersCount = allCharacters.Count();
+            int charactersCount = allCharacters.Count;
             var lastUsed = allCharacters.OrderByDescending(c => c.LastCallTime).First().LastCallTime;
             string callDate = $"{lastUsed.Day}/{lastUsed.Month}/{lastUsed.Year}";
             

@@ -680,7 +680,7 @@ namespace CharacterEngineDiscord.Handlers
 
             // Add characters who hunt the user            
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
-            if (hunters.Any())
+            if (hunters.Count != 0)
             {
                 foreach (var h in hunters.Where(h => !calledCharacters.Contains(h)))
                     calledCharacters.Add(h);
