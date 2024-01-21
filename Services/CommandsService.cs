@@ -15,13 +15,12 @@ namespace CharacterEngineDiscord.Services
         internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext db)
         {
             var channelId = context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : context.Channel.Id; 
-            var channel = await FindOrStartTrackingChannelAsync(channelId, context.Guild.Id, db);
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            var characterWebhook = await db.CharacterWebhooks.FirstOrDefaultAsync(cw => cw.ChannelId == channelId && cw.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
 
             if (characterWebhook is null)
             {
                 bool ok = ulong.TryParse(webhookIdOrPrefix.Trim(), out var cwId);
-                characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == (ok ? cwId : 0));
+                characterWebhook = await db.CharacterWebhooks.FirstOrDefaultAsync(cw => cw.ChannelId == channelId && cw.Id == (ok ? cwId : 0));
             }
 
             return characterWebhook;
@@ -29,15 +28,12 @@ namespace CharacterEngineDiscord.Services
 
         internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, StorageContext db)
         {
-            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == channelId);
-            if (channel is null) return null;
-
-            var characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
+            var characterWebhook = await db.CharacterWebhooks.FirstOrDefaultAsync(cw => cw.ChannelId == channelId && cw.CallPrefix.Trim() == webhookIdOrPrefix.Trim());
 
             if (characterWebhook is null)
             {
                 bool ok = ulong.TryParse(webhookIdOrPrefix.Trim(), out var cwId);
-                characterWebhook = channel.CharacterWebhooks.FirstOrDefault(c => c.Id == (ok ? cwId : 0));
+                characterWebhook = await db.CharacterWebhooks.FirstOrDefaultAsync(cw => cw.ChannelId == channelId && cw.Id == (ok ? cwId : 0));
             }
 
             return characterWebhook;

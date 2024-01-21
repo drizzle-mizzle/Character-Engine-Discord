@@ -25,20 +25,22 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
-            if (channel.CharacterWebhooks.Count == 0)
+            var characterWebhooks = db.CharacterWebhooks.Where(cw => cw.ChannelId == channel.Id);
+
+            if (!characterWebhooks.Any())
             {
                 await FollowupAsync(embed: $"{OK_SIGN_DISCORD} No characters were found in this channel".ToInlineEmbed(Color.Orange), ephemeral: silent);
                 return;
             }
 
+            var rCharacterWebhooks = Enumerable.Reverse(characterWebhooks).ToList();
             var embed = new EmbedBuilder().WithColor(Color.Purple);
             int start = (page - 1) * 5;
-            int end = (channel.CharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (channel.CharacterWebhooks.Count - start - 1);
+            int end = (rCharacterWebhooks.Count - start) > 5 ? (start + 4) : start + (rCharacterWebhooks.Count - start - 1);
 
-            var characterWebhooks = Enumerable.Reverse(channel.CharacterWebhooks).ToList();
             for (int i = start; i <= end; i++)
             {
-                var cw = characterWebhooks.ElementAt(i);
+                var cw = rCharacterWebhooks.ElementAt(i);
                 string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ?
                                             $"**[CharacterAI](https://beta.character.ai/chat?char={cw.Character.Id})**"
                                        : cw.IntegrationType is IntegrationType.Aisekai ?
@@ -59,8 +61,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 embed.AddField($"{++start}. {cw.Character.Name}", val);
             }
 
-            double pages = Math.Ceiling(channel.CharacterWebhooks.Count / 5d);
-            embed.WithTitle($"Characters found in this channel: {channel.CharacterWebhooks.Count}");
+            double pages = Math.Ceiling(rCharacterWebhooks.Count / 5d);
+            embed.WithTitle($"Characters found in this channel: {rCharacterWebhooks.Count}");
             embed.WithFooter($"Page {page}/{pages}");
 
             await FollowupAsync(embed: embed.Build(), ephemeral: silent);
@@ -249,11 +251,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string format;
 
             await using var db = new StorageContext();
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
+            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
+
             if (webhookIdOrPrefix is null)
             {
-                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
                 title = "Default messages format";
-                format = channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+                format = guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
             else
             {
@@ -265,8 +269,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                title = $"{characterWebhook.Character.Name}'s messages format";
-                format = characterWebhook.PersonalMessagesFormat ?? characterWebhook.Channel.Guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
+                var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
+
+                title = $"{character.Name}'s messages format";
+                format = characterWebhook.PersonalMessagesFormat ?? guild.GuildMessagesFormat ?? ConfigFile.DefaultMessagesFormat.Value!;
             }
 
             string text = format.Replace("{{msg}}", "Hello!").Replace("{{user}}", "Average AI Enjoyer");
@@ -301,12 +307,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string prompt;
 
             await using var db = new StorageContext();
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
+            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
+            
             if (webhookIdOrPrefix is null)
             {
-                var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-
                 title = "Default jailbreak prompt";
-                prompt = channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
+                prompt = guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!;
             }
             else
             {
@@ -325,8 +332,10 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     return;
                 }
 
-                title = $"{characterWebhook.Character.Name}'s jailbreak prompt";
-                prompt = (characterWebhook.PersonalJailbreakPrompt ?? characterWebhook.Channel.Guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!).Replace("{{char}}", $"{characterWebhook.Character.Name}");
+                var character = (await db.Characters.FindAsync(characterWebhook.CharacterId))!;
+
+                title = $"{character.Name}'s jailbreak prompt";
+                prompt = (characterWebhook.PersonalJailbreakPrompt ?? guild.GuildJailbreakPrompt ?? ConfigFile.DefaultJailbreakPrompt.Value!).Replace("{{char}}", $"{character.Name}");
             }
 
             var embed = new EmbedBuilder().WithTitle($"**{title}**")

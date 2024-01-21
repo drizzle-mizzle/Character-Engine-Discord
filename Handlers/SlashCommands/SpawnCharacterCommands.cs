@@ -100,7 +100,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
+            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
+
+            var caiToken = guild.GuildCaiUserToken ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(caiToken))
             {
@@ -110,7 +112,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
+            var plusMode = guild.GuildCaiPlusMode ?? false;
 
             await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
             
@@ -150,7 +152,9 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await using var db = new StorageContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            string? authToken = channel.Guild.GuildAisekaiAuthToken;
+            var guild = (await db.Guilds.FindAsync(channel.GuildId))!;
+
+            string? authToken = guild.GuildAisekaiAuthToken;
 
             if (string.IsNullOrWhiteSpace(authToken))
             {
@@ -163,7 +167,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (setWithId)
             {
-                await SpawnAisekaiCharacterWithIdAsync(channel, searchQueryOrCharacterId ?? string.Empty, authToken);
+                await SpawnAisekaiCharacterWithIdAsync(guild, searchQueryOrCharacterId ?? string.Empty, authToken);
             }
             else // set with search
             {
@@ -174,7 +178,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task SpawnAisekaiCharacterWithIdAsync(Models.Database.Channel channel, string characterId, string authToken)
+        private async Task SpawnAisekaiCharacterWithIdAsync(Models.Database.Guild guild, string characterId, string authToken)
         {
             var response = await integrations.AisekaiClient.GetCharacterInfoAsync(authToken, characterId);
 
@@ -185,11 +189,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             else if (response.Code == 401)
             {   // Re-login
-                var newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(channel.GuildId, channel.Guild.GuildAisekaiRefreshToken!);
+                var newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken!);
                 if (newAuthToken is null)
                     await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
                 else
-                    await SpawnAisekaiCharacterWithIdAsync(channel, characterId, newAuthToken);
+                    await SpawnAisekaiCharacterWithIdAsync(guild, characterId, newAuthToken);
             }
             else
             {
