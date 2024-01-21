@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngineDiscord.Models.Common
 {
-    internal class LastCharacterCall
+    public class LastCharacterCall
     {
         public List<AvailableCharacterResponse> AvailableMessages { get; set; }
         public SemaphoreSlim Locker { get; }

@@ -2,26 +2,28 @@
 using Microsoft.EntityFrameworkCore;
 using static CharacterEngineDiscord.Services.CommonService;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace CharacterEngineDiscord.Services
 {
-    internal class StorageContext : DbContext
+    public class StorageContext : DbContext, IStorageContext
     {
-        internal DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
-        internal DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
-        internal DbSet<Models.Database.Channel> Channels { get; set; }
-        internal DbSet<Models.Database.Character> Characters { get; set; }
-        internal DbSet<Models.Database.CharacterWebhook> CharacterWebhooks { get; set; }
-        internal DbSet<Models.Database.Guild> Guilds { get; set; }
-        internal DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
-        internal DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
+        public DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
+        public DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
+        public DbSet<Models.Database.Channel> Channels { get; set; }
+        public DbSet<Models.Database.Character> Characters { get; set; }
+        public DbSet<Models.Database.CharacterWebhook> CharacterWebhooks { get; set; }
+        public DbSet<Models.Database.Guild> Guilds { get; set; }
+        public DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
+        public DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
-#pragma warning disable CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         public StorageContext()
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
 
         }
-#pragma warning restore CS8618 // Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Возможно, стоит объявить поле как допускающее значения NULL.
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -29,15 +31,16 @@ namespace CharacterEngineDiscord.Services
                    $"Data Source={EXE_DIR}{SC}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
-            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
+            optionsBuilder.UseSqlite(connString);
 
-            if (Environment.GetEnvironmentVariable("READY") is not null)
-            { 
-                if (ConfigFile.DbLogEnabled.Value.ToBool())
-                    optionsBuilder.LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name })
-                                  .EnableSensitiveDataLogging(true)
-                                  .EnableDetailedErrors(true);
-            }
+            if (Environment.GetEnvironmentVariable("READY") is null)
+                return;
+
+            if (ConfigFile.DbLogEnabled.Value.ToBool())
+                optionsBuilder.ConfigureWarnings(w => w.Ignore(CoreEventId.LazyLoadOnDisposedContextWarning))
+                    .EnableSensitiveDataLogging()
+                    .EnableDetailedErrors()
+                    .LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });
         }
 
 
@@ -59,7 +62,7 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
-        protected internal static async Task TryToSaveDbChangesAsync(StorageContext db)
+        public static async Task TryToSaveDbChangesAsync(StorageContext db)
         {
             try
             {
@@ -69,55 +72,79 @@ namespace CharacterEngineDiscord.Services
             {
                 foreach (var entry in e.Entries)
                 {
-                    entry.Reload();
+                    await entry.ReloadAsync();
                 }
 
                 try
                 {
-                    db.SaveChanges();
+                    await db.SaveChangesAsync();
                 }
                 catch
                 {
-                    return;
+                    //
                 }
             }
         }
 
-        protected internal static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
+        public static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
         {
-            db ??= new StorageContext();
+            bool gottaDispose = false;
+            if (db is null)
+            {
+                db = new StorageContext();
+                gottaDispose = true;
+            }
+
             var guild = await db.Guilds.FindAsync(guildId);
 
             if (guild is null)
             {
-                guild = new() { Id = guildId, MessagesSent = 0 };
+                guild = new Guild { Id = guildId, MessagesSent = 0 };
                 await db.Guilds.AddAsync(guild);
                 await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingGuildAsync(guildId, db);
             }
 
+            if (gottaDispose)
+                await db.DisposeAsync();
+
             return guild;
         }
 
-        protected internal static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
+        public static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
         {
-            db ??= new StorageContext();
+            bool gottaDispose = false;
+            if (db is null)
+            {
+                db = new StorageContext();
+                gottaDispose = true;
+            }
+
             var channel = await db.Channels.FindAsync(channelId);
 
             if (channel is null)
             {
-                channel = new() { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
+                channel = new Channel { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
                 await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
             }
 
+            if (gottaDispose)
+                await db.DisposeAsync();
+
             return channel;
         }
 
-        protected internal static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null)
+        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext db)
         {
-            db ??= new StorageContext();
+            //bool gottaDispose = false;
+            //if (db is null)
+            //{
+            //    db = new StorageContext();
+            //    gottaDispose = true;
+            //}
+
             var character = await db.Characters.FindAsync(notSavedCharacter.Id);
 
             if (character is null)
@@ -137,6 +164,9 @@ namespace CharacterEngineDiscord.Services
                 character.Definition = notSavedCharacter.Definition;
                 character.AvatarUrl = notSavedCharacter.AvatarUrl;
             }
+
+            //if (gottaDispose)
+            //    await db.DisposeAsync();
 
             return character;
         }

@@ -1,28 +1,15 @@
 ﻿using Discord;
 using Discord.Interactions;
 using CharacterEngineDiscord.Services;
-using static CharacterEngineDiscord.Services.CommonService;
-using static CharacterEngineDiscord.Services.IntegrationsService;
-using Microsoft.Extensions.DependencyInjection;
 using Discord.WebSocket;
-using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
-    public class OtherCommands : InteractionModuleBase<InteractionContext>
+    public class OtherCommands(IDiscordClient client) : InteractionModuleBase<InteractionContext>
     {
-        //private readonly IntegrationsService _integration;
-        private readonly DiscordSocketClient _client;
-        //private readonly StorageContext _db;
+        private readonly DiscordSocketClient _client = (DiscordSocketClient)client;
 
-        public OtherCommands(IServiceProvider services)
-        {
-            //_integration = services.GetRequiredService<IntegrationsService>();
-            _client = services.GetRequiredService<DiscordSocketClient>();
-            //_db = new StorageContext();
-        }
-
-
+        
         [SlashCommand("help", "All basic info about bot")]
         public async Task BaicsHelp(bool silent = true)
         {
@@ -33,9 +20,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                                                            "3. Call character by mentioning its prefix or with reply on any of its messages.\n" +
                                                            "4. If you want to start the chat with some character from the beginning, use `/reset-character` command.\n" +
                                                            "5. Read [wiki/Important-Notes-and-Additional-Guides](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Important-Notes-and-Additional-Guides) and [wiki/Commands](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Commands) to know more.")
-                                          .AddField("API", "By default, bot will use its owner's credentials (if those are present) for accessing all needed servcies like **CharacterAI** or **OpenAI**\n" +
-                                                           "To use your own API keys and cAI accounts, change it with `/set-server-[ type ]-token` command.\n" +
-                                                           "Each character can use different credentials.")
                                           .AddField("Also", "It's really recommended to look into `/help-messages-format`");
                                           
             await RespondAsync(embed: embed.Build(), ephemeral: silent);

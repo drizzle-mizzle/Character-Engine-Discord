@@ -127,8 +127,8 @@ namespace CharacterEngineDiscord.Services
                     {   try
                         {
                             var userId = MentionUtils.ParseUser(mention.Value);
-                            if (await refMsg.Channel.GetUserAsync(userId) is not IGuildUser user) continue;
-                            else refContent = refContent.Replace(mention.ToString(), (user.IsBot || user.IsWebhook) ? user.Username : user.GetBestName());
+                            if (await refMsg.Channel.GetUserAsync(userId) is IGuildUser user)
+                                refContent = refContent.Replace(mention.ToString(), (user.IsBot || user.IsWebhook) ? user.Username : user.GetBestName());
                         }
                         catch { continue; }
                     }

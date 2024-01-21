@@ -6,30 +6,21 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using Microsoft.Extensions.DependencyInjection;
+using CharacterEngineDiscord.Interfaces;
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class ButtonsHandler
+    internal class ButtonsHandler(IDiscordClient client, IIntegrationsService integrations)
     {
-        private readonly IServiceProvider _services;
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integration;
-
-        public ButtonsHandler(IServiceProvider services)
+        public Task HandleButton(SocketMessageComponent component)
         {
-            _services = services;
-            _integration = _services.GetRequiredService<IntegrationsService>();
-            _client = _services.GetRequiredService<DiscordSocketClient>();
+            Task.Run(async () => {
+                try { await HandleButtonAsync(component); }
+                catch (Exception e) { await HandleButtonException(component, e); }
+            });
 
-            _client.ButtonExecuted += (component) =>
-            {
-                Task.Run(async () => {
-                    try { await HandleButtonAsync(component); }
-                    catch (Exception e) { await HandleButtonException(component, e); }
-                });
-                return Task.CompletedTask;
-            };
+            return Task.CompletedTask;
         }
 
         private async Task HandleButtonException(SocketMessageComponent component, Exception e)
@@ -39,7 +30,7 @@ namespace CharacterEngineDiscord.Handlers
             var guild = channel?.Guild;
             var owner = guild is null ? null : (await guild.GetOwnerAsync()) as SocketGuildUser;
 
-            TryToReportInLogsChannel(_client, title: "Button Exception",
+            TryToReportInLogsChannel(client, title: "Button Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
                                                     $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
@@ -54,7 +45,7 @@ namespace CharacterEngineDiscord.Handlers
         {
             await component.DeferAsync();
 
-            var searchQuery = _integration.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId);
+            var searchQuery = integrations.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId);
             if (searchQuery is null || searchQuery.SearchQueryData.IsEmpty) return;
             if (searchQuery.AuthorId != component.User.Id) return;
             if (await UserIsBannedCheckOnly(component.User.Id)) return;
@@ -95,47 +86,66 @@ namespace CharacterEngineDiscord.Handlers
                     catch { return; }
 
                     var type = searchQuery.SearchQueryData.IntegrationType;
-                    var context = new InteractionContext(_client, component, component.Channel);
+                    var context = new InteractionContext(client, component, component.Channel);
                     bool fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
 
-                    var characterWebhook = await _integration.CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integration, fromChub);
+                    var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, integrations, fromChub);
                     if (characterWebhook is null) return;
 
-                    var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-                    _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
-
-                    await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-                    if (type is IntegrationType.Aisekai)
-                        await component.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
-
-                    string characterMessage = $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
-                    if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
-
-                    // Try to set avatar
-                    Stream? image = null;
-
-                    if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                    await using (var db = new StorageContext())
                     {
-                        var originalMessage = await component.GetOriginalResponseAsync();
-                        var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
-                        image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
-                    }
-                    image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+                        characterWebhook = db.Entry(characterWebhook).Entity;
 
-                    try { await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image)); }
-                    finally { await image.DisposeAsync(); }
 
-                    await webhookClient.SendMessageAsync(characterMessage);
+                        var webhookClient =
+                            new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+                        integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
-                    await _integration.SearchQueriesLock.WaitAsync();
-                    try
-                    {
-                        _integration.SearchQueries.Remove(searchQuery);
+                        await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
+                        if (type is IntegrationType.Aisekai)
+                            await component.Channel.SendMessageAsync(
+                                embed:
+                                ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present."
+                                    .ToInlineEmbed(Color.Gold, false));
+
+                        string characterMessage =
+                            $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
+                        if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+
+                        // Try to set avatar
+                        Stream? image = null;
+
+                        if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
+                        {
+                            var originalMessage = await component.GetOriginalResponseAsync();
+                            var imageUrl = originalMessage.Embeds?.FirstOrDefault()?.Image?.ProxyUrl;
+                            image = await TryToDownloadImageAsync(imageUrl, integrations.ImagesHttpClient);
+                        }
+
+                        image ??= new MemoryStream(await File.ReadAllBytesAsync($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+
+                        try
+                        {
+                            await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image));
+                        }
+                        finally
+                        {
+                            await image.DisposeAsync();
+                        }
+
+                        await webhookClient.SendMessageAsync(characterMessage);
+
+                        await integrations.SearchQueriesLock.WaitAsync();
+                        try
+                        {
+                            integrations.SearchQueries.Remove(searchQuery);
+                        }
+                        finally
+                        {
+                            integrations.SearchQueriesLock.Release();
+                        }
                     }
-                    finally
-                    {
-                        _integration.SearchQueriesLock.Release();
-                    }
+
                     return;
                 default:
                     return;

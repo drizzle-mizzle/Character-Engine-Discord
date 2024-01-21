@@ -1,4 +1,4 @@
-﻿using CharacterAI;
+﻿using CharacterAI.Client;
 using Discord;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -7,52 +7,33 @@ using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
-using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Discord.Webhook;
+using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class ReactionsHandler
+    internal class ReactionsHandler(IDiscordClient client, IIntegrationsService integrations)
     {
-        private readonly IServiceProvider _services;
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integration;
-
-        public ReactionsHandler(IServiceProvider services)
+        public Task HandleReaction(Cacheable<IUserMessage, ulong> msg, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
         {
-            _services = services;
-            _integration = _services.GetRequiredService<IntegrationsService>();
-            _client = _services.GetRequiredService<DiscordSocketClient>();
-
-            _client.ReactionAdded += (msg, channel, reaction) =>
+            Task.Run(async () =>
             {
-                Task.Run(async () =>
-                {
-                    try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (NullReferenceException e) { LogException(new[] { e }); }
-                    catch (Exception e) { await HandleReactionException(channel, reaction, e); }
-                });
-                return Task.CompletedTask;
-            };
+                try { await HandleReactionAsync(msg, channel, reaction); }
+                catch (NullReferenceException e) { LogException(new[] { e }); }
+                catch (Exception e) { await HandleReactionException(channel, reaction, e); }
+            });
 
-            _client.ReactionRemoved += (msg, channel, reaction) =>
-            {
-                Task.Run(async () =>
-                {
-                    try { await HandleReactionAsync(msg, channel, reaction); }
-                    catch (NullReferenceException e) { LogException(new[] { e }); }
-                    catch (Exception e) { await HandleReactionException(channel, reaction, e); }
-                });
-                return Task.CompletedTask;
-            };
+            return Task.CompletedTask;
         }
 
         private async Task HandleReactionAsync(Cacheable<IUserMessage, ulong> rawMessage, Cacheable<IMessageChannel, ulong> discordChannel, SocketReaction reaction)
         {
             var user = reaction.User.GetValueOrDefault(null);
-            if (user is null || user is not SocketGuildUser userReacted || userReacted.IsBot) return;
+            if (user is not SocketGuildUser userReacted || userReacted.IsBot) return;
 
             IUserMessage originalMessage;
             try { originalMessage = await rawMessage.DownloadAsync(); }
@@ -60,8 +41,8 @@ namespace CharacterEngineDiscord.Handlers
             if (originalMessage is null) return;
             if (!originalMessage.Author.IsWebhook) return;
 
-            var db = new StorageContext();
-            var channel = await db.Channels.FindAsync(discordChannel.Id);
+            await using var db = new StorageContext();
+            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == discordChannel.Id);
             if (channel is null) return;
 
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);
@@ -80,7 +61,9 @@ namespace CharacterEngineDiscord.Handlers
 
             if ((reaction.Emote?.Name == ARROW_LEFT.Name) && characterWebhook.CurrentSwipeIndex > 0)
             {   // left arrow
-                if (await _integration.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 characterWebhook.CurrentSwipeIndex--;
                 await TryToSaveDbChangesAsync(db);
@@ -88,7 +71,9 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (reaction.Emote?.Name == ARROW_RIGHT.Name)
             {   // right arrow
-                if (await _integration.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 characterWebhook.CurrentSwipeIndex++;
                 await TryToSaveDbChangesAsync(db);
@@ -96,7 +81,9 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (reaction.Emote?.Name == CRUTCH_BTN.Name)
             {   // proceed generation
-                if (await _integration.UserIsBanned(reaction, _client)) return;
+                if (await integrations.UserIsBanned(reaction, client)) return;
+                if (integrations.GuildIsAbusive(channel.GuildId))
+                    await Task.Delay(2000);
 
                 await SwipeCharacterMessageAsync(originalMessage, characterWebhook.Id, userReacted, isSwipe: false);
             }
@@ -104,21 +91,21 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task SwipeCharacterMessageAsync(IUserMessage characterOriginalMessage, ulong characterWebhookId, SocketGuildUser userCalled, bool isSwipe)
         {
-            bool messageIsNotTracked = !_integration.Conversations.ContainsKey(characterWebhookId);
+            bool messageIsNotTracked = !integrations.Conversations.ContainsKey(characterWebhookId);
             if (messageIsNotTracked) return;
 
-            var db = new StorageContext();
+            await using var db = new StorageContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
-            var webhookClient = _integration.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+            var webhookClient = integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
                 await characterOriginalMessage.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to update character message".ToInlineEmbed(Color.Red));
                 return;
             }
 
-            var convo = _integration.Conversations[characterWebhookId];
+            var convo = integrations.Conversations[characterWebhookId];
             await convo.Locker.WaitAsync();
             try
             {
@@ -166,7 +153,7 @@ namespace CharacterEngineDiscord.Handlers
             if (quoteEmbed is not null)
                 embeds.Add(quoteEmbed);
 
-            if (imageUrl is not null && await CheckIfImageIsAvailableAsync(imageUrl, _integration.ImagesHttpClient))
+            if (imageUrl is not null && await CheckIfImageIsAvailableAsync(imageUrl, integrations.ImagesHttpClient))
                 embeds.Add(new EmbedBuilder().WithImageUrl(imageUrl).Build());
 
             // Add text to the message
@@ -201,21 +188,29 @@ namespace CharacterEngineDiscord.Handlers
                 cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
                 db.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = responseText, CharacterWebhookId = cw.Id });
             }
-            }
+        }
 
         private async Task<bool> TryToFetchNewCharacterMessageAsync(LastCharacterCall convo, CharacterWebhook cw, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe)
         {
             Models.Common.CharacterResponse characterResponse;
             if (cw.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await SwipeCaiMessageAsync(cw, _integration.CaiClient!);
+            {
+                while (integrations.CaiReloading)
+                    await Task.Delay(5000);
+
+                var id = Guid.NewGuid();
+                integrations.RunningCaiTasks.Add(id);
+                try { characterResponse = await SwipeCaiMessageAsync(cw, integrations.CaiClient!).WithTimeout(60000); }
+                finally { integrations.RunningCaiTasks.Remove(id); }
+            }
             else if (cw.IntegrationType is IntegrationType.Aisekai)
-                characterResponse = await SwipeAisekaiMessageAsync(cw, _integration.AisekaiClient);
+                characterResponse = await SwipeAisekaiMessageAsync(cw, integrations.AisekaiClient);
             else if (cw.IntegrationType is IntegrationType.OpenAI)
-                characterResponse = await SwipeOpenAiMessageAsync(cw, _integration.CommonHttpClient, isSwipeOrContinue: isSwipe);
+                characterResponse = await SwipeOpenAiMessageAsync(cw, integrations.CommonHttpClient, isSwipeOrContinue: isSwipe);
             else if (cw.IntegrationType is IntegrationType.KoboldAI)
-                characterResponse = await SwipeKoboldAiMessageAsync(cw, _integration.CommonHttpClient);
+                characterResponse = await SwipeKoboldAiMessageAsync(cw, integrations.CommonHttpClient);
             else if (cw.IntegrationType is IntegrationType.HordeKoboldAI)
-                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, _integration.CommonHttpClient);
+                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, integrations.CommonHttpClient);
             else return false;
 
             if (!characterResponse.IsSuccessful)
@@ -283,7 +278,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {
-                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeKoboldAiResponse.Id, _integration.CommonHttpClient, 0);
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeKoboldAiResponse.Id, integrations.CommonHttpClient, 0);
 
                 string message;
                 bool success;
@@ -333,12 +328,12 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAIClient client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAiClient client)
         {
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
 
-            var caiResponse = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            var caiResponse = await client.CallCharacterAsync(characterWebhook.Character.Id, characterWebhook.Character.Tgt!, characterWebhook.ActiveHistoryID!, parentMsgUuId: characterWebhook.LastUserMsgId, authToken: caiToken, plusMode: plusMode);
 
             if (!caiResponse.IsSuccessful)
             {
@@ -374,7 +369,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (response.Code == 401)
             {
-                string? newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
+                string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
                 if (newAuthToken is null)
                     message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
                 else
@@ -400,7 +395,7 @@ namespace CharacterEngineDiscord.Handlers
             var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
             var guild = guildChannel?.Guild;
 
-            TryToReportInLogsChannel(_client, title: "Reaction Exception",
+            TryToReportInLogsChannel(client, title: "Reaction Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
                                                     $"Channel: `{guildChannel?.Name} ({guildChannel?.Id})`\n" +
