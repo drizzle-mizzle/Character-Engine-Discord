@@ -43,8 +43,18 @@ namespace CharacterEngineDiscord.Services
 
         protected internal static void SqlLog(string text)
         {
+            int ww;
+            try
+            {
+                ww = Console.WindowWidth;
+            }
+            catch
+            {
+                ww = 320;
+            }
+
             Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine(new string('~', Console.WindowWidth));
+            Console.WriteLine(new string('~', ww));
 
             if (text.Contains("INSERT"))
                 Console.ForegroundColor = ConsoleColor.Green;

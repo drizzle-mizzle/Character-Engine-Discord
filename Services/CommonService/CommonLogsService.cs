@@ -33,15 +33,25 @@ namespace CharacterEngineDiscord.Services
         {
             if (text is null) return;
 
-            LogRed(new string('~', Console.WindowWidth - 1) + "\n");
+            int ww;
+            try
+            {
+                ww = Console.WindowWidth;
+            }
+            catch
+            {
+                ww = 320;
+            }
+
+            LogRed(new string('~', ww - 1) + "\n");
             LogRed($"{string.Join('\n', text)}\n");
-            LogRed(new string('~', Console.WindowWidth - 1) + "\n");
+            LogRed(new string('~', ww - 1) + "\n");
 
             if (!ConfigFile.LogFileEnabled.Value.ToBool()) return;
 
             try {
                 var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
-                sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{string.Join('\n', text)}\n");
+                sw.WriteLine($"{new string('~', ww)}\n{string.Join('\n', text)}\n");
                 sw.Close();
             }
             catch (Exception e) { LogRed(e); }
