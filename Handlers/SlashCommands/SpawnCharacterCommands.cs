@@ -28,10 +28,12 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         public async Task SpawnCaiCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
             => await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId, silent);
 
+        public async Task SpawnSakuraCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
+            => await SpawnSakuraCharacterAsync(searchQueryOrCharacterId, setWithId, silent);
 
-        [SlashCommand("aisekai-character", "Add new Aisekai character to this channel")]
-        public async Task SpawnAisekaiCharacter([Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNsfw = true, SearchSort sort = SearchSort.desc, SearchTime time = SearchTime.all, SearchType type = SearchType.best, bool silent = false)
-            => await SpawnAisekaiCharacterAsync(searchQueryOrCharacterId, setWithId, tags, allowNsfw, sort, time, type, silent);
+        //[SlashCommand("aisekai-character", "Add new Aisekai character to this channel")]
+        //public async Task SpawnAisekaiCharacter([Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNsfw = true, SearchSort sort = SearchSort.desc, SearchTime time = SearchTime.all, SearchType type = SearchType.best, bool silent = false)
+        //    => await SpawnAisekaiCharacterAsync(searchQueryOrCharacterId, setWithId, tags, allowNsfw, sort, time, type, silent);
 
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
         public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool silent = false)
@@ -142,9 +144,41 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
-        
 
-        private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
+
+        //private async Task SpawnAisekaiCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
+        //{
+        //    await DeferAsync(ephemeral: silent);
+        //    EnsureCanSendMessages();
+
+        //    await using var db = new StorageContext();
+        //    var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
+
+        //    string? authToken = channel.Guild.GuildAisekaiAuthToken;
+
+        //    if (string.IsNullOrWhiteSpace(authToken))
+        //    {
+        //        await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an Aisekai user account for your server first!\n" +                                            
+        //                                    $"Command: `/set-server-aisekai-auth email:... password:...`").ToInlineEmbed(Color.Red), ephemeral: silent);
+        //        return;
+        //    }
+
+        //    await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
+
+        //    if (setWithId)
+        //    {
+        //        await SpawnAisekaiCharacterWithIdAsync(channel.Guild, searchQueryOrCharacterId ?? string.Empty, authToken);
+        //    }
+        //    else // set with search
+        //    {
+        //        var response = await integrations.AisekaiClient.GetSearchAsync(authToken, searchQueryOrCharacterId, time, type, sort, nsfw, 1, 100, tags);
+        //        var searchQueryData = SearchQueryDataFromAisekaiResponse(response);
+
+        //        await FinishSearchAsync(searchQueryData);
+        //    }
+        //}
+
+        private async Task SpawnSakuraCharacterAsync(string? searchQueryOrCharacterId, bool setWithId, string? tags, bool nsfw, SearchSort sort, SearchTime time, SearchType type, bool silent)
         {
             await DeferAsync(ephemeral: silent);
             EnsureCanSendMessages();
@@ -156,12 +190,16 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (string.IsNullOrWhiteSpace(authToken))
             {
-                await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an Aisekai user account for your server first!\n" +                                            
+                await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} You have to specify an Aisekai user account for your server first!\n" +
                                             $"Command: `/set-server-aisekai-auth email:... password:...`").ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
             await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
+
+
+            var sakuraClient = 
+
 
             if (setWithId)
             {
@@ -176,28 +214,28 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task SpawnAisekaiCharacterWithIdAsync(Models.Database.Guild guild, string characterId, string authToken)
-        {
-            var response = await integrations.AisekaiClient.GetCharacterInfoAsync(authToken, characterId);
+        //private async Task SpawnAisekaiCharacterWithIdAsync(Models.Database.Guild guild, string characterId, string authToken)
+        //{
+        //    var response = await integrations.AisekaiClient.GetCharacterInfoAsync(authToken, characterId);
 
-            if (response.IsSuccessful)
-            {
-                var character = CharacterFromAisekaiCharacterInfo(response.Character!.Value);
-                await FinishSpawningAsync(IntegrationType.Aisekai, character);
-            }
-            else if (response.Code == 401)
-            {   // Re-login
-                var newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken!);
-                if (newAuthToken is null)
-                    await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
-                else
-                    await SpawnAisekaiCharacterWithIdAsync(guild, characterId, newAuthToken);
-            }
-            else
-            {
-                await ModifyOriginalResponseAsync(r => r.Embed = $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
-            }
-        }
+        //    if (response.IsSuccessful)
+        //    {
+        //        var character = CharacterFromAisekaiCharacterInfo(response.Character!.Value);
+        //        await FinishSpawningAsync(IntegrationType.Aisekai, character);
+        //    }
+        //    else if (response.Code == 401)
+        //    {   // Re-login
+        //        var newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken!);
+        //        if (newAuthToken is null)
+        //            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`".ToInlineEmbed(Color.Red));
+        //        else
+        //            await SpawnAisekaiCharacterWithIdAsync(guild, characterId, newAuthToken);
+        //    }
+        //    else
+        //    {
+        //        await ModifyOriginalResponseAsync(r => r.Embed = $"{WARN_SIGN_DISCORD} Failed to get character info: `{response.ErrorReason}`".ToInlineEmbed(Color.Red));
+        //    }
+        //}
 
         private async Task FinishSpawningAsync(IntegrationType type, Models.Database.Character? character)
         {
@@ -305,14 +343,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             try
             {
-                if (Context.Channel is not ITextChannel tc)
-                    throw new();
-                else if (tc.Name is null)
-                    throw new();
+                _ = Context.Channel is ITextChannel { Name.Length: > 0 };
             }
             catch
             {
-                throw new($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute commands here!");
+                throw new Exception($"{WARN_SIGN_DISCORD} You have to invite the bot to this channel to execute commands here!");
             }
         }
     }

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace CharacterEngineDiscord.Services.AisekaiIntegration.Models
+namespace CharacterEngineDiscord.Services.SakuraIntegration.Models
 {
     public struct Character
     {
@@ -21,7 +21,8 @@ namespace CharacterEngineDiscord.Services.AisekaiIntegration.Models
 
     public struct LoginResponse
     {
-        public string? Token { get; set; }
+        public string? ExpToken { get; set; }
+        public string? RefreshToken { get; set; }
         public string? Message { get; set; }
         public required bool IsSuccessful { get; set; }
     }
