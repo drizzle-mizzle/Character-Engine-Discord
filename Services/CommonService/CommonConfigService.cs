@@ -9,7 +9,6 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-
                 using StreamReader sr = File.Exists($"{EXE_DIR}{SC}env.config.json") ?
                                                 new($"{EXE_DIR}{SC}env.config.json") :
                                                 new($"{EXE_DIR}{SC}config.json");

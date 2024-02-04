@@ -10,21 +10,18 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
+using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
+using CharacterEngineDiscord.Interfaces;
+using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Handlers.SlashCommands
 {
     [RequireManagerAccess]
     [Group("spawn", "Spawn new character")]
-    public class SpawnCharacterCommands : InteractionModuleBase<InteractionContext>
+    public class SpawnCharacterCommands(IIntegrationsService integrations) : InteractionModuleBase<InteractionContext>
     {
-        private readonly IntegrationsService _integration;
-        const string sqDesc = "When use character ID, set 'set-with-id' to 'True'";
-        const string tagsDesc = "Tags separated by ','";
-        
-        public SpawnCharacterCommands(IServiceProvider services)
-        {
-            _integration = services.GetRequiredService<IntegrationsService>();
-        }
+        private const string sqDesc = "When use character ID, set 'set-with-id' to 'True'";
+        private const string tagsDesc = "Tags separated by ','";
 
 
         [SlashCommand("cai-character", "Add new CharacterAI character to this channel")]
@@ -49,11 +46,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
             EnsureCanSendMessages();
 
-            if (Context.Channel is ITextChannel tc && !tc.IsNsfw)
-            {
-                await FollowupAsync(embed: "Channel must be marked as NSFW for this command to work".ToInlineEmbed(Color.Purple), ephemeral: silent);
-                return;
-            }
+            if (Context.Channel is ITextChannel { IsNsfw: false })
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Warning! Characters provided by chub.ai can contain NSFW avatar pictures and descriptions.".ToInlineEmbed(Color.Purple), ephemeral: silent);
 
             IntegrationType integrationType = apiType is ApiTypeForChub.OpenAI ? IntegrationType.OpenAI
                                             : apiType is ApiTypeForChub.KoboldAI ? IntegrationType.KoboldAI
@@ -64,7 +58,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
-                var chubCharacter = await GetChubCharacterInfoAsync(searchQueryOrCharacterId ?? string.Empty, _integration.ChubAiHttpClient);
+                var chubCharacter = await GetChubCharacterInfoAsync(searchQueryOrCharacterId ?? string.Empty, integrations.ChubAiHttpClient);
                 var character = CharacterFromChubCharacterInfo(chubCharacter);
                 await FinishSpawningAsync(integrationType, character);
             }
@@ -81,7 +75,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                     Page = 1,
                     SortBy = sortBy,
                     AllowNSFW = allowNSFW
-                }, _integration.ChubAiHttpClient);
+                }, integrations.ChubAiHttpClient);
 
                 var searchQueryData = SearchQueryDataFromChubResponse(integrationType, response);
                 await FinishSearchAsync(searchQueryData);
@@ -93,13 +87,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await DeferAsync(ephemeral: silent);
             EnsureCanSendMessages();
 
-            if (_integration.CaiClient is null)
+            if (integrations.CaiClient is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} CharacterAI integration is disabled".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
+            await using var db = new StorageContext();
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
             var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(caiToken))
@@ -113,21 +108,32 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var plusMode = channel.Guild.GuildCaiPlusMode ?? false;
 
             await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
+            
+            while (integrations.CaiReloading)
+                await Task.Delay(5000);
 
-            if (setWithId)
+            var id = Guid.NewGuid();
+            integrations.RunningCaiTasks.Add(id);
+            try
             {
-                var caiCharacter = await _integration.CaiClient.GetInfoAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
-                var character = CharacterFromCaiCharacterInfo(caiCharacter);
+                if (setWithId)
+                {
+                    var caiCharacter = await integrations.CaiClient.GetInfoAsync(searchQueryOrCharacterId,
+                        authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                    var character = CharacterFromCaiCharacterInfo(caiCharacter);
 
-                await FinishSpawningAsync(IntegrationType.CharacterAI, character);
-            }
-            else // set with search
-            {
-                var response = await _integration.CaiClient.SearchAsync(searchQueryOrCharacterId, customAuthToken: caiToken, customPlusMode: plusMode);
-                var searchQueryData = SearchQueryDataFromCaiResponse(response);
+                    await FinishSpawningAsync(IntegrationType.CharacterAI, character);
+                }
+                else // set with search
+                {
+                    var response = await integrations.CaiClient.SearchAsync(searchQueryOrCharacterId,
+                        authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                    var searchQueryData = SearchQueryDataFromCaiResponse(response);
 
-                await FinishSearchAsync(searchQueryData);
+                    await FinishSearchAsync(searchQueryData);
+                }
             }
+            finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
         
@@ -149,22 +155,25 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
+            await using var db = new StorageContext();
+            characterWebhook = db.Entry(characterWebhook).Entity;
+
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
-            _integration.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
+            integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
             var originalMessage = await ModifyOriginalResponseAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
             
             string characterMessage = $"{Context.User.Mention} {character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(Context.User as SocketGuildUser)?.GetBestName()}**")}";
-            if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
+            if (characterMessage.Length > 2000) characterMessage = characterMessage[..1994] + "[...]";
 
             // Try to set avatar
             Stream? image = null;
             if (!string.IsNullOrWhiteSpace(characterWebhook.Character.AvatarUrl))
             {
                 var imageUrl = originalMessage.Embeds?.Single()?.Image?.ProxyUrl;
-                image = await TryToDownloadImageAsync(imageUrl, _integration.ImagesHttpClient);
+                image = await TryToDownloadImageAsync(imageUrl, integrations.ImagesHttpClient);
             }
-            image ??= new MemoryStream(File.ReadAllBytes($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
+            image ??= new MemoryStream(await File.ReadAllBytesAsync($"{EXE_DIR}{SC}storage{SC}default_avatar.png"));
             
             try { await webhookClient.ModifyWebhookAsync(w => w.Image = new Image(image)); }
             finally { await image.DisposeAsync(); }
@@ -177,19 +186,19 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var newSQ = await BuildAndSendSelectionMenuAsync(Context, searchQueryData);
             if (newSQ is null) return;
 
-            var lastSQ = _integration.SearchQueries.Find(sq => sq.ChannelId == newSQ.ChannelId);
+            var lastSQ = integrations.SearchQueries.Find(sq => sq.ChannelId == newSQ.ChannelId);
 
-            await _integration.SearchQueriesLock.WaitAsync();
+            await integrations.SearchQueriesLock.WaitAsync();
             try
             {
                 if (lastSQ is not null) // stop tracking the last query in this channel
-                    _integration.SearchQueries.Remove(lastSQ);
+                    integrations.SearchQueries.Remove(lastSQ);
 
-                _integration.SearchQueries.Add(newSQ); // and start tracking this one
+                integrations.SearchQueries.Add(newSQ); // and start tracking this one
             }
             finally
             {
-                _integration.SearchQueriesLock.Release();
+                integrations.SearchQueriesLock.Release();
             }
         }
 

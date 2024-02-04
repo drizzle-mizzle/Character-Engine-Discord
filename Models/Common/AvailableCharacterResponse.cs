@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngineDiscord.Models.Common
 {
-    internal class AvailableCharacterResponse
+    public class AvailableCharacterResponse
     {
         public required string? MessageId { get; set; }
         public required string? Text { get; set; }

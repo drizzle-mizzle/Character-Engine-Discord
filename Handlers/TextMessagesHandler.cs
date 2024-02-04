@@ -7,23 +7,16 @@ using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Database;
-using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using PuppeteerSharp.Helpers;
 
 
 namespace CharacterEngineDiscord.Handlers
 {
-    internal class TextMessagesHandler
+    internal class TextMessagesHandler(IDiscordClient client, IIntegrationsService integrations)
     {
-        private readonly DiscordSocketClient _client;
-        private readonly IntegrationsService _integrations;
-
-        public TextMessagesHandler(IDiscordClient client, IServiceProvider services)
-        {
-            _client = (DiscordSocketClient)client;
-            _integrations = services.GetRequiredService<IntegrationsService>();
-        }
-
         public Task HandleMessage(SocketMessage message)
         {
             Task.Run(async () => {
@@ -37,10 +30,10 @@ namespace CharacterEngineDiscord.Handlers
         private async Task HandleMessageAsync(SocketMessage sm)
         {
             var userMessage = sm as SocketUserMessage;
-            bool invalidInput = userMessage is null || Equals(userMessage.Author.Id, _client.CurrentUser.Id) || userMessage.Content.StartsWith("~ignore");
+            bool invalidInput = userMessage is null || Equals(userMessage.Author.Id, client.CurrentUser.Id) || userMessage.Content.StartsWith("~ignore");
             if (invalidInput) return;
 
-            var context = new SocketCommandContext(_client, userMessage);
+            var context = new SocketCommandContext(client as DiscordSocketClient, userMessage);
             if (context.Channel is not IGuildChannel guildChannel) return;
 
             // It throws NullReferenceException sometimes for some reason
@@ -61,8 +54,10 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             var calledCharacters = await DetermineCalledCharacters(userMessage!, channelId);
-            if (calledCharacters.Count == 0 || await _integrations.UserIsBanned(context)) return;
-
+            if (calledCharacters.Count == 0 || await integrations.UserIsBanned(context)) return;
+            if (integrations.GuildIsAbusive(context.Guild.Id))
+                await Task.Delay(10000);
+            
             foreach (var characterWebhook in calledCharacters)
             {
                 int delay = characterWebhook.ResponseDelay;
@@ -78,11 +73,13 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task TryToCallCharacterAsync(ulong characterWebhookId, SocketCommandContext context, bool isThread)
         {
-            using var db = new StorageContext();
+            await using var db = new StorageContext();
 
-             /////////////////
+             //////////////////
             /// Prevalidations
-            var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
+            var characterWebhook = await db.CharacterWebhooks.Include(cw => cw.Channel)
+                                                             .ThenInclude(c => c.Guild)
+                                                             .FirstOrDefaultAsync(cw => cw.Id == characterWebhookId);
             if (characterWebhook is null) return;
             if (characterWebhook.IntegrationType is IntegrationType.Empty) return;
 
@@ -96,7 +93,7 @@ namespace CharacterEngineDiscord.Handlers
             // Can be `true` when two characters speak to each other, and one of them suddenly sends error message.
             // In this case, bot will let one error message pass as a normal message (so 2nd character could see it),
             // but it will brace to ignore the second message if it will return an error again.
-            bool isErrorMessage = context.Message.Embeds.Any() && string.IsNullOrEmpty(context.Message.Content);
+            bool isErrorMessage = context.Message.Embeds.Count != 0 && string.IsNullOrEmpty(context.Message.Content);
 
             // If this one is true, it means that the last message was containing some error...
             if (characterWebhook.SkipNextErrorMessage)
@@ -119,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
                 return;
             }
 
-             ///////////////////
+             ////////////////////
             /// Reformat message
             string text;
             if (isErrorMessage)
@@ -131,7 +128,7 @@ namespace CharacterEngineDiscord.Handlers
             {
                 text = context.Message.Content ?? string.Empty;
                 if (context.Message.Attachments.FirstOrDefault() is Attachment file)
-                    text = $"((sends file \"{file.Filename}\"))";
+                    text += $"((sends file \"{file.Filename}\"))";
             }
 
             // Replace @mentions with normal names
@@ -153,7 +150,7 @@ namespace CharacterEngineDiscord.Handlers
 
             text = await text.AddRefQuoteAsync(context.Message.ReferencedMessage);
 
-             ////////////////////////
+             //////////////////////////
             /// Get character response
             Models.Common.CharacterResponse characterResponse = null!;
             if (characterWebhook.IntegrationType is IntegrationType.OpenAI)
@@ -184,8 +181,8 @@ namespace CharacterEngineDiscord.Handlers
         /// <returns>Message ID or 0 if sending failed</returns>
         private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, Models.Common.CharacterResponse characterResponse, SocketCommandContext context, string userName, bool isThread)
         {
-            _integrations.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
-            var convo = _integrations.Conversations[characterWebhook.Id];
+            integrations.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
+            var convo = integrations.Conversations[characterWebhook.Id];
 
             await convo.Locker.WaitAsync();
             try
@@ -205,10 +202,10 @@ namespace CharacterEngineDiscord.Handlers
                 convo.Locker.Release();
             }
 
-            var webhookClient = _integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
+            var webhookClient = integrations.GetWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);
             if (webhookClient is null)
             {
-                await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `channel webhook was not found`".ToInlineEmbed(Color.Red));
+                await context.Channel.SendMessageAsync(embed: $"{WARN_SIGN_DISCORD} Failed to send character message: `Channel webhook was not found`".ToInlineEmbed(Color.Red));
                 return 0;
             }
 
@@ -253,7 +250,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 if (characterResponse.ImageRelPath is not null)
                 {
-                    bool canGetImage = await CheckIfImageIsAvailableAsync(characterResponse.ImageRelPath, _integrations.ImagesHttpClient);
+                    bool canGetImage = await CheckIfImageIsAvailableAsync(characterResponse.ImageRelPath, integrations.ImagesHttpClient);
                     if (canGetImage) embeds.Add(new EmbedBuilder().WithImageUrl(characterResponse.ImageRelPath).Build());
                 }
             }
@@ -267,7 +264,7 @@ namespace CharacterEngineDiscord.Handlers
                 else
                     messageId = await webhookClient.SendMessageAsync(characterMsgText, embeds: embeds);
 
-                _integrations.MessagesSent++;
+                integrations.MessagesSent++;
 
                 if (!errorMessage)
                     await TryToAddButtonsAsync(characterWebhook, context.Channel, messageId, responseToBot: (context.User.IsWebhook || context.User.IsBot));
@@ -293,30 +290,41 @@ namespace CharacterEngineDiscord.Handlers
             string tgt = cw.Character.Tgt ?? string.Empty;
             string historyId = cw.ActiveHistoryID ?? string.Empty;
 
-            var response = await _integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text, primaryMsgUuId: cw.LastCharacterMsgId, customAuthToken: caiToken, customPlusMode: plusMode);
+            while (integrations.CaiReloading)
+                await Task.Delay(5000);
 
-            string message;
-            bool success;
-
-            if (response.IsSuccessful)
+            var id = Guid.NewGuid();
+            integrations.RunningCaiTasks.Add(id);
+            try
             {
-                message = response.Response!.Text;
-                success = true;
+                var response = await integrations.CaiClient!.CallCharacterAsync(charId, tgt, historyId, text,
+                    primaryMsgUuId: cw.LastCharacterMsgId, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+
+                string message;
+                bool success;
+
+                if (response.IsSuccessful)
+                {
+                    message = response.Response!.Text;
+                    success = true;
+                }
+                else
+                {
+                    message =
+                        $"{WARN_SIGN_DISCORD} **Failed to fetch character response:** ```\n{response.ErrorReason}\n```";
+                    success = false;
+                }
+
+                return new()
+                {
+                    Text = message,
+                    IsSuccessful = success,
+                    CharacterMessageId = response.Response?.UuId,
+                    ImageRelPath = response.Response?.ImageRelPath,
+                    UserMessageId = response.LastUserMsgUuId
+                };
             }
-            else
-            {
-                message = $"{WARN_SIGN_DISCORD} **Failed to fetch character response:** ```\n{response.ErrorReason}\n```";
-                success = false;
-            }
-
-            return new()
-            {
-                Text = message,
-                IsSuccessful = success,
-                CharacterMessageId = response.Response?.UuId,
-                ImageRelPath = response.Response?.ImageRelPath,
-                UserMessageId = response.LastUserMsgUuId
-            };
+            finally { integrations.RunningCaiTasks.Remove(id); }
         }
 
         
@@ -340,7 +348,7 @@ namespace CharacterEngineDiscord.Handlers
             int tokens = 0;
             string? charMsgId = null;
 
-            var openAiResponse = await SendOpenAiRequestAsync(openAiRequestParams, _integrations.CommonHttpClient);
+            var openAiResponse = await SendOpenAiRequestAsync(openAiRequestParams, integrations.CommonHttpClient);
 
             if (openAiResponse is null || openAiResponse.IsFailure || openAiResponse.Message.IsEmpty())
             {
@@ -390,7 +398,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var kobkoldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiRequestParams, _integrations.CommonHttpClient, continueRequest: false);
+            var kobkoldAiResponse = await SendKoboldAiRequestAsync(cw.Character.Name, koboldAiRequestParams, integrations.CommonHttpClient, continueRequest: false);
 
             if (kobkoldAiResponse is null || kobkoldAiResponse.IsFailure || kobkoldAiResponse.Message.IsEmpty())
             {
@@ -433,7 +441,7 @@ namespace CharacterEngineDiscord.Handlers
             string message;
             bool success;
 
-            var hordeResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeRequestParams, _integrations.CommonHttpClient, continueRequest: false);
+            var hordeResponse = await SendHordeKoboldAiRequestAsync(cw.Character.Name, hordeRequestParams, integrations.CommonHttpClient, continueRequest: false);
 
             if (hordeResponse is null || hordeResponse.IsFailure || hordeResponse.Id.IsEmpty())
             {
@@ -443,7 +451,7 @@ namespace CharacterEngineDiscord.Handlers
             }
             else
             {   // Remember character message
-                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.Id, _integrations.CommonHttpClient, 0);
+                var hordeResult = await TryToAwaitForHordeRequestResultAsync(hordeResponse.Id, integrations.CommonHttpClient, 0);
                 if (hordeResult.IsSuccessful)
                 {
                     cw.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = hordeResult.Message!, CharacterWebhookId = cw.Id });
@@ -552,14 +560,15 @@ namespace CharacterEngineDiscord.Handlers
 
         // Other
 
-        private static readonly Random @Random = new();
+        private static readonly Random random = new();
         private static async Task<List<CharacterWebhook>> DetermineCalledCharacters(SocketUserMessage userMessage, ulong channelId)
         {
             List<CharacterWebhook> characterWebhooks = new();
 
-            Channel? channel;
-            using (var db = new StorageContext())
-                channel = await db.Channels.FindAsync(channelId);
+            await using var db = new StorageContext();
+            var channel = await db.Channels.Include(c => c.CharacterWebhooks)
+                                           .ThenInclude(cw => cw.HuntedUsers)
+                                           .FirstOrDefaultAsync(c => c.Id == channelId);
 
             if (channel is null || channel.CharacterWebhooks.Count == 0)
             {
@@ -569,7 +578,7 @@ namespace CharacterEngineDiscord.Handlers
             var text = userMessage.Content.Trim();
             var rm = userMessage.ReferencedMessage;
             var withRefMessage = rm is not null && rm.Author.IsWebhook;
-            var chance = (float)(@Random.Next(99) + 0.001 + @Random.NextDouble());
+            var chance = (float)(random.Next(99) + 0.001 + random.NextDouble());
 
             // Try to find one certain character that was called by a prefix
             var cw = channel.CharacterWebhooks.FirstOrDefault(w => text.StartsWith(w.CallPrefix));
@@ -580,17 +589,16 @@ namespace CharacterEngineDiscord.Handlers
             }
             else if (withRefMessage) // or find some other that was called by a reply
             {
-                cw = channel.CharacterWebhooks.Find(cw => cw.Id == rm!.Author.Id);
+                cw = channel.CharacterWebhooks.Find(cwh => cwh.Id == rm!.Author.Id);
                 if (cw is not null) characterWebhooks.Add(cw);
             }
 
             // Add characters who hunt the user            
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
-            if (hunters is not null && hunters.Count > 0)
+            if (hunters.Count > 0)
             {
-                foreach (var h in hunters)
-                    if (!characterWebhooks.Contains(h))
-                        characterWebhooks.Add(h);
+                foreach (var h in hunters.Where(h => !characterWebhooks.Contains(h)))
+                    characterWebhooks.Add(h);
             }
 
             // Add some random character (only one) by channel's random reply chance
@@ -599,7 +607,7 @@ namespace CharacterEngineDiscord.Handlers
                 var characters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id).ToList();
                 if (characters.Count > 0)
                 {
-                    var someRandomCharacter = characters[@Random.Next(characters.Count)];
+                    var someRandomCharacter = characters[random.Next(characters.Count)];
                     if (!characterWebhooks.Contains(someRandomCharacter))
                         characterWebhooks.Add(someRandomCharacter);
                 }
@@ -609,8 +617,8 @@ namespace CharacterEngineDiscord.Handlers
             var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
             if (randomCharacters.Count > 0)
             {
-                foreach (var rc in randomCharacters)
-                    if (!characterWebhooks.Contains(rc)) characterWebhooks.Add(rc);
+                foreach (var rc in randomCharacters.Where(rc => !characterWebhooks.Contains(rc)))
+                    characterWebhooks.Add(rc);
             }
 
             return characterWebhooks;
@@ -655,7 +663,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 var btns = new Emoji[] { ARROW_LEFT, ARROW_RIGHT, CRUTCH_BTN, STOP_BTN };
                 await Parallel.ForEachAsync(btns, async (btn, ct)
-                    => await oldMessage.RemoveReactionAsync(btn, _client.CurrentUser));
+                    => await oldMessage.RemoveReactionAsync(btn, client.CurrentUser));
             });
         }
 
@@ -667,7 +675,7 @@ namespace CharacterEngineDiscord.Handlers
 
             var channel = message.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
-            TryToReportInLogsChannel(_client, title: "Message Exception",
+            TryToReportInLogsChannel(client, title: "Message Exception",
                                               desc: $"Guild: `{guild?.Name} ({guild?.Id})`\n" +
                                                     $"Owner: `{guild?.Owner.GetBestName()} ({guild?.Owner.Username})`\n" +
                                                     $"Channel: `{channel?.Name} ({channel?.Id})`\n" +
