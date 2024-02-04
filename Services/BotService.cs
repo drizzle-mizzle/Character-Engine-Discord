@@ -10,6 +10,7 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Services
 {
@@ -18,20 +19,20 @@ namespace CharacterEngineDiscord.Services
         private ServiceProvider _services = null!;
         private DiscordSocketClient _client = null!;
         private IIntegrationsService _integrations = null!;
-        private InteractionService _interactions = null!;
+        private InteractionService _interactionService = null!;
 
         private bool _firstLaunch = true;
 
         internal async Task LaunchAsync(bool noreg)
         {
-            _services = CreateServices();
+            await using (var db = new StorageContext())
+                await db.Database.MigrateAsync();
 
-            SetupIntegrationAsync();
-
-            _interactions = _services.GetRequiredService<InteractionService>();
+            CreateServices();
             _client = (_services.GetRequiredService<IDiscordClient>() as DiscordSocketClient)!;
 
-            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+            SetupIntegration();
+            SetupInteractions();            
             BindClientEvents(noreg);
             
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
@@ -39,7 +40,6 @@ namespace CharacterEngineDiscord.Services
 
             await RunJobsAsync();
         }
-        
 
         private void BindClientEvents(bool noreg)
         {
@@ -69,29 +69,10 @@ namespace CharacterEngineDiscord.Services
             _client.ReactionRemoved += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
             _client.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleCommand;
             _client.MessageReceived += _services.GetRequiredService<TextMessagesHandler>().HandleMessage;
-            _interactions.InteractionExecuted += (_, context, result)
+            _interactionService.InteractionExecuted += (_, context, result)
                 => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
         }
 
-        private async Task RunJobsAsync()
-        {
-            while (true)
-            {
-                try
-                {
-                    DoJobs();
-                }
-                catch (Exception e)
-                {
-                    LogException(e);
-                    TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
-                }
-                finally
-                {
-                    await Task.Delay(1_800_000); // 30 min
-                }
-            }
-        }
 
         private void DoJobs()
         {
@@ -157,9 +138,9 @@ namespace CharacterEngineDiscord.Services
             if (!noreg)
             {
                 Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
-                await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
+                await Parallel.ForEachAsync(_client.Guilds, async (guild, _) =>
                 {
-                    if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
+                    if (await TryToCreateSlashCommandsAndRoleAsync(guild)) LogGreen(".");
                     else LogRed(".");
                 });
 
@@ -186,7 +167,7 @@ namespace CharacterEngineDiscord.Services
                     };
                 }
 
-                await TryToCreateSlashCommandsAndRoleAsync(guild, silent: false);
+                await TryToCreateSlashCommandsAndRoleAsync(guild);
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
                 string log = $"Server name: {guild.Name} ({guild.Id})\n" +
@@ -211,7 +192,7 @@ namespace CharacterEngineDiscord.Services
             return Task.CompletedTask;
         }
 
-        internal static ServiceProvider CreateServices()
+        private void CreateServices()
         {
             var discordClient = CreateDiscordClient();
             var interactionService = new InteractionService(discordClient.Rest);
@@ -228,14 +209,14 @@ namespace CharacterEngineDiscord.Services
                 .AddTransient<SlashCommandsHandler>()
                 .AddTransient<TextMessagesHandler>();
 
-            return services.BuildServiceProvider();
+            _services = services.BuildServiceProvider();
         }
 
-        private async Task<bool> TryToCreateSlashCommandsAndRoleAsync(SocketGuild guild, bool silent)
+        private async Task<bool> TryToCreateSlashCommandsAndRoleAsync(SocketGuild guild)
         {                
             try
             {
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+                await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
                     await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
 
@@ -243,11 +224,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                if (!silent)
-                {
-                    LogException(e);
-                }
-
+                LogException(e);
                 return false;
             }
         }
@@ -270,7 +247,7 @@ namespace CharacterEngineDiscord.Services
             return new DiscordSocketClient(clientConfig);
         }
 
-        private void SetupIntegrationAsync()
+        private void SetupIntegration()
         {
             try
             {
@@ -279,6 +256,17 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e) { LogException(e); }
         }
+
+        private void SetupInteractions()
+        {
+            try
+            {
+                _interactionService = _services.GetRequiredService<InteractionService>();
+                _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _services).Wait();
+            }
+            catch (Exception e) { LogException(e); }
+        }
+
 
         private static string GetLastGameStatus()
         {
@@ -322,6 +310,26 @@ namespace CharacterEngineDiscord.Services
             });
 
             return Task.CompletedTask;
+        }
+
+        private async Task RunJobsAsync()
+        {
+            while (true)
+            {
+                try
+                {
+                    DoJobs();
+                }
+                catch (Exception e)
+                {
+                    LogException(e);
+                    TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
+                }
+                finally
+                {
+                    await Task.Delay(1_800_000); // 30 min
+                }
+            }
         }
     }
 }
