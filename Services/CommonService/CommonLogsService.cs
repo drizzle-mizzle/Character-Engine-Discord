@@ -29,21 +29,21 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
-        internal static void LogException(object?[]? text)
-        {
-            if (text is null) return;
+        internal static void LogException(Exception e)
+            => LogException(e.ToString());
 
+        internal static void LogException(string title, Exception e)
+            => LogException($"| {title}\n{e}");
+
+        internal static void LogException(string text)
+        {
             LogRed(new string('~', Console.WindowWidth - 1) + "\n");
-            LogRed($"{string.Join('\n', text)}\n");
+            LogRed($"[{DateTime.Now:u}] {text}\n");
             LogRed(new string('~', Console.WindowWidth - 1) + "\n");
 
             if (!ConfigFile.LogFileEnabled.Value.ToBool()) return;
 
-            try {
-                var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
-                sw.WriteLine($"{new string('~', Console.WindowWidth)}\n{string.Join('\n', text)}\n");
-                sw.Close();
-            }
+            try { File.AppendAllText($"{EXE_DIR}{SC}logs.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {text}\n"); }
             catch (Exception e) { LogRed(e); }
         }
     }

@@ -4,31 +4,18 @@ using static CharacterEngineDiscord.Services.CommonService;
 
 namespace CharacterEngineDiscord
 {
-    internal class Program : DiscordService
+    internal class Program
     {
-        static void Main()
-            => new Program().MainAsync().GetAwaiter().GetResult();
-
-        private async Task MainAsync()
+        private static void Main()
         {
-            AppDomain.CurrentDomain.UnhandledException += (s, args) =>
-            {
-                string logstxt = $"{EXE_DIR}{SC}logs.txt";
-                if (!File.Exists(logstxt)) File.Create(logstxt).Close();
-
-                var sw = File.AppendText(logstxt);
-                string text = $"{new string('~', 10)}\n" +
-                              $"Sender: {s?.GetType()}\n" +
-                              $"Error:\n{args?.ExceptionObject}\n";
-                sw.WriteLine(text);
-                sw.Close();
-            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args)
+                => File.AppendAllText($"{EXE_DIR}{SC}logs.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {args.ExceptionObject}\n");
 
             using (var db = new StorageContext())
-                await db.Database.MigrateAsync();
+                db.Database.Migrate();
 
-            await BotLaunchAsync();
-            await Task.Delay(-1);
+            var bot = new BotService();
+            bot.LaunchAsync().Wait();
         }
     }
 }

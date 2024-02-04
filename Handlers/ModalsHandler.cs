@@ -29,7 +29,7 @@ namespace CharacterEngineDiscord.Handlers
                 try { await HandleModalAsync(modal); }
                 catch (Exception e)
                 {
-                    LogException(new[] { e });
+                    LogException(e);
                     var channel = modal.Channel as SocketGuildChannel;
                     var guild = channel?.Guild;
                     TryToReportInLogsChannel(_client, title: "Modal Exception",

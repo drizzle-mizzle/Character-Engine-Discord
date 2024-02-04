@@ -14,7 +14,7 @@ using System.Data.Entity;
 
 namespace CharacterEngineDiscord.Services
 {
-    internal class DiscordService
+    internal class BotService
     {
         private ServiceProvider _services = null!;
         private DiscordSocketClient _client = null!;
@@ -23,7 +23,7 @@ namespace CharacterEngineDiscord.Services
 
         private bool _firstLaunch = true;
 
-        internal async Task BotLaunchAsync()
+        internal async Task LaunchAsync()
         {
             _services = CreateServices();
 
@@ -85,7 +85,7 @@ namespace CharacterEngineDiscord.Services
                 }
                 catch (Exception e)
                 {
-                    LogException(new[] { e });
+                    LogException(e);
                     TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
                 }
                 finally
@@ -237,7 +237,7 @@ namespace CharacterEngineDiscord.Services
             {
                 if (!silent)
                 {
-                    LogException(new[] { e });
+                    LogException(e);
                 }
 
                 return false;
@@ -247,7 +247,7 @@ namespace CharacterEngineDiscord.Services
         private static DiscordSocketClient CreateDiscordClient()
         {
             // Define GatewayIntents
-            var intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
+            const GatewayIntents intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
 
             // Create client
             var clientConfig = new DiscordSocketConfig
@@ -265,7 +265,7 @@ namespace CharacterEngineDiscord.Services
         private void SetupIntegrationAsync()
         {
             try { _integration.Initialize(); }
-            catch (Exception e) { LogException(new[] { e }); }
+            catch (Exception e) { LogException(e); }
         }
 
         private static string GetLastGameStatus()

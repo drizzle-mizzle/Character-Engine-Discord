@@ -307,7 +307,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
+                LogException("Failed to kill Puppeteer processes.\n", e);
                 return;
             }
 
@@ -332,7 +332,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
+                LogException("Failed to kill Puppeteer processes", e);
                 return;
             }
 
@@ -342,7 +342,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             catch (Exception e)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));
-                LogException(new[] { "Failed to launch Puppeteer processes.\n", e.ToString() });
+                LogException("Failed to launch Puppeteer processes", e);
                 return;
             }
 

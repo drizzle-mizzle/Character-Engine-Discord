@@ -245,7 +245,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var type = characterWebhook.IntegrationType;
-            if (type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai)
+            if (type is IntegrationType.CharacterAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for {type} integrations".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
@@ -342,7 +342,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
 
             var type = characterWebhook.IntegrationType;
-            if (type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai)
+            if (type is IntegrationType.CharacterAI)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Can't change API type for {type} character".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;

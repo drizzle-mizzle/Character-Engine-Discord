@@ -16,7 +16,6 @@ using static CharacterEngineDiscord.Services.StorageContext;
 using static CharacterEngineDiscord.Services.CommandsService;
 using Discord.Commands;
 using CharacterEngineDiscord.Models.KoboldAI;
-using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Newtonsoft.Json.Linq;
 using System.Data.Entity;
 
@@ -36,7 +35,6 @@ namespace CharacterEngineDiscord.Services
         internal HttpClient ChubAiHttpClient { get; } = new();
         internal HttpClient CommonHttpClient { get; } = new();
 
-        internal AisekaiClient AisekaiClient { get; } = new();
         internal CharacterAIClient? CaiClient { get; set; }
 
         /// <summary>
@@ -55,7 +53,7 @@ namespace CharacterEngineDiscord.Services
         public enum IntegrationType
         {
             Empty = 0,
-            Aisekai = 1,
+            //Aisekai = 1,
             OpenAI = 2,
             KoboldAI = 3,
             HordeKoboldAI = 4,
@@ -376,7 +374,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 return null;
             }
         }
@@ -394,7 +392,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 return null;
             }
         }
@@ -449,31 +447,6 @@ namespace CharacterEngineDiscord.Services
                     historyId = await integration.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
                     if (historyId is null) return null;
                 }
-                else if (type is IntegrationType.Aisekai)
-                {
-                    var authToken = channel.Guild.GuildAisekaiAuthToken;
-                    if (string.IsNullOrWhiteSpace(authToken)) return null;
-
-                    var response = await integration.AisekaiClient.GetChatInfoAsync(authToken, unsavedCharacter.Id);
-                    if (response.Code == 401)
-                    {
-                        string? newAuthToken = await UpdateGuildAisekaiAuthTokenAsync(channel.Guild.Id, channel.Guild.GuildAisekaiRefreshToken ?? string.Empty);
-                        if (newAuthToken is null)
-                            return null;
-                        else
-                            return await CreateCharacterWebhookAsync(type, context, unsavedCharacter, integration, fromChub);
-                    }
-                    else if (!response.IsSuccessful)
-                    {
-                        throw new($"Aisekai GetChatInfo()\nCode: {response.Code}\nError: {response.ErrorReason}");
-                    }
-
-                    historyId = response.ChatId!;
-                    character.Greeting = response.GreetingMessage!;
-
-                    bool tim = await integration.AisekaiClient.PatchToggleInitMessageAsync(authToken, historyId, false);
-                    if (!tim) throw new($"Aisekai PatchToggleInitMessageAsync()");
-                }
                 else if (type is IntegrationType.OpenAI)
                 {
                     db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Role = "assistant", Content = character.Greeting });
@@ -491,7 +464,7 @@ namespace CharacterEngineDiscord.Services
                     ReferencesEnabled = false,
                     SwipesEnabled = true,
                     StopBtnEnabled = true,
-                    CrutchEnabled = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai,
+                    CrutchEnabled = type is not IntegrationType.CharacterAI,
                     FromChub = fromChub,
                     ResponseDelay = 1,
                     IntegrationType = type,
@@ -508,7 +481,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 TryToReportInLogsChannel(context.Client, "Exception", $"Failed to spawn a character:\n```cs\n{e}\n```", null, Color.Red, true);
 
                 if (channelWebhook is not null)
@@ -531,23 +504,7 @@ namespace CharacterEngineDiscord.Services
             return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
-        internal static SearchQueryData SearchQueryDataFromAisekaiResponse(AisekaiIntegration.Models.SearchResponse response)
-        {
-            var characters = new List<Models.Database.Character>();
-
-            foreach (var c in response.Characters)
-            {
-                try
-                {
-                    var cc = CharacterFromAisekaiCharacterInfo(c);
-                    characters.Add(cc);
-                }
-                catch { continue; }
-            }
-
-            return new(characters.ToList(), response.OriginalQuery, IntegrationType.Aisekai) { ErrorReason = response.ErrorReason };
-        }
-
+        
         internal static SearchQueryData SearchQueryDataFromChubResponse(IntegrationType type, ChubSearchResponse? response)
         {
             var characters = new List<Models.Database.Character>();
@@ -583,23 +540,7 @@ namespace CharacterEngineDiscord.Services
                 Definition = null
             };
         }
-
-        internal static Models.Database.Character CharacterFromAisekaiCharacterInfo(AisekaiIntegration.Models.Character aisekaiCharacter)
-        {
-            return new()
-            {
-                Id = aisekaiCharacter.Id,
-                Name = aisekaiCharacter.Name,
-                Title = $"Tags: `{(aisekaiCharacter.Tags is null ? "none" : string.Join(", ", aisekaiCharacter.Tags))}`\nNSFW: `{aisekaiCharacter.NSFW}`",
-                Greeting = string.Empty,
-                Description = aisekaiCharacter.Description,
-                AuthorName = aisekaiCharacter.Author,
-                AvatarUrl = aisekaiCharacter.AvatarUrl,
-                ImageGenEnabled = false,
-                Interactions = aisekaiCharacter.ChatCount,
-                Stars = aisekaiCharacter.LikeCount
-            };
-        }
+        
 
         internal static Models.Database.Character? CharacterFromChubCharacterInfo(ChubCharacter? chubCharacter)
         {
@@ -762,21 +703,7 @@ namespace CharacterEngineDiscord.Services
             return true;
         }
 
-        internal async Task<string?> UpdateGuildAisekaiAuthTokenAsync(ulong guildId, string refreshToken)
-        {
-            var newToken = await AisekaiClient.RefreshUserTokenAsync(refreshToken);
-
-            if (newToken is not null)
-            {
-                using var db = new StorageContext();
-                var guild = await FindOrStartTrackingGuildAsync(guildId, db);
-                guild.GuildAisekaiAuthToken = newToken;
-                await TryToSaveDbChangesAsync(db);
-            }
-
-            return newToken;
-        }
-
+        
         public void WatchDogClear()
         {
             _watchDog.Clear();

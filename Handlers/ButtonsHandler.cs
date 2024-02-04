@@ -34,7 +34,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task HandleButtonException(SocketMessageComponent component, Exception e)
         {
-            LogException(new[] { e });
+            LogException(e);
             var channel = component.Channel as IGuildChannel;
             var guild = channel?.Guild;
             var owner = guild is null ? null : (await guild.GetOwnerAsync()) as SocketGuildUser;
@@ -96,7 +96,7 @@ namespace CharacterEngineDiscord.Handlers
 
                     var type = searchQuery.SearchQueryData.IntegrationType;
                     var context = new InteractionContext(_client, component, component.Channel);
-                    bool fromChub = type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai;
+                    bool fromChub = type is not IntegrationType.CharacterAI;
 
                     var characterWebhook = await _integrations.CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, _integrations, fromChub);
                     if (characterWebhook is null) return;
@@ -105,9 +105,7 @@ namespace CharacterEngineDiscord.Handlers
                     _integrations.WebhookClients.TryAdd(characterWebhook.Id, webhookClient);
 
                     await component.Message.ModifyAsync(msg => msg.Embed = SpawnCharacterEmbed(characterWebhook));
-                    if (type is IntegrationType.Aisekai)
-                        await component.Channel.SendMessageAsync(embed: ":zap: Please, pay attention to the fact that Aisekai characters don't support separate chat histories. Thus, if you will spawn the same character in two different channels, both channels will continue to share the same chat context; same goes for `/reset-character` command — once it's executed, the chat history will be deleted in each channel where specified character is present.".ToInlineEmbed(Color.Gold, false));
-
+                    
                     string characterMessage = $"{component.User.Mention} {characterWebhook.Character.Greeting.Replace("{{char}}", $"**{characterWebhook.Character.Name}**").Replace("{{user}}", $"**{(component.User as SocketGuildUser)?.GetBestName()}**")}";
                     if (characterMessage.Length > 2000) characterMessage = characterMessage[0..1994] + "[...]";
 

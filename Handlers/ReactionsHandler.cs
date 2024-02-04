@@ -1,4 +1,5 @@
-﻿using CharacterAI;
+﻿using System.Reflection.Metadata.Ecma335;
+using CharacterAI;
 using Discord;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -9,9 +10,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using Microsoft.Extensions.DependencyInjection;
 using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Services.AisekaiIntegration;
 using Discord.Webhook;
-using System.Threading.Channels;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -31,7 +30,7 @@ namespace CharacterEngineDiscord.Handlers
             Task.Run(async () =>
             {
                 try { await HandleReactionAsync(msg, channel, reaction); }
-                catch (NullReferenceException e) { LogException(new[] { e }); }
+                catch (NullReferenceException e) { LogException(e); }
                 catch (Exception e) { await HandleReactionException(channel, reaction, e); }
             });
 
@@ -190,22 +189,18 @@ namespace CharacterEngineDiscord.Handlers
                 cw.StoredHistoryMessages.Remove(cw.StoredHistoryMessages.Last());
                 db.StoredHistoryMessages.Add(new() { Role = $"\n<{cw.Character.Name}>\n", Content = responseText, CharacterWebhookId = cw.Id });
             }
-            }
+        }
 
         private async Task<bool> TryToFetchNewCharacterMessageAsync(LastCharacterCall convo, CharacterWebhook cw, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe)
         {
-            Models.Common.CharacterResponse characterResponse;
-            if (cw.IntegrationType is IntegrationType.CharacterAI)
-                characterResponse = await SwipeCaiMessageAsync(cw, _integrations.CaiClient!);
-            else if (cw.IntegrationType is IntegrationType.Aisekai)
-                characterResponse = await SwipeAisekaiMessageAsync(cw, _integrations.AisekaiClient);
-            else if (cw.IntegrationType is IntegrationType.OpenAI)
-                characterResponse = await SwipeOpenAiMessageAsync(cw, _integrations.CommonHttpClient, isSwipeOrContinue: isSwipe);
-            else if (cw.IntegrationType is IntegrationType.KoboldAI)
-                characterResponse = await SwipeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient);
-            else if (cw.IntegrationType is IntegrationType.HordeKoboldAI)
-                characterResponse = await SwipeHordeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient);
-            else return false;
+            var characterResponse = cw.IntegrationType switch
+            {
+                IntegrationType.CharacterAI => await SwipeCaiMessageAsync(cw, _integrations.CaiClient!),
+                IntegrationType.OpenAI => await SwipeOpenAiMessageAsync(cw, _integrations.CommonHttpClient, isSwipeOrContinue: isSwipe),
+                IntegrationType.KoboldAI => await SwipeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient),
+                IntegrationType.HordeKoboldAI => await SwipeHordeKoboldAiMessageAsync(cw, _integrations.CommonHttpClient),
+                _ => throw new Exception()
+            };
 
             if (!characterResponse.IsSuccessful)
             {
@@ -350,41 +345,10 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task<CharacterResponse> SwipeAisekaiMessageAsync(CharacterWebhook characterWebhook, AisekaiClient aisekaiClient, string? authToken = null)
-        {
-            authToken ??= characterWebhook.Channel.Guild.GuildAisekaiAuthToken!;
-            var response = await aisekaiClient.SwipeChatMessageAsync(authToken, characterWebhook.ActiveHistoryID!, characterWebhook.LastCharacterMsgId!);
-
-            string message;
-            
-            if (response.IsSuccessful)
-            {
-                message = response.Content!;
-            }
-            else if (response.Code == 401)
-            {
-                string? newAuthToken = await _integrations.UpdateGuildAisekaiAuthTokenAsync(characterWebhook.Channel.Guild.Id, characterWebhook.Channel.Guild.GuildAisekaiRefreshToken ?? "");
-                if (newAuthToken is null)
-                    message = $"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`";
-                else
-                    return await SwipeAisekaiMessageAsync(characterWebhook, aisekaiClient, newAuthToken);
-            }
-            else
-            {
-                message = $"Failed to fetch character response: `{response.ErrorReason}`";
-            }
-
-            return new()
-            {
-                Text = message,
-                CharacterMessageId = characterWebhook.LastCharacterMsgId,
-                IsSuccessful = true
-            };
-        }
 
         private async Task HandleReactionException(Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction, Exception e)
         {
-            LogException(new[] { e });
+            LogException(e);
 
             var guildChannel = (await channel.GetOrDownloadAsync()) as SocketGuildChannel;
             var guild = guildChannel?.Guild;

@@ -77,7 +77,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 return null;
             }
         }
@@ -91,7 +91,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 return null;
             }
         }

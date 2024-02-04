@@ -56,7 +56,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 return false;
             }
         }
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
             }
         }
 
@@ -90,8 +90,6 @@ namespace CharacterEngineDiscord.Services
 
             string statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
                                  $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"
-                               : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
-                                 $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: `{character.Interactions}`\nLikes: `{character.Stars}`"
                                : characterWebhook.FromChub ?
                                  $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: `{character.Stars}`"
                                : "Custom character";
@@ -184,7 +182,7 @@ namespace CharacterEngineDiscord.Services
                 if (i + 1 == query.CurrentRow) fTitle += " - ✅";
 
                 var type = query.SearchQueryData.IntegrationType;
-                string interactionsOrStars = type is IntegrationType.CharacterAI || type is IntegrationType.Aisekai ?
+                string interactionsOrStars = type is IntegrationType.CharacterAI ?
                     $"Interactions: `{character.Interactions}`" :
                     $"Stars: `{character.Stars}`";
 
@@ -254,7 +252,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
             }
         }
 

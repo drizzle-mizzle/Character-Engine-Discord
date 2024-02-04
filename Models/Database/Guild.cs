@@ -9,11 +9,7 @@
         // CharacterAI
         public string? GuildCaiUserToken { get; set; }
         public bool? GuildCaiPlusMode { get; set; }
-
-        // Aisekai
-        public string? GuildAisekaiAuthToken { get; set; }
-        public string? GuildAisekaiRefreshToken { get; set; }
-
+        
 
         // OpenAI
         public string? GuildOpenAiApiEndpoint { get; set; }

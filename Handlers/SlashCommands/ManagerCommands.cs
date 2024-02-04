@@ -158,9 +158,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (type is IntegrationType.CharacterAI)
                 result = await ResetCaiCharacterAsync(characterWebhook, silent);
-            else if (type is IntegrationType.Aisekai)
-                result = await ResetAisekaiCharacterAsync(characterWebhook, characterWebhook.Channel.Guild.GuildAisekaiAuthToken, silent);
-            else if (type is IntegrationType.OpenAI || type is IntegrationType.KoboldAI || type is IntegrationType.HordeKoboldAI)
+            else if (type is IntegrationType.OpenAI or IntegrationType.KoboldAI or IntegrationType.HordeKoboldAI)
             {
                 characterWebhook.StoredHistoryMessages.Clear();
                 var firstGreetingMessage = new StoredHistoryMessage() { CharacterWebhookId = characterWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" };
@@ -297,31 +295,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
-
-
-        [SlashCommand("set-server-aisekai-auth", "Set default Aisekai account for this server")]
-        public async Task SetGuildAisekaiAuth(string email, string password, bool silent = true)
-        {
-            await DeferAsync(ephemeral: silent);
-
-            var response = await _integration.AisekaiClient.AuthorizeUserAsync(email, password);
-
-            if (response.IsSuccessful)
-            {
-                var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, _db);
-
-                guild.GuildAisekaiAuthToken = response.ExpToken;
-                guild.GuildAisekaiRefreshToken = response.RefreshToken;
-                await TryToSaveDbChangesAsync(_db);
-
-                await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-            }
-            else
-            {
-                await FollowupAsync(embed: $"Failed to sign in to the Aisekai account: `{response.Message}`".ToInlineEmbed(Color.Red), ephemeral: silent);
-            }
-        }
-
+        
 
         [SlashCommand("set-server-openai-api", "Set default OpenAI API for this server")]
         public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? reverseProxyEndpoint = null, bool silent = true)
@@ -554,35 +528,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task<bool> ResetAisekaiCharacterAsync(CharacterWebhook characterWebhook, string? authToken, bool silent)
-        {
-            var guild = characterWebhook.Channel.Guild;
-            
-            var response = await _integration.AisekaiClient.ResetChatHistoryAsync(authToken ?? "", characterWebhook.ActiveHistoryID ?? "");
-            if (response.IsSuccessful)
-            {
-                await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-                characterWebhook.Character.Greeting = response.Greeting!;
-
-                return true;
-            }
-            else if (response.Code == 401)
-            {
-                string? newAuthToken = await _integration.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? "");
-                if (newAuthToken is null)
-                {
-                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`").ToInlineEmbed(Color.Red), ephemeral: silent);
-                    return false;
-                }
-
-                return await ResetAisekaiCharacterAsync(characterWebhook, newAuthToken, silent);
-            }
-            else
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character: `{response.ErrorReason}`".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return false;
-            }
-        }
 
         private async Task CopyCharacterAsync(IChannel channel, string webhookIdOrPrefix, bool silent)
         {
@@ -647,7 +592,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 });
 
                 var type = characterWebhook.IntegrationType;
-                if (type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai)
+                if (type is not IntegrationType.CharacterAI)
                     _db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
                 await TryToSaveDbChangesAsync(_db);
@@ -663,7 +608,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 TryToReportInLogsChannel(_client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
 
                 await channelWebhook.DeleteAsync();
