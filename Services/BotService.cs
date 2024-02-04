@@ -22,7 +22,7 @@ namespace CharacterEngineDiscord.Services
 
         private bool _firstLaunch = true;
 
-        internal async Task LaunchAsync()
+        internal async Task LaunchAsync(bool noreg)
         {
             _services = CreateServices();
 

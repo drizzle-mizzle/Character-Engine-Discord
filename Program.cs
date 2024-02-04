@@ -6,16 +6,16 @@ namespace CharacterEngineDiscord
 {
     internal class Program
     {
-        private static void Main()
+        private static void Main(string[] args)
         {
-            AppDomain.CurrentDomain.UnhandledException += (_, args)
-                => File.AppendAllText($"{EXE_DIR}{SC}logs.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {args.ExceptionObject}\n");
+            AppDomain.CurrentDomain.UnhandledException += (_, e)
+                => File.AppendAllText($"{EXE_DIR}{SC}logs.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {e.ExceptionObject}\n");
 
             using (var db = new StorageContext())
                 db.Database.Migrate();
 
             var bot = new BotService();
-            bot.LaunchAsync().Wait();
+            bot.LaunchAsync(args.Contains("-no-reg")).Wait();
         }
     }
 }

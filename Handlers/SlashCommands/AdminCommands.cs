@@ -293,64 +293,13 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         [SlashCommand("shutdown", "Shutdown")]
         public async Task AdminShutdownAsync(bool silent = true)
         {
-            await DeferAsync(ephemeral: silent);
-
-            if (_integration.CaiClient is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return;
-            }
-
-            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange), ephemeral: silent);
-
-            try { _integration.CaiClient.KillBrowser(); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
+            await RespondAsync(embed: $"{WARN_SIGN_DISCORD} Shutting down...".ToInlineEmbed(Color.Orange), ephemeral: silent);
             integrations.CaiClient?.Dispose();
             Environment.Exit(0);
         }
 
 
-        [SlashCommand("relaunch-puppeteer", "-")]
-        public async Task RelaunchBrowser(bool silent = true)
-        {
-            await DeferAsync(ephemeral: silent);
-
-            if (_integration.CaiClient is null)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Puppeteer is not launched".ToInlineEmbed(Color.Red), ephemeral: silent);
-                return;
-            }
-
-            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Shutting Puppeteer down...".ToInlineEmbed(Color.LightOrange), ephemeral: silent);
-
-            try { _integration.CaiClient.KillBrowser(); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to kill Puppeteer processes".ToInlineEmbed(Color.Red), ephemeral: silent);
-                LogException(new[] { "Failed to kill Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
-            await FollowupAsync(embed: "Launching Puppeteer...".ToInlineEmbed(Color.Purple), ephemeral: silent);
-
-            try { _integration.CaiClient.LaunchBrowser(killDuplicates: true); }
-            catch (Exception e)
-            {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to launch Puppeteer processes".ToInlineEmbed(Color.Red));
-                LogException(new[] { "Failed to launch Puppeteer processes.\n", e.ToString() });
-                return;
-            }
-
-            await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-        }
-
-
+        
         [SlashCommand("set-game", "Set game status")]
         public async Task AdminUpdateGame(string? activity = null, string? streamUrl = null, ActivityType type = ActivityType.Playing, bool silent = true)
         {
@@ -358,7 +307,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await RespondAsync(embed: SuccessEmbed(), ephemeral: silent);
 
             string gamePath = $"{EXE_DIR}{SC}storage{SC}lastgame.txt";
-            File.WriteAllText(gamePath, activity ?? "");
+            await File.WriteAllTextAsync(gamePath, activity ?? "");
         }
 
 

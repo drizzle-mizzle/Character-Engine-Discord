@@ -1,4 +1,5 @@
 ﻿using CharacterAI.Client;
+using CharacterEngineDiscord.Interfaces;
 using Discord;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -9,6 +10,7 @@ using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.StorageContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Webhook;
+using PuppeteerSharp.Helpers;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -38,7 +40,7 @@ namespace CharacterEngineDiscord.Handlers
             if (!originalMessage.Author.IsWebhook) return;
 
             await using var db = new StorageContext();
-            var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == discordChannel.Id);
+            var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
             var characterWebhook = channel.CharacterWebhooks.Find(cw => cw.Id == originalMessage.Author.Id);

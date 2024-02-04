@@ -152,7 +152,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var type = characterWebhook.IntegrationType;
 
             if (type is IntegrationType.CharacterAI)
-                result = await ResetCaiCharacterAsync(characterWebhook, silent);
+                result = await ResetCaiCharacterAsync(characterWebhook, silent, db);
             else if (type is IntegrationType.OpenAI or IntegrationType.KoboldAI or IntegrationType.HordeKoboldAI)
             {
                 characterWebhook.StoredHistoryMessages.Clear();
@@ -609,7 +609,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
                 var type = characterWebhook.IntegrationType;
                 if (type is not IntegrationType.CharacterAI)
-                    _db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
+                    db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
                 await TryToSaveDbChangesAsync(db);
 

@@ -34,12 +34,10 @@ namespace CharacterEngineDiscord.Services
         public List<SearchQuery> SearchQueries { get; } = new();
         public SemaphoreSlim SearchQueriesLock { get; } = new(1, 1);
 
-        internal CharacterAIClient? CaiClient { get; set; }
         public HttpClient ImagesHttpClient { get; } = new();
         public HttpClient ChubAiHttpClient { get; } = new();
         public HttpClient CommonHttpClient { get; } = new();
 
-        public AisekaiClient AisekaiClient { get; } = new();
         public CharacterAiClient? CaiClient { get; set; }
         public bool CaiReloading { get; set; } = false;
         public List<Guid> RunningCaiTasks { get; } = new();
@@ -57,7 +55,7 @@ namespace CharacterEngineDiscord.Services
         /// <summary>
         /// For internal use only
         /// </summary>
-        public enum IntegrationType
+        public enum SIntegrationType
         {
             Empty = 0,
             //Aisekai = 1,
@@ -119,7 +117,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                LogException(new object[] { e, webhookId, webhookToken });
+                LogException($"Failed to add webhook: {webhookId}:{webhookToken}", e);
                 return null;
             }
 
@@ -471,8 +469,10 @@ namespace CharacterEngineDiscord.Services
                         var info = await integrations.CaiClient.GetInfoAsync(character.Id, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
                         character.Tgt = info.Tgt;
 
-                    historyId = await integration.CaiClient.CreateNewChatAsync(character.Id ?? string.Empty, customAuthToken: caiToken, customPlusMode: plusMode);
-                    if (historyId is null) return null;
+                        historyId = await integrations.CaiClient.CreateNewChatAsync(character.Id, authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
+                        if (historyId is null) return null;
+                    }
+                    finally { integrations.RunningCaiTasks.Remove(id); }
                 }
                 else if (type is IntegrationType.OpenAI)
                 {
@@ -524,15 +524,9 @@ namespace CharacterEngineDiscord.Services
 
         public static SearchQueryData SearchQueryDataFromCaiResponse(CharacterAI.Models.SearchResponse response)
         {
-            var characters = new List<Models.Database.Character>();
+            var characters = response.Characters.Select(CharacterFromCaiCharacterInfo).OfType<Character>().ToList();
 
-            foreach(var c in response.Characters)
-            {
-                var cc = CharacterFromCaiCharacterInfo(c);
-                if (cc is not null) characters.Add(cc);
-            }
-
-            return new(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
+            return new SearchQueryData(characters.ToList(), response.OriginalQuery, IntegrationType.CharacterAI) { ErrorReason = response.ErrorReason };
         }
 
         

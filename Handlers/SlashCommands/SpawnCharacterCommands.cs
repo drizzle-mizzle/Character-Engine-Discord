@@ -10,7 +10,6 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
 using Discord.WebSocket;
-using CharacterEngineDiscord.Services.AisekaiIntegration.SearchEnums;
 using CharacterEngineDiscord.Interfaces;
 using PuppeteerSharp.Helpers;
 
@@ -147,7 +146,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id);
             var fromChub = type is not IntegrationType.CharacterAI;
-            var characterWebhook = await _integration.CreateCharacterWebhookAsync(type, Context, character, _integration, fromChub);
+            var characterWebhook = await CreateCharacterWebhookAsync(type, Context, character, integrations, fromChub);
 
             if (characterWebhook is null)
             {
