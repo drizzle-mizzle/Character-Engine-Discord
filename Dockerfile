@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/sdk:7.0-bullseye-slim AS build
+﻿FROM mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim AS build
 WORKDIR /app
 
 COPY *.csproj .
@@ -8,7 +8,7 @@ RUN dotnet restore ./CharacterEngineDiscord.sln
 COPY . .
 RUN dotnet publish ./Character-Engine-Discord.csproj -c Release -o out --self-contained true
 
-FROM mcr.microsoft.com/dotnet/runtime:7.0-bullseye-slim AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:8.0-bookworm-slim AS runtime
 COPY --from=build /app/out/ ./
 COPY config.json ./
 COPY storage ./
