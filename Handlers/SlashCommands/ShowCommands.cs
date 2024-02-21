@@ -3,7 +3,7 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using Discord;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
@@ -24,7 +24,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var channelId = Context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : Context.Channel.Id;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
             
             if (channel.CharacterWebhooks.Count == 0)
@@ -43,8 +43,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 var cw = rCharacterWebhooks.ElementAt(i);
                 string integrationType = cw.IntegrationType is IntegrationType.CharacterAI ?
                                             $"**[CharacterAI](https://beta.character.ai/chat?char={cw.Character.Id})**"
-                                       : cw.IntegrationType is IntegrationType.Aisekai ?
-                                            $"**[Aisekai](https://www.aisekai.ai/chat/{cw.Character.Id})**"
                                        : cw.IntegrationType is IntegrationType.OpenAI ?
                                             $"`OpenAI {cw.PersonalApiModel}` **{(cw.FromChub ? $"[(chub.ai)](https://www.chub.ai/characters/{cw.Character.Id})" : "(custom character)")}**"
                                        : cw.IntegrationType is IntegrationType.KoboldAI ?
@@ -74,7 +72,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -92,9 +90,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (string.IsNullOrWhiteSpace(_characterDesc)) _characterDesc = "No description";
 
             string _statAndLink = characterWebhook.IntegrationType is IntegrationType.CharacterAI ?
-                          $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"
-                                : characterWebhook.IntegrationType is IntegrationType.Aisekai ?
-                          $"Original link: [Chat with {character.Name}](https://www.aisekai.ai/chat/{character.Id})\nDialogs: `{character.Interactions}`\nLikes: `{character.Stars}`"
+                          $"Original link: [Chat with {character.Name}](https://beta.character.ai/chat?char={character.Id})\nInteractions: `{character.Interactions}`"                                
                                 : characterWebhook.FromChub ?
                           $"Original link: [{character.Name} on chub.ai](https://www.chub.ai/characters/{character.Id})\nStars: `{character.Stars}`"
                                 : "Custom character";
@@ -140,7 +136,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -164,7 +160,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -229,7 +225,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -250,9 +246,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string format;
 
-            await using var db = new StorageContext();
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            
+            await using var db = new DatabaseContext();
             if (webhookIdOrPrefix is null)
             {
                 title = "Default messages format";
@@ -303,9 +297,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string prompt;
 
-            await using var db = new StorageContext();
-            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
-            
+            await using var db = new DatabaseContext();
             if (webhookIdOrPrefix is null)
             {
                 title = "Default jailbreak prompt";
@@ -322,7 +314,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 }
 
                 var type = characterWebhook.IntegrationType;
-                if (type is IntegrationType.CharacterAI or IntegrationType.Aisekai)
+                if (type is IntegrationType.CharacterAI)
                 {
                     await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Not available for {type} integrations".ToInlineEmbed(Color.Red), ephemeral: silent);
                     return;

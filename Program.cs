@@ -1,34 +1,38 @@
 ﻿using CharacterEngineDiscord.Services;
-using Microsoft.EntityFrameworkCore;
+using NLog.Config;
+using NLog.Targets;
+using NLog;
+using Tmds.Utils;
 using static CharacterEngineDiscord.Services.CommonService;
 
 namespace CharacterEngineDiscord
 {
-    internal class Program : DiscordService
+    internal class Program
     {
-        static void Main(string[] args)
-            => new Program().MainAsync(args).GetAwaiter().GetResult();
-
-        private async Task MainAsync(string[] args)
+        private static int Main(string[] args)
         {
-            AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+            if (ExecFunction.IsExecFunctionCommand(args))
+                return ExecFunction.Program.Main(args);
+
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => File.AppendAllText($"{EXE_DIR}{SC}wtf_log.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {e.ExceptionObject}\n");
+            
+            if (args.Contains("-puplog"))
+                Environment.SetEnvironmentVariable("PUPLOG", "1");
+
+            var config = new LoggingConfiguration();
+            var fileTarget = new FileTarget
             {
-                string logstxt = $"{EXE_DIR}{SC}logs.txt";
-                if (!File.Exists(logstxt)) File.Create(logstxt).Close();
-
-                var sw = File.AppendText(logstxt);
-                string text = $"{new string('~', 10)}\n" +
-                              $"Sender: {s?.GetType()}\n" +
-                              $"Error:\n{args?.ExceptionObject}\n";
-                sw.WriteLine(text);
-                sw.Close();
+                Name = "file",
+                Layout = "${longdate} | ${message}",
+                FileName = "logs.txt"
             };
+            config.AddRule(LogLevel.Debug, LogLevel.Fatal, fileTarget, "*");
+            LogManager.Configuration = config;
 
-            await using (var db = new StorageContext())
-                await db.Database.MigrateAsync();
+            var bot = new BotService();
+            bot.LaunchAsync(args.Contains("-no-reg")).Wait();
 
-            await BotLaunchAsync(args.Contains("-no-reg"));
-            await Task.Delay(-1);
+            return 0;
         }
     }
 }

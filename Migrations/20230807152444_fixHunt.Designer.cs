@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace CharacterEngineDiscord.Migrations
 {
-    [DbContext(typeof(StorageContext))]
+    [DbContext(typeof(DatabaseContext))]
     [Migration("20230807152444_fixHunt")]
     partial class fixHunt
     {

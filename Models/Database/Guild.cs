@@ -9,11 +9,7 @@
         // CharacterAI
         public string? GuildCaiUserToken { get; set; }
         public bool? GuildCaiPlusMode { get; set; }
-
-        // Aisekai
-        public string? GuildAisekaiAuthToken { get; set; }
-        public string? GuildAisekaiRefreshToken { get; set; }
-
+        
 
         // OpenAI
         public string? GuildOpenAiApiEndpoint { get; set; }
@@ -30,7 +26,7 @@
 
         public required int MessagesSent { get; set; }
 
-        public virtual List<Channel> Channels { get; } = new();
-        public virtual List<BlockedUser> BlockedUsers { get; } = new();
+        public virtual List<Channel> Channels { get; } = [];
+        public virtual List<BlockedUser> BlockedUsers { get; } = [];
     }
 }

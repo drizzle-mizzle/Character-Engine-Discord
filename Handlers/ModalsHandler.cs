@@ -6,7 +6,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using Discord.Webhook;
 using CharacterEngineDiscord.Interfaces;
@@ -22,7 +22,7 @@ namespace CharacterEngineDiscord.Handlers
                 try { await HandleModalAsync(modal); }
                 catch (Exception e)
                 {
-                    LogException(new[] { e });
+                    LogException(e);
                     var channel = modal.Channel as SocketGuildChannel;
                     var guild = channel?.Guild;
                     TryToReportInLogsChannel(client, title: "Modal Exception",
@@ -61,7 +61,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task UpdateGuildAsync(SocketModal modal)
         {
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             string guildId = modal.Data.CustomId.Split('~').Last();
 
             var guild = await FindOrStartTrackingGuildAsync(ulong.Parse(guildId), db);
@@ -77,7 +77,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task UpdateCharacterAsync(SocketModal modal)
         {
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             string webhookIdOrPrefix = modal.Data.CustomId.Split('~').Last();
 
             var context = new InteractionContext(client, modal, modal.Channel);
@@ -135,7 +135,7 @@ namespace CharacterEngineDiscord.Handlers
             var characterWebhook = await CreateCharacterWebhookAsync(IntegrationType.Empty, context, unsavedCharacter, integrations, false);
             if (characterWebhook is null) return;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             characterWebhook = db.Entry(characterWebhook).Entity;
 
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);

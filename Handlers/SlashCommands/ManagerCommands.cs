@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
@@ -28,7 +28,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -70,7 +70,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             IReadOnlyCollection<IWebhook> discordWebhooks;
             List<CharacterWebhook> trackedWebhooks;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             bool all = scope is ClearCharactersChoise.server;
             if (all)
             {
@@ -115,7 +115,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
             
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
             string before = channel.RandomReplyChance.ToString();
             channel.RandomReplyChance = chance;
@@ -140,7 +140,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -154,8 +154,6 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (type is IntegrationType.CharacterAI)
                 result = await ResetCaiCharacterAsync(characterWebhook, silent, db);
-            else if (type is IntegrationType.Aisekai)
-                result = await ResetAisekaiCharacterAsync(characterWebhook, characterWebhook.Channel.Guild.GuildAisekaiAuthToken, silent);
             else if (type is IntegrationType.OpenAI or IntegrationType.KoboldAI or IntegrationType.HordeKoboldAI)
             {
                 characterWebhook.StoredHistoryMessages.Clear();
@@ -197,7 +195,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             if (!newFormat.Contains("{{msg}}"))
@@ -247,7 +245,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral:silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildMessagesFormat = null;
@@ -273,7 +271,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildJailbreakPrompt = null;
@@ -288,7 +286,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildCaiUserToken = token;
@@ -297,39 +295,14 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
         }
-
-
-        [SlashCommand("set-server-aisekai-auth", "Set default Aisekai account for this server")]
-        public async Task SetGuildAisekaiAuth(string email, string password, bool silent = true)
-        {
-            await DeferAsync(ephemeral: silent);
-
-            var response = await integrations.AisekaiClient.AuthorizeUserAsync(email, password);
-
-            if (response.IsSuccessful)
-            {
-            await using var db = new StorageContext();
-                var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
-
-                guild.GuildAisekaiAuthToken = response.ExpToken;
-                guild.GuildAisekaiRefreshToken = response.RefreshToken;
-                await TryToSaveDbChangesAsync(db);
-
-                await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-            }
-            else
-            {
-                await FollowupAsync(embed: $"Failed to sign in to the Aisekai account: `{response.Message}`".ToInlineEmbed(Color.Red), ephemeral: silent);
-            }
-        }
-
+        
 
         [SlashCommand("set-server-openai-api", "Set default OpenAI API for this server")]
         public async Task SetGuildOpenAiToken(string token, OpenAiModel gptModel, string? reverseProxyEndpoint = null, bool silent = true)
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             if (reverseProxyEndpoint is not null)
@@ -348,7 +321,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildKoboldAiApiEndpoint = apiEndpoint;
@@ -364,7 +337,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildHordeApiToken = token;
@@ -421,7 +394,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -453,7 +426,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             ulong uUserId;
@@ -512,8 +485,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 uUserId = user.Id;
             }
 
-            await using var db = new StorageContext();
-            var blockedUsers = await db.BlockedUsers.Where(bu => bu.GuildId == Context.Guild.Id).ToListAsync();
+            await using var db = new DatabaseContext();
+            var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             var blockedUser = blockedUsers.FirstOrDefault(bu => bu.Id == uUserId && bu.GuildId == Context.Guild.Id);
             if (blockedUser is null)
@@ -533,7 +506,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Long stuff ////
         ////////////////////
 
-        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook cw, bool silent, StorageContext db)
+        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook cw, bool silent, DatabaseContext db)
         {
             if (integrations.CaiClient is null)
             {
@@ -571,41 +544,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         }
 
 
-        private async Task<bool> ResetAisekaiCharacterAsync(CharacterWebhook characterWebhook, string? authToken, bool silent)
-        {
-            var guild = characterWebhook.Channel.Guild;
-            
-            var response = await integrations.AisekaiClient.ResetChatHistoryAsync(authToken ?? "", characterWebhook.ActiveHistoryID ?? "");
-            if (response.IsSuccessful)
-            {
-                await FollowupAsync(embed: SuccessEmbed(), ephemeral: silent);
-                characterWebhook.Character.Greeting = response.Greeting!;
-
-                return true;
-            }
-
-            if (response.Code == 401)
-            {
-                string? newAuthToken = await integrations.UpdateGuildAisekaiAuthTokenAsync(guild.Id, guild.GuildAisekaiRefreshToken ?? "");
-                if (newAuthToken is null)
-                {
-                    await FollowupAsync(embed: ($"{WARN_SIGN_DISCORD} Failed to authorize Aisekai account`").ToInlineEmbed(Color.Red), ephemeral: silent);
-                    return false;
-                }
-
-                return await ResetAisekaiCharacterAsync(characterWebhook, newAuthToken, silent);
-            }
-            
-            await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to create new chat with a character: `{response.ErrorReason}`".ToInlineEmbed(Color.Red), ephemeral: silent);
-            return false;
-        }
-
-
         private async Task CopyCharacterAsync(IChannel channel, string webhookIdOrPrefix, bool silent)
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, channel.Id, db);
 
             if (characterWebhook is null)
@@ -665,7 +608,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 });
 
                 var type = characterWebhook.IntegrationType;
-                if (type is not IntegrationType.CharacterAI && type is not IntegrationType.Aisekai)
+                if (type is not IntegrationType.CharacterAI)
                     db.StoredHistoryMessages.Add(new() { CharacterWebhookId = channelWebhook.Id, Content = characterWebhook.Character.Greeting, Role = "assistant" });
 
                 await TryToSaveDbChangesAsync(db);
@@ -681,7 +624,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
             catch (Exception e)
             {
-                LogException(new[] { e });
+                LogException(e);
                 TryToReportInLogsChannel(_client, "Exception", "Failed to spawn character", e.ToString(), Color.Red, true);
 
                 await channelWebhook.DeleteAsync();
@@ -699,7 +642,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -757,7 +700,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)

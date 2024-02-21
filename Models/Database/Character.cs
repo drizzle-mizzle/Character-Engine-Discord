@@ -17,6 +17,6 @@
         public required ulong? Stars { get; set; }
         public string? Definition { get; set; }
 
-        public virtual List<CharacterWebhook> CharacterWebhooks { get; } = new();
+        public virtual List<CharacterWebhook> CharacterWebhooks { get; } = [];
     }
 }

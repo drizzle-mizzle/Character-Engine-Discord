@@ -1,12 +1,22 @@
 ﻿using CharacterEngineDiscord.Models.Common;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 
 namespace CharacterEngineDiscord.Services
 {
     internal static partial class CommonService
     {
-        internal static void Log(object? text)
+        internal static void Log(object? o)
         {
-            Console.Write($"{text + (text is string ? "" : "\n")}");
+            Console.Write($"{o + (o is string ? "" : "\n")}");
+
+            try
+            {
+                var logger = LogManager.GetCurrentClassLogger();
+                logger.Info(o!.ToString()!.Trim('\n'));
+            }
+            catch { }
         }
 
         internal static void LogGreen(object? text)
@@ -29,31 +39,21 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
-        internal static void LogException(object?[]? text)
+        internal static void LogException(Exception e)
+            => LogException(e.ToString());
+
+        internal static void LogException(string title, Exception e)
+            => LogException($"| {title}\n{e}");
+
+        internal static void LogException(string text)
         {
-            if (text is null) return;
-
-            int ww;
-            try
-            {
-                ww = Console.WindowWidth;
-            }
-            catch
-            {
-                ww = 320;
-            }
-
-            LogRed(new string('~', ww - 1) + "\n");
-            LogRed($"{string.Join('\n', text)}\n");
-            LogRed(new string('~', ww - 1) + "\n");
+            LogRed(new string('~', Console.WindowWidth - 1) + "\n");
+            LogRed($"[{DateTime.Now:u}] {text}\n");
+            LogRed(new string('~', Console.WindowWidth - 1) + "\n");
 
             if (!ConfigFile.LogFileEnabled.Value.ToBool()) return;
 
-            try {
-                var sw = File.AppendText($"{EXE_DIR}{SC}logs.txt");
-                sw.WriteLine($"{new string('~', ww)}\n{string.Join('\n', text)}\n");
-                sw.Close();
-            }
+            try { File.AppendAllText($"{EXE_DIR}{SC}logs.txt", $"{new string('~', 10)}\n[{DateTime.Now:u}] {text}\n"); }
             catch (Exception e) { LogRed(e); }
         }
     }

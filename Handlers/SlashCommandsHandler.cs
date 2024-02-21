@@ -34,11 +34,11 @@ namespace CharacterEngineDiscord.Handlers
 
         private void HandleSlashCommandException(SocketSlashCommand command, Exception e)
         {
-            LogException(new[] { e });
+            LogException(e);
             var channel = command.Channel as SocketGuildChannel;
             var guild = channel?.Guild;
 
-            List<string> commandParams = new();
+            List<string> commandParams = [];
             foreach (var option in command.Data.Options)
             {
                 var val = option?.Value?.ToString() ?? "";

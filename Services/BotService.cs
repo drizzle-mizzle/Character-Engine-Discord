@@ -6,32 +6,33 @@ using CharacterEngineDiscord.Handlers;
 using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using CharacterEngineDiscord.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Services
 {
-    internal class DiscordService
+    internal class BotService
     {
         private ServiceProvider _services = null!;
         private DiscordSocketClient _client = null!;
         private IIntegrationsService _integrations = null!;
-        private InteractionService _interactions = null!;
+        private InteractionService _interactionService = null!;
 
         private bool _firstLaunch = true;
 
-        internal async Task BotLaunchAsync(bool noreg)
+        internal async Task LaunchAsync(bool noreg)
         {
-            _services = CreateServices();
+            await using (var db = new DatabaseContext())
+                await db.Database.MigrateAsync();
 
-            SetupIntegrationAsync();
-
-            _interactions = _services.GetRequiredService<InteractionService>();
+            CreateServices();
             _client = (_services.GetRequiredService<IDiscordClient>() as DiscordSocketClient)!;
 
-            await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+            SetupIntegration();
+            SetupInteractions();            
             BindClientEvents(noreg);
             
             await _client.LoginAsync(TokenType.Bot, ConfigFile.DiscordBotToken.Value);
@@ -39,7 +40,6 @@ namespace CharacterEngineDiscord.Services
 
             await RunJobsAsync();
         }
-        
 
         private void BindClientEvents(bool noreg)
         {
@@ -49,9 +49,9 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
-            _client.Ready += () =>
+            _client.Connected += () =>
             {
-                Task.Run(async () => await OnClientReadyAsync(noreg));
+                Task.Run(async () => await OnConnectedAsync(noreg));
                 return Task.CompletedTask;
             };
 
@@ -69,29 +69,10 @@ namespace CharacterEngineDiscord.Services
             _client.ReactionRemoved += _services.GetRequiredService<ReactionsHandler>().HandleReaction;
             _client.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleCommand;
             _client.MessageReceived += _services.GetRequiredService<TextMessagesHandler>().HandleMessage;
-            _interactions.InteractionExecuted += (_, context, result)
+            _interactionService.InteractionExecuted += (_, context, result)
                 => result.IsSuccess ? Task.CompletedTask : HandleInteractionException(context, result);
         }
 
-        private async Task RunJobsAsync()
-        {
-            while (true)
-            {
-                try
-                {
-                    DoJobs();
-                }
-                catch (Exception e)
-                {
-                    LogException(new[] { e });
-                    TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
-                }
-                finally
-                {
-                    await Task.Delay(1_800_000); // 30 min
-                }
-            }
-        }
 
         private void DoJobs()
         {
@@ -99,7 +80,7 @@ namespace CharacterEngineDiscord.Services
 
             int blockedUsersCount;
             int blockedGuildsCount;
-            using (var db = new StorageContext())
+            using (var db = new DatabaseContext())
             {
                 blockedUsersCount = db.BlockedUsers.Count(bu => bu.GuildId == null);
                 blockedGuildsCount = db.BlockedGuilds.Count();
@@ -116,7 +97,7 @@ namespace CharacterEngineDiscord.Services
 
         private static void UnblockUsers()
         {
-            using var db = new StorageContext();
+            using var db = new DatabaseContext();
 
             var blockedUsersToUnblock = db.BlockedUsers.Where(user => user.Hours != 0 && (user.From.AddHours(user.Hours) <= DateTime.UtcNow));
             db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
@@ -145,23 +126,21 @@ namespace CharacterEngineDiscord.Services
 
             _integrations.CaiReloading = true;
             _integrations.RunningCaiTasks.Clear();
-            _integrations.CaiClient.Dispose();
-            _integrations.LaunchCaiAsync().Wait();
+            _integrations.CaiClient.ReconnectAsync().Wait();
             _integrations.CaiReloading = false;
         }
 
-        private async Task OnClientReadyAsync(bool noreg)
+        private async Task OnConnectedAsync(bool noreg)
         {
             if (!_firstLaunch) return;
 
-            LogGreen(_client.CurrentUser.Username + "\n");
-            
+            LogYellow($"[ {_client.CurrentUser.Username} ]\n\n");
             if (!noreg)
             {
                 Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
-                await Parallel.ForEachAsync(_client.Guilds, async (guild, ct) =>
+                await Parallel.ForEachAsync(_client.Guilds, async (guild, _) =>
                 {
-                    if (await TryToCreateSlashCommandsAndRoleAsync(guild, silent: true)) LogGreen(".");
+                    if (await TryToCreateSlashCommandsAndRoleAsync(guild)) LogGreen(".");
                     else LogRed(".");
                 });
 
@@ -179,7 +158,7 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-                await using (var db = new StorageContext())
+                await using (var db = new DatabaseContext())
                 {
                     if (db.BlockedGuilds.Any(bg => bg.Id.Equals(guild.Id)))
                     {
@@ -188,7 +167,7 @@ namespace CharacterEngineDiscord.Services
                     };
                 }
 
-                await TryToCreateSlashCommandsAndRoleAsync(guild, silent: false);
+                await TryToCreateSlashCommandsAndRoleAsync(guild);
 
                 var guildOwner = await _client.GetUserAsync(guild.OwnerId);
                 string log = $"Server name: {guild.Name} ({guild.Id})\n" +
@@ -213,7 +192,7 @@ namespace CharacterEngineDiscord.Services
             return Task.CompletedTask;
         }
 
-        internal static ServiceProvider CreateServices()
+        private void CreateServices()
         {
             var discordClient = CreateDiscordClient();
             var interactionService = new InteractionService(discordClient.Rest);
@@ -230,14 +209,14 @@ namespace CharacterEngineDiscord.Services
                 .AddTransient<SlashCommandsHandler>()
                 .AddTransient<TextMessagesHandler>();
 
-            return services.BuildServiceProvider();
+            _services = services.BuildServiceProvider();
         }
 
-        private async Task<bool> TryToCreateSlashCommandsAndRoleAsync(SocketGuild guild, bool silent)
+        private async Task<bool> TryToCreateSlashCommandsAndRoleAsync(SocketGuild guild)
         {                
             try
             {
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+                await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
                 if (!(guild.Roles?.Any(r => r.Name == ConfigFile.DiscordBotRole.Value!) ?? false))
                     await guild.CreateRoleAsync(ConfigFile.DiscordBotRole.Value!, isMentionable: true);
 
@@ -245,11 +224,7 @@ namespace CharacterEngineDiscord.Services
             }
             catch (Exception e)
             {
-                if (!silent)
-                {
-                    LogException(new[] { e });
-                }
-
+                LogException(e);
                 return false;
             }
         }
@@ -272,15 +247,26 @@ namespace CharacterEngineDiscord.Services
             return new DiscordSocketClient(clientConfig);
         }
 
-        private void SetupIntegrationAsync()
+        private void SetupIntegration()
         {
             try
             {
                 _integrations = _services.GetRequiredService<IIntegrationsService>();
                 _integrations.Initialize();
             }
-            catch (Exception e) { LogException(new object?[] { e }); }
+            catch (Exception e) { LogException(e); }
         }
+
+        private void SetupInteractions()
+        {
+            try
+            {
+                _interactionService = _services.GetRequiredService<InteractionService>();
+                _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _services).Wait();
+            }
+            catch (Exception e) { LogException(e); }
+        }
+
 
         private static string GetLastGameStatus()
         {
@@ -293,37 +279,53 @@ namespace CharacterEngineDiscord.Services
         {
             Task.Run(async () =>
             {
-                LogRed(result.ErrorReason + "\n");
-                string message = result.ErrorReason;
-
                 string er = result.ErrorReason;
                 if (!er.Contains("Microsoft") && !er.Contains("This command"))
-                    try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
-                    catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+                    try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{er}`".ToInlineEmbed(Color.Red)); }
+                    catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{er}`".ToInlineEmbed(Color.Red)); }
 
                 var channel = context.Channel;
                 var guild = context.Guild;
 
                 // don't need that shit in logs
-                string err = result.Error.GetValueOrDefault().ToString();
-                bool ignore = err.Contains("UnmetPrecondition") || result.ErrorReason.Contains("This command") || result.ErrorReason.Contains("was not in a correct format");
+                bool ignore = er.Contains("UnmetPrecondition") || er.Contains("This command") || er.Contains("was not in a correct format");
                 if (ignore) return;
 
                 var originalResponse = await context.Interaction.GetOriginalResponseAsync();
                 var owner = (await guild.GetOwnerAsync()) as SocketGuildUser;
 
                 TryToReportInLogsChannel(context.Client, title: "Slash Command Exception",
-                                                         desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
-                                                               $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
-                                                               $"Channel: `{channel.Name} ({channel.Id})`\n" +
-                                                               $"User: `{context.User.Username}`\n" +
-                                                               $"Slash command: `/{originalResponse.Interaction.Name}`",
-                                                         content: $"{message}\n\n{result.Error.GetValueOrDefault()}",
-                                                         color: Color.Red,
-                                                         error: true);
+                                                            desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
+                                                                $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
+                                                                $"Channel: `{channel.Name} ({channel.Id})`\n" +
+                                                                $"User: `{context.User.Username}`\n" +
+                                                                $"Slash command: `/{originalResponse.Interaction.Name}`",
+                                                            content: $"{er}\n\n{(result as ExecuteResult?)?.Exception}",
+                                                            color: Color.Red,
+                                                            error: true);
             });
 
             return Task.CompletedTask;
+        }
+
+        private async Task RunJobsAsync()
+        {
+            while (true)
+            {
+                try
+                {
+                    DoJobs();
+                }
+                catch (Exception e)
+                {
+                    LogException(e);
+                    TryToReportInLogsChannel(_client, "Exception", "Jobs", e.ToString(), Color.Red, true);
+                }
+                finally
+                {
+                    await Task.Delay(1_800_000); // 30 min
+                }
+            }
         }
     }
 }
