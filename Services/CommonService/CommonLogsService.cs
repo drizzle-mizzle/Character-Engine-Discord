@@ -1,12 +1,22 @@
 ﻿using CharacterEngineDiscord.Models.Common;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 
 namespace CharacterEngineDiscord.Services
 {
     internal static partial class CommonService
     {
-        internal static void Log(object? text)
+        internal static void Log(object? o)
         {
-            Console.Write($"{text + (text is string ? "" : "\n")}");
+            Console.Write($"{o + (o is string ? "" : "\n")}");
+
+            try
+            {
+                var logger = LogManager.GetCurrentClassLogger();
+                logger.Info(o!.ToString()!.Trim('\n'));
+            }
+            catch { }
         }
 
         internal static void LogGreen(object? text)

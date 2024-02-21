@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace CharacterEngineDiscord.Services
 {
-    public class StorageContext : DbContext, IStorageContext
+    public class DatabaseContext : DbContext, IStorageContext
     {
         public DbSet<Models.Database.BlockedGuild> BlockedGuilds { get; set; }
         public DbSet<Models.Database.BlockedUser> BlockedUsers { get; set; }
@@ -19,7 +19,7 @@ namespace CharacterEngineDiscord.Services
         public DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages { get; set; }
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
-        public StorageContext()
+        public DatabaseContext()
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         {
 
@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Services
                    $"Data Source={EXE_DIR}{SC}storage{SC}{ConfigFile.DbFileName.Value}" :
                    ConfigFile.DbConnString.Value;
 
-            optionsBuilder.UseSqlite(connString);
+            optionsBuilder.UseSqlite(connString).UseLazyLoadingProxies(true);
 
             if (Environment.GetEnvironmentVariable("READY") is null)
                 return;
@@ -40,7 +40,7 @@ namespace CharacterEngineDiscord.Services
                 optionsBuilder.ConfigureWarnings(w => w.Ignore(CoreEventId.LazyLoadOnDisposedContextWarning))
                     .EnableSensitiveDataLogging()
                     .EnableDetailedErrors()
-                    .LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });
+                    .LogTo(SqlLog, new[] { DbLoggerCategory.Database.Command.Name });           
         }
 
 
@@ -62,7 +62,7 @@ namespace CharacterEngineDiscord.Services
             Console.ResetColor();
         }
 
-        public static async Task TryToSaveDbChangesAsync(StorageContext db)
+        public static async Task TryToSaveDbChangesAsync(DatabaseContext db)
         {
             try
             {
@@ -86,12 +86,12 @@ namespace CharacterEngineDiscord.Services
             }
         }
 
-        public static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null)
+        public static async Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, DatabaseContext? db = null)
         {
             bool gottaDispose = false;
             if (db is null)
             {
-                db = new StorageContext();
+                db = new DatabaseContext();
                 gottaDispose = true;
             }
 
@@ -111,12 +111,12 @@ namespace CharacterEngineDiscord.Services
             return guild;
         }
 
-        public static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null)
+        public static async Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, DatabaseContext? db = null)
         {
             bool gottaDispose = false;
             if (db is null)
             {
-                db = new StorageContext();
+                db = new DatabaseContext();
                 gottaDispose = true;
             }
 
@@ -124,7 +124,8 @@ namespace CharacterEngineDiscord.Services
 
             if (channel is null)
             {
-                channel = new Channel { Id = channelId, GuildId = (await FindOrStartTrackingGuildAsync(guildId, db)).Id, RandomReplyChance = 0 };
+                var guild = await FindOrStartTrackingGuildAsync(guildId, db);
+                channel = new Channel { Id = channelId, GuildId = guild.Id, RandomReplyChance = 0 };
                 await db.Channels.AddAsync(channel);
                 await TryToSaveDbChangesAsync(db);
                 return await FindOrStartTrackingChannelAsync(channelId, guildId, db);
@@ -136,7 +137,7 @@ namespace CharacterEngineDiscord.Services
             return channel;
         }
 
-        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext db)
+        public static async Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, DatabaseContext db)
         {
             //bool gottaDispose = false;
             //if (db is null)

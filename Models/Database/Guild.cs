@@ -26,7 +26,7 @@
 
         public required int MessagesSent { get; set; }
 
-        public virtual List<Channel> Channels { get; } = new();
-        public virtual List<BlockedUser> BlockedUsers { get; } = new();
+        public virtual List<Channel> Channels { get; } = [];
+        public virtual List<BlockedUser> BlockedUsers { get; } = [];
     }
 }

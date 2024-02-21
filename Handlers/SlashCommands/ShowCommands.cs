@@ -2,7 +2,7 @@
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using Discord;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
@@ -23,7 +23,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             var channelId = Context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : Context.Channel.Id;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await FindOrStartTrackingChannelAsync(channelId, Context.Guild.Id, db);
             if (channel.CharacterWebhooks.Count == 0)
             {
@@ -70,7 +70,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -134,7 +134,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -158,7 +158,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -223,7 +223,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -244,7 +244,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string format;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             if (webhookIdOrPrefix is null)
             {
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
@@ -296,7 +296,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string title;
             string prompt;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             if (webhookIdOrPrefix is null)
             {
                 var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);

@@ -1,5 +1,4 @@
-﻿using CharacterAI.Client;
-using CharacterEngineDiscord.Interfaces;
+﻿using CharacterEngineDiscord.Interfaces;
 using Discord;
 using Discord.WebSocket;
 using CharacterEngineDiscord.Services;
@@ -7,10 +6,11 @@ using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.Webhook;
 using PuppeteerSharp.Helpers;
+using CharacterAiNetApiWrapper;
 
 namespace CharacterEngineDiscord.Handlers
 {
@@ -39,7 +39,7 @@ namespace CharacterEngineDiscord.Handlers
             if (originalMessage is null) return;
             if (!originalMessage.Author.IsWebhook) return;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await db.Channels.FindAsync(discordChannel.Id);
             if (channel is null) return;
 
@@ -92,7 +92,7 @@ namespace CharacterEngineDiscord.Handlers
             bool messageIsNotTracked = !integrations.Conversations.ContainsKey(characterWebhookId);
             if (messageIsNotTracked) return;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await db.CharacterWebhooks.FindAsync(characterWebhookId);
             if (characterWebhook is null) return;
 
@@ -116,7 +116,7 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private async Task ContinueSwipeAsync(LastCharacterCall convo, CharacterWebhook cw, SocketGuildUser userCalled, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe, StorageContext db)
+        private async Task ContinueSwipeAsync(LastCharacterCall convo, CharacterWebhook cw, SocketGuildUser userCalled, IUserMessage characterOriginalMessage, DiscordWebhookClient webhookClient, bool isSwipe, DatabaseContext db)
         {
             // Remember quote from the message embed before it will be erased
             var quoteEmbed = characterOriginalMessage.Embeds?.FirstOrDefault(e => e.Footer is not null) as Embed;
@@ -324,7 +324,7 @@ namespace CharacterEngineDiscord.Handlers
             }
         }
 
-        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CharacterAiClient client)
+        private static async Task<Models.Common.CharacterResponse> SwipeCaiMessageAsync(CharacterWebhook characterWebhook, CaiClient client)
         {
             var caiToken = characterWebhook.Channel.Guild.GuildCaiUserToken ?? string.Empty;
             var plusMode = characterWebhook.Channel.Guild.GuildCaiPlusMode ?? false;
@@ -343,11 +343,11 @@ namespace CharacterEngineDiscord.Handlers
             {
                 return new()
                 {
-                    Text = caiResponse.Response!.Text,
+                    Text = caiResponse.CharacterMessage!.Text,
                     IsSuccessful = true,
-                    CharacterMessageId = caiResponse.Response.UuId,
+                    CharacterMessageId = caiResponse.CharacterMessage.UuId,
                     UserMessageId = caiResponse.LastUserMsgUuId,
-                    ImageRelPath = caiResponse.Response.ImageRelPath,
+                    ImageRelPath = caiResponse.CharacterMessage.ImageRelPath,
                 };
             }
         }

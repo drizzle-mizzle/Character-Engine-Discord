@@ -3,7 +3,7 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using Discord.WebSocket;
 using System.Diagnostics;
 using CharacterEngineDiscord.Interfaces;
@@ -23,7 +23,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             var time = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
             var tasks = integrations.RunningCaiTasks;
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             string text = $"Running: `{time.Days}d/{time.Hours}h/{time.Minutes}m`\n" +
                           $"Messages sent: `{integrations.MessagesSent}`\n" +
                           $"Blocked: `{db.BlockedUsers.Count(bu => bu.GuildId == null)} user(s)` | `{db.BlockedGuilds.Count()} guild(s)`\n" +
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             ulong guildId = ulong.Parse(serverId.Trim());
             var guild = await db.Guilds.FindAsync(guildId);
 
@@ -121,7 +121,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var blockedGuild = await db.BlockedGuilds.FindAsync(ulong.Parse(serverId.Trim()));
 
             if (blockedGuild is null)
@@ -150,7 +150,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             if ((await db.BlockedUsers.FindAsync(uUserId)) is not null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User is already blocked".ToInlineEmbed(Color.Red), ephemeral: silent);
@@ -177,7 +177,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var blockedUser = await db.BlockedUsers.FindAsync(uUserId);
             if (blockedUser is null)
             {
@@ -203,7 +203,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             if (imageUrl is not null) embedB.WithImageUrl(imageUrl);
             var embed = embedB.Build();
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channelIds = db.Channels.Select(c => c.Id).ToList();
             var channels = new List<IMessageChannel>();
 
@@ -255,7 +255,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var dbGuild = await FindOrStartTrackingGuildAsync(guild.Id, db);
             var allCharacters = db.CharacterWebhooks.Where(cw => cw.Channel.GuildId == guild.Id);
 

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.CharacterHub;
 using Discord.Webhook;
@@ -24,8 +24,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
 
         [SlashCommand("cai-character", "Add new CharacterAI character to this channel")]
-        public async Task SpawnCaiCharacter([Summary(description: sqDesc)] string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
-            => await SpawnCaiCharacterAsync(searchQueryOrCharacterId, setWithId, silent);
+        public async Task SpawnCaiCharacter(string searchQueryOrCharacterId, bool silent = false)
+            => await SpawnCaiCharacterAsync(searchQueryOrCharacterId, silent);
         
         [SlashCommand("chub-character", "Add new character from CharacterHub to this channel")]
         public async Task SpawnChubCharacter(ApiTypeForChub apiType, [Summary(description: sqDesc)] string? searchQueryOrCharacterId = null, bool setWithId = false, [Summary(description: tagsDesc)] string? tags = null, bool allowNSFW = true, SortField sortBy = SortField.MostPopular, bool silent = false)
@@ -65,7 +65,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             {
                 await FollowupAsync(embed: WAIT_MESSAGE, ephemeral: silent);
 
-                var response = await SearchChubCharactersAsync(new()
+                var response = await SearchChubCharactersAsync(new ChubSearchParams
                 {
                     Text = searchQueryOrCharacterId ?? "",
                     Amount = 300,
@@ -81,7 +81,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             }
         }
 
-        private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool setWithId = false, bool silent = false)
+        private async Task SpawnCaiCharacterAsync(string searchQueryOrCharacterId, bool silent = false)
         {
             await DeferAsync(ephemeral: silent);
             EnsureCanSendMessages();
@@ -92,7 +92,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
             var caiToken = channel.Guild.GuildCaiUserToken ?? string.Empty;
 
@@ -115,11 +115,11 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             integrations.RunningCaiTasks.Add(id);
             try
             {
-                if (setWithId)
+                if (!searchQueryOrCharacterId.Contains(' ') && searchQueryOrCharacterId.Length > 40) // all(?) ids are 44-length strings
                 {
                     var caiCharacter = await integrations.CaiClient.GetInfoAsync(searchQueryOrCharacterId,
                         authToken: caiToken, plusMode: plusMode).WithTimeout(60000);
-                    var character = CharacterFromCaiCharacterInfo(caiCharacter);
+                    var character = CharacterFromCaiCharacterInfo(caiCharacter.Character!);
 
                     await FinishSpawningAsync(IntegrationType.CharacterAI, character);
                 }
@@ -154,7 +154,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             characterWebhook = db.Entry(characterWebhook).Entity;
 
             var webhookClient = new DiscordWebhookClient(characterWebhook.Id, characterWebhook.WebhookToken);

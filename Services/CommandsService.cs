@@ -3,7 +3,7 @@ using Discord.Interactions;
 using CharacterEngineDiscord.Models.Database;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Common;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +12,7 @@ namespace CharacterEngineDiscord.Services
 {
     public static partial class CommandsService
     {
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, StorageContext db)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, InteractionContext context, DatabaseContext db)
         {
             var channelId = context.Channel is IThreadChannel tc ? tc.CategoryId ?? 0 : context.Channel.Id; 
             var channel = await FindOrStartTrackingChannelAsync(channelId, context.Guild.Id, db);
@@ -27,7 +27,7 @@ namespace CharacterEngineDiscord.Services
             return characterWebhook;
         }
 
-        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, StorageContext db)
+        internal static async Task<CharacterWebhook?> TryToFindCharacterWebhookInChannelAsync(string webhookIdOrPrefix, ulong channelId, DatabaseContext db)
         {
             var channel = await db.Channels.Include(c => c.CharacterWebhooks).FirstOrDefaultAsync(c => c.Id == channelId);
             if (channel is null) return null;

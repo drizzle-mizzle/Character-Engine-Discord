@@ -141,7 +141,7 @@ namespace CharacterEngineDiscord.Models.Database
         public required ulong ChannelId { get; set; }
         public virtual Channel Channel { get; set; } = null!;
 
-        public virtual List<StoredHistoryMessage> StoredHistoryMessages { get; set; } = new();
-        public virtual List<HuntedUser> HuntedUsers { get; set; } = new();
+        public virtual List<StoredHistoryMessage> StoredHistoryMessages { get; set; } = [];
+        public virtual List<HuntedUser> HuntedUsers { get; set; } = [];
     }
 }

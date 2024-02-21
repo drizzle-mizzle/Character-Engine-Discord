@@ -92,7 +92,7 @@ namespace CharacterEngineDiscord.Handlers
                     var characterWebhook = await CreateCharacterWebhookAsync(searchQuery.SearchQueryData.IntegrationType, context, character, integrations, fromChub);
                     if (characterWebhook is null) return;
 
-                    await using (var db = new StorageContext())
+                    await using (var db = new DatabaseContext())
                     {
                         characterWebhook = db.Entry(characterWebhook).Entity;
 

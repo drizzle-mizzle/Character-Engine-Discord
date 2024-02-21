@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Webhook;
 using Newtonsoft.Json.Linq;
@@ -27,7 +27,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -69,7 +69,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             IReadOnlyCollection<IWebhook> discordWebhooks;
             List<CharacterWebhook> trackedWebhooks;
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             bool all = scope is ClearCharactersChoise.server;
             if (all)
             {
@@ -114,7 +114,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
             
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
             string before = channel.RandomReplyChance.ToString();
             channel.RandomReplyChance = chance;
@@ -139,7 +139,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -194,7 +194,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             if (!newFormat.Contains("{{msg}}"))
@@ -244,7 +244,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral:silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildMessagesFormat = null;
@@ -270,7 +270,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildJailbreakPrompt = null;
@@ -285,7 +285,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildCaiUserToken = token;
@@ -301,7 +301,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             if (reverseProxyEndpoint is not null)
@@ -320,7 +320,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildKoboldAiApiEndpoint = apiEndpoint;
@@ -336,7 +336,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             guild.GuildHordeApiToken = token;
@@ -393,7 +393,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -425,7 +425,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             ulong uUserId;
@@ -484,7 +484,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 uUserId = user!.Id;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
             var blockedUser = guild.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId);
@@ -505,7 +505,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         //// Long stuff ////
         ////////////////////
 
-        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook cw, bool silent, StorageContext db)
+        private async Task<bool> ResetCaiCharacterAsync(CharacterWebhook cw, bool silent, DatabaseContext db)
         {
             if (integrations.CaiClient is null)
             {
@@ -547,7 +547,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
         {
             await DeferAsync(ephemeral: silent);
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, channel.Id, db);
 
             if (characterWebhook is null)
@@ -642,7 +642,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)
@@ -700,7 +700,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
                 return;
             }
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var characterWebhook = await TryToFindCharacterWebhookInChannelAsync(webhookIdOrPrefix, Context, db);
 
             if (characterWebhook is null)

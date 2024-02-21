@@ -16,12 +16,12 @@ namespace CharacterEngineDiscord.Interfaces
         public DbSet<Models.Database.HuntedUser> HuntedUsers { get; set; }
         public DbSet<Models.Database.StoredHistoryMessage> StoredHistoryMessages {  get; set; }
 
-        public static Task TryToSaveDbChangesAsync(StorageContext db) => throw new NotImplementedException();
+        public static Task TryToSaveDbChangesAsync(DatabaseContext db) => throw new NotImplementedException();
 
-        public static Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, StorageContext? db = null) => throw new NotImplementedException();
+        public static Task<Guild> FindOrStartTrackingGuildAsync(ulong guildId, DatabaseContext? db = null) => throw new NotImplementedException();
 
-        public static Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, StorageContext? db = null) => throw new NotImplementedException();
+        public static Task<Channel> FindOrStartTrackingChannelAsync(ulong channelId, ulong guildId, DatabaseContext? db = null) => throw new NotImplementedException();
 
-        public static Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, StorageContext? db = null) => throw new NotImplementedException();
+        public static Task<Models.Database.Character> FindOrStartTrackingCharacterAsync(Models.Database.Character notSavedCharacter, DatabaseContext? db = null) => throw new NotImplementedException();
     }
 }

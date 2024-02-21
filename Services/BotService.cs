@@ -6,7 +6,7 @@ using CharacterEngineDiscord.Handlers;
 using CharacterEngineDiscord.Models.Common;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using CharacterEngineDiscord.Interfaces;
@@ -25,7 +25,7 @@ namespace CharacterEngineDiscord.Services
 
         internal async Task LaunchAsync(bool noreg)
         {
-            await using (var db = new StorageContext())
+            await using (var db = new DatabaseContext())
                 await db.Database.MigrateAsync();
 
             CreateServices();
@@ -49,9 +49,9 @@ namespace CharacterEngineDiscord.Services
                 return Task.CompletedTask;
             };
 
-            _client.Ready += () =>
+            _client.Connected += () =>
             {
-                Task.Run(async () => await OnClientReadyAsync(noreg));
+                Task.Run(async () => await OnConnectedAsync(noreg));
                 return Task.CompletedTask;
             };
 
@@ -80,7 +80,7 @@ namespace CharacterEngineDiscord.Services
 
             int blockedUsersCount;
             int blockedGuildsCount;
-            using (var db = new StorageContext())
+            using (var db = new DatabaseContext())
             {
                 blockedUsersCount = db.BlockedUsers.Count(bu => bu.GuildId == null);
                 blockedGuildsCount = db.BlockedGuilds.Count();
@@ -97,7 +97,7 @@ namespace CharacterEngineDiscord.Services
 
         private static void UnblockUsers()
         {
-            using var db = new StorageContext();
+            using var db = new DatabaseContext();
 
             var blockedUsersToUnblock = db.BlockedUsers.Where(user => user.Hours != 0 && (user.From.AddHours(user.Hours) <= DateTime.UtcNow));
             db.BlockedUsers.RemoveRange(blockedUsersToUnblock);
@@ -126,15 +126,15 @@ namespace CharacterEngineDiscord.Services
 
             _integrations.CaiReloading = true;
             _integrations.RunningCaiTasks.Clear();
-            _integrations.CaiClient.Dispose();
-            _integrations.LaunchCaiAsync().Wait();
+            _integrations.CaiClient.ReconnectAsync().Wait();
             _integrations.CaiReloading = false;
         }
 
-        private async Task OnClientReadyAsync(bool noreg)
+        private async Task OnConnectedAsync(bool noreg)
         {
             if (!_firstLaunch) return;
 
+            LogYellow($"[ {_client.CurrentUser.Username} ]\n\n");
             if (!noreg)
             {
                 Log($"Registering commands to ({_client.Guilds.Count}) guilds...\n");
@@ -158,7 +158,7 @@ namespace CharacterEngineDiscord.Services
         {
             try
             {
-                await using (var db = new StorageContext())
+                await using (var db = new DatabaseContext())
                 {
                     if (db.BlockedGuilds.Any(bg => bg.Id.Equals(guild.Id)))
                     {
@@ -279,34 +279,30 @@ namespace CharacterEngineDiscord.Services
         {
             Task.Run(async () =>
             {
-                LogRed(result.ErrorReason + "\n");
-                string message = result.ErrorReason;
-
                 string er = result.ErrorReason;
                 if (!er.Contains("Microsoft") && !er.Contains("This command"))
-                    try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
-                    catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{message}`".ToInlineEmbed(Color.Red)); }
+                    try { await context.Interaction.RespondAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{er}`".ToInlineEmbed(Color.Red)); }
+                    catch { await context.Interaction.FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Failed to execute command: `{er}`".ToInlineEmbed(Color.Red)); }
 
                 var channel = context.Channel;
                 var guild = context.Guild;
 
                 // don't need that shit in logs
-                string err = result.Error.GetValueOrDefault().ToString();
-                bool ignore = err.Contains("UnmetPrecondition") || result.ErrorReason.Contains("This command") || result.ErrorReason.Contains("was not in a correct format");
+                bool ignore = er.Contains("UnmetPrecondition") || er.Contains("This command") || er.Contains("was not in a correct format");
                 if (ignore) return;
 
                 var originalResponse = await context.Interaction.GetOriginalResponseAsync();
                 var owner = (await guild.GetOwnerAsync()) as SocketGuildUser;
 
                 TryToReportInLogsChannel(context.Client, title: "Slash Command Exception",
-                                                         desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
-                                                               $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
-                                                               $"Channel: `{channel.Name} ({channel.Id})`\n" +
-                                                               $"User: `{context.User.Username}`\n" +
-                                                               $"Slash command: `/{originalResponse.Interaction.Name}`",
-                                                         content: $"{message}\n\n{result.Error.GetValueOrDefault()}",
-                                                         color: Color.Red,
-                                                         error: true);
+                                                            desc: $"Guild: `{guild.Name} ({guild.Id})`\n" +
+                                                                $"Owner: `{owner?.GetBestName()} ({owner?.Username})`\n" +
+                                                                $"Channel: `{channel.Name} ({channel.Id})`\n" +
+                                                                $"User: `{context.User.Username}`\n" +
+                                                                $"Slash command: `/{originalResponse.Interaction.Name}`",
+                                                            content: $"{er}\n\n{(result as ExecuteResult?)?.Exception}",
+                                                            color: Color.Red,
+                                                            error: true);
             });
 
             return Task.CompletedTask;

@@ -20,7 +20,7 @@ namespace CharacterEngineDiscord.Models.CharacterHub
         public ChubSearchResponse(HttpResponseMessage response, string originalQuery)
         {
             OriginalQuery = originalQuery;
-            Characters = new();
+            Characters = [];
             Code = (int)response.StatusCode;
             string responseContent = response.Content.ReadAsStringAsync().Result;
 
@@ -31,7 +31,7 @@ namespace CharacterEngineDiscord.Models.CharacterHub
                     var responseParsed = JsonConvert.DeserializeObject<dynamic>(responseContent)!.data;
                     Amount = (int)responseParsed.count;
                     CurrentPage = (int)responseParsed.page;
-                    Characters = new();
+                    Characters = [];
 
                     JArray nodes = responseParsed.nodes;
                     foreach (dynamic node in nodes)

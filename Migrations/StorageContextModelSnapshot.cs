@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace CharacterEngineDiscord.Migrations
 {
-    [DbContext(typeof(StorageContext))]
+    [DbContext(typeof(DatabaseContext))]
     partial class StorageContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)

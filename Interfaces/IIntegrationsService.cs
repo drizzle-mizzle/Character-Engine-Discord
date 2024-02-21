@@ -3,9 +3,9 @@ using Discord.Commands;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Discord;
-using CharacterAI.Client;
 using CharacterEngineDiscord.Models.Database;
 using Discord.Interactions;
+using CharacterAiNetApiWrapper;
 
 namespace CharacterEngineDiscord.Interfaces
 {
@@ -18,7 +18,7 @@ namespace CharacterEngineDiscord.Interfaces
         public HttpClient ChubAiHttpClient { get; }
         public HttpClient CommonHttpClient { get; }
 
-        public CharacterAiClient? CaiClient { get; set; }
+        public CaiClient? CaiClient { get; set; }
         public List<Guid> RunningCaiTasks { get; }
         public bool CaiReloading { get; set; }
 

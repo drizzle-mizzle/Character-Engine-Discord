@@ -5,7 +5,7 @@ using CharacterEngineDiscord.Services;
 using static CharacterEngineDiscord.Services.CommonService;
 using static CharacterEngineDiscord.Services.IntegrationsService;
 using static CharacterEngineDiscord.Services.CommandsService;
-using static CharacterEngineDiscord.Services.StorageContext;
+using static CharacterEngineDiscord.Services.DatabaseContext;
 using CharacterEngineDiscord.Models.Database;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Interfaces;
@@ -73,7 +73,7 @@ namespace CharacterEngineDiscord.Handlers
 
         private async Task TryToCallCharacterAsync(ulong characterWebhookId, SocketCommandContext context, bool isThread)
         {
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
 
              //////////////////
             /// Prevalidations
@@ -181,7 +181,7 @@ namespace CharacterEngineDiscord.Handlers
         /// <returns>Message ID or 0 if sending failed</returns>
         private async Task<ulong> TryToSendCharacterMessageAsync(CharacterWebhook characterWebhook, Models.Common.CharacterResponse characterResponse, SocketCommandContext context, string userName, bool isThread)
         {
-            integrations.Conversations.TryAdd(characterWebhook.Id, new(new(), DateTime.UtcNow));
+            integrations.Conversations.TryAdd(characterWebhook.Id, new([], DateTime.UtcNow));
             var convo = integrations.Conversations[characterWebhook.Id];
 
             await convo.Locker.WaitAsync();
@@ -210,7 +210,7 @@ namespace CharacterEngineDiscord.Handlers
             }
 
             // Reformat message
-            List<Embed>? embeds = new();
+            List<Embed>? embeds = [];
             string characterMsgText;
             bool errorMessage;
 
@@ -305,7 +305,7 @@ namespace CharacterEngineDiscord.Handlers
 
                 if (response.IsSuccessful)
                 {
-                    message = response.Response!.Text;
+                    message = response.CharacterMessage!.Text;
                     success = true;
                 }
                 else
@@ -315,12 +315,12 @@ namespace CharacterEngineDiscord.Handlers
                     success = false;
                 }
 
-                return new()
+                return new CharacterResponse
                 {
                     Text = message,
                     IsSuccessful = success,
-                    CharacterMessageId = response.Response?.UuId,
-                    ImageRelPath = response.Response?.ImageRelPath,
+                    CharacterMessageId = response.CharacterMessage?.UuId,
+                    ImageRelPath = response.CharacterMessage?.ImageRelPath,
                     UserMessageId = response.LastUserMsgUuId
                 };
             }
@@ -563,9 +563,9 @@ namespace CharacterEngineDiscord.Handlers
         private static readonly Random random = new();
         private static async Task<List<CharacterWebhook>> DetermineCalledCharacters(SocketUserMessage userMessage, ulong channelId)
         {
-            List<CharacterWebhook> characterWebhooks = new();
+            List<CharacterWebhook> characterWebhooks = [];
 
-            await using var db = new StorageContext();
+            await using var db = new DatabaseContext();
             var channel = await db.Channels.Include(c => c.CharacterWebhooks)
                                            .ThenInclude(cw => cw.HuntedUsers)
                                            .FirstOrDefaultAsync(c => c.Id == channelId);
