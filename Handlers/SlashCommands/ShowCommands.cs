@@ -247,6 +247,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string format;
 
             await using var db = new DatabaseContext();
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
+
             if (webhookIdOrPrefix is null)
             {
                 title = "Default messages format";
@@ -298,6 +300,8 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             string prompt;
 
             await using var db = new DatabaseContext();
+            var channel = await FindOrStartTrackingChannelAsync(Context.Channel.Id, Context.Guild.Id, db);
+            
             if (webhookIdOrPrefix is null)
             {
                 title = "Default jailbreak prompt";

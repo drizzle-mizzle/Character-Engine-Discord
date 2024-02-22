@@ -465,7 +465,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
 
             if (user is null && userId is null)
             {
-                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user or user-ID".ToInlineEmbed(Color.Red), ephemeral: silent);
+                await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} Wrong user or user ID".ToInlineEmbed(Color.Red), ephemeral: silent);
                 return;
             }
 
@@ -488,7 +488,7 @@ namespace CharacterEngineDiscord.Handlers.SlashCommands
             await using var db = new DatabaseContext();
             var guild = await FindOrStartTrackingGuildAsync(Context.Guild.Id, db);
 
-            var blockedUser = blockedUsers.FirstOrDefault(bu => bu.Id == uUserId && bu.GuildId == Context.Guild.Id);
+            var blockedUser = db.BlockedUsers.FirstOrDefault(bu => bu.Id == uUserId && bu.GuildId == Context.Guild.Id);
             if (blockedUser is null)
             {
                 await FollowupAsync(embed: $"{WARN_SIGN_DISCORD} User not found".ToInlineEmbed(Color.Red), ephemeral: silent);

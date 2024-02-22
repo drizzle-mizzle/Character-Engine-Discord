@@ -583,20 +583,20 @@ namespace CharacterEngineDiscord.Handlers
 
             if (cw is not null)
             {
-                calledCharacters.Add(cw);
+                characterWebhooks.Add(cw);
             }
             else if (withRefMessage) // or find some other that was called by a reply
             {
                 cw = channel.CharacterWebhooks.FirstOrDefault(cwh => cwh.Id == rm!.Author.Id);
-                if (cw is not null) calledCharacters.Add(cw);
+                if (cw is not null) characterWebhooks.Add(cw);
             }
 
             // Add characters who hunt the user            
             var hunters = channel.CharacterWebhooks.Where(w => w.HuntedUsers.Any(h => h.UserId == userMessage.Author.Id && h.Chance > chance)).ToList();
             if (hunters.Count != 0)
             {
-                foreach (var h in hunters.Where(h => !calledCharacters.Contains(h)))
-                    calledCharacters.Add(h);
+                foreach (var h in hunters.Where(h => !characterWebhooks.Contains(h)))
+                    characterWebhooks.Add(h);
             }
 
             // Add some random character (only one) by channel's random reply chance
@@ -606,8 +606,8 @@ namespace CharacterEngineDiscord.Handlers
                 if (characters.Count > 0)
                 {
                     var someRandomCharacter = characters[random.Next(characters.Count)];
-                    if (!calledCharacters.Contains(someRandomCharacter))
-                        calledCharacters.Add(someRandomCharacter);
+                    if (!characterWebhooks.Contains(someRandomCharacter))
+                        characterWebhooks.Add(someRandomCharacter);
                 }
             }
 
@@ -615,11 +615,11 @@ namespace CharacterEngineDiscord.Handlers
             var randomCharacters = channel.CharacterWebhooks.Where(w => w.Id != userMessage.Author.Id && w.ReplyChance > chance).ToList();
             if (randomCharacters.Count > 0)
             {
-                foreach (var rc in randomCharacters.Where(rc => !calledCharacters.Contains(rc)))
-                    calledCharacters.Add(rc);
+                foreach (var rc in randomCharacters.Where(rc => !characterWebhooks.Contains(rc)))
+                    characterWebhooks.Add(rc);
             }
 
-            return calledCharacters;
+            return characterWebhooks;
         }
         
         private static async Task TryToAddButtonsAsync(CharacterWebhook characterWebhook, ISocketMessageChannel channel, ulong messageId, bool responseToBot)
