@@ -10,7 +10,7 @@
         public required float RepetitionPenaltySlope { get; set; }
         public required float TopP { get; set; }
         public required float TopA { get; set; }
-        public required float TopK { get; set; }
+        public required int TopK { get; set; }
         public required float TypicalSampling { get; set; }
         public required float TailFreeSampling { get; set; }
         public required bool SingleLine { get; set; }
