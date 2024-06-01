@@ -1,4 +1,4 @@
-# -----⚡CURRENTLY UNDER RECONSTRUCTION!!!⚡-----
+# ---⚡CURRENTLY UNDER RECONSTRUCTION!!!⚡---
 
 # Character Engine
 Universal frontend for the various LLM APIs in the form of Discord bot.
