@@ -1,0 +1,28 @@
+# CHARACTER ENGINE BOT CONFIG FILE
+# Supports hot-reload
+# Lines marked with [RR] require a restart of the application for the changes to take effect
+
+# [RR]
+BOT_TOKEN:
+
+# [RR]
+PLAYING_STATUS: Still in beta, stuff may break!
+
+# Users with absolute access to all bot commands, separated with ','
+OWNER_USERS_IDS: 0
+
+LOGS_CHANNEL_ID:
+ERRORS_CHANNEL_ID:
+
+DEFAULT_MESSAGES_FORMAT: {{ref_msg_begin}}((In response to '{{ref_msg_text}}' from '{{ref_msg_user}}')){{ref_msg_end}}\n{{user}} says:\n{{msg}}
+
+# Max messages per minute for a single user
+USER_RATE_LIMIT: 20
+USER_FIRST_BLOCK_MINUTES: 60 # one hour
+USER_SECOND_BLOCK_HOURS: 24
+
+# Image or GIF file from /img/ directory that will be sent when user tries to execute a command he has no access to. Leave empty to disable.
+NO_POWER_FILE: nopower.gif
+
+# Postgres only
+DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki

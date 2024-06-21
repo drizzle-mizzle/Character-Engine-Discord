@@ -396,12 +396,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-env.json
-puppeteer-chrome
-/env.config.json
+
 Character-Engine-Discord - Backup.csproj
 logs.txt
-storage/database.sqlite3
-storage/database.sqlite3-shm
-storage/database.sqlite3-wal
-.editorconfig
+src/CharacterEngineDiscord/storage/env.config.txt
+src/CharacterEngineDiscord/storage/env.config.txt
