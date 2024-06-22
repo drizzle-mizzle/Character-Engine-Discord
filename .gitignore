@@ -400,4 +400,4 @@ FodyWeavers.xsd
 Character-Engine-Discord - Backup.csproj
 logs.txt
 src/CharacterEngineDiscord/storage/env.config.txt
-src/CharacterEngineDiscord/storage/env.config.txt
+*/.idea
