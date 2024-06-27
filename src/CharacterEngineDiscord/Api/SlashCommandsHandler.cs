@@ -1,5 +1,4 @@
 ﻿using CharacterEngine.Api.Abstractions;
-using CharacterEngine.Helpers;
 using CharacterEngine.Helpers.Discord;
 using Discord.Interactions;
 using Discord.WebSocket;

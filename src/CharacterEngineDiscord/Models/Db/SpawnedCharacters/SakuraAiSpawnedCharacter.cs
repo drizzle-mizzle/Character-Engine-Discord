@@ -4,9 +4,8 @@ using CharacterEngine.Models.Abstractions;
 namespace CharacterEngine.Models.Db.SpawnedCharacters;
 
 
-public class SakuraAiSpawnedCharacter : ISpawnedCharacterBase
+public class SakuraAiSpawnedCharacter : ISpawnedCharacter
 {
-    // Base
     public required Guid Id { get; set; }
     public required ulong WebhookId { get; set; }
     public required string WebhookToken { get; set; }
@@ -22,7 +21,6 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacterBase
     public required uint MessagesSent { get; set; }
     public required DateTime LastCallTime { get; set; }
 
-    // Own
     public required string CharacterId { get; set; }
     public required string CharacterName { get; set; }
     public required string CharacterDesc { get; set; }

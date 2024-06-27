@@ -62,5 +62,6 @@ public static class DiscordCommonHelper
 
         discordClient.SlashCommandExecuted += SlashCommandsHandler.HandleSlashCommandAsync;
         discordClient.ModalSubmitted += ModalsHandler.HandleModalAsync;
+        discordClient.ButtonExecuted += ButtonsHandler.HandleButtonAsync;
     }
 }

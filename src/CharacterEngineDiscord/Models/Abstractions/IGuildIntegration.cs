@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngine.Models.Abstractions;
 
-public interface IIntegrationBase
+public interface IGuildIntegration
 {
     public Guid Id { get; set; }
 

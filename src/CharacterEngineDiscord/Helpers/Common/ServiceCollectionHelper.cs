@@ -27,7 +27,7 @@ public static class ServiceCollectionHelper
             services.AddSingleton(discordClient);
 
             var interactionService = new InteractionService(discordClient.Rest);
-            interactionService.InteractionExecuted += InteractionsHandler.HandleInteraction;
+            interactionService.InteractionExecuted += InteractionsHandler.HandleInteractionAsync;
             services.AddSingleton(interactionService);
 
             var logger = LogManager.GetCurrentClassLogger();

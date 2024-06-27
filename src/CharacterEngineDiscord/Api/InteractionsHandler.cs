@@ -1,17 +1,19 @@
-﻿using CharacterEngine.Helpers.Discord;
+﻿using CharacterEngine.Api.Abstractions;
+using CharacterEngine.Helpers.Discord;
+using CharacterEngine.Models;
 using Discord;
 using Discord.Interactions;
 
 namespace CharacterEngine.Api;
 
 
-public class InteractionsHandler
+public class InteractionsHandler : HandlerBase
 {
-    public static Task HandleInteraction(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
+    public static async Task HandleInteractionAsync(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
     {
         if (result.IsSuccess)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var interaction = (ISlashCommandInteraction)interactionContext.Interaction;
@@ -22,6 +24,6 @@ public class InteractionsHandler
                          $"Guild: {interactionContext.Guild.Name} ({interactionContext.Guild.Id})\n" +
                          $"Exception:\n {((ExecuteResult)result).Exception}";
 
-        return interactionContext.Client.ReportErrorAsync("Interaction exception", content);
+        await interactionContext.Client.ReportErrorAsync("Interaction exception", content);
     }
 }

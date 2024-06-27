@@ -1,4 +1,5 @@
 ﻿using CharacterEngine.Database;
+using CharacterEngine.Models;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,8 +11,10 @@ namespace CharacterEngine.Api.Abstractions;
 
 public abstract class HandlerBase
 {
-    protected static readonly Logger log = LogManager.GetCurrentClassLogger();
+    public static List<SearchQuery> SearchQueries = [];
 
+
+    protected static readonly Logger log = LogManager.GetCurrentClassLogger();
     protected static AppDbContext db { get; private set; } = null!;
     protected static IServiceProvider Services { get; private set; } = null!;
     protected static InteractionService Interactions { get; private set; } = null!;

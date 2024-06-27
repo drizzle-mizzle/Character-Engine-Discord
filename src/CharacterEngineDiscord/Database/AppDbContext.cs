@@ -9,7 +9,7 @@ namespace CharacterEngine.Database;
 
 public sealed class AppDbContext : DbContext
 {
-    public DbSet<SakuraAiIntegration> SakuraFmGuildIntegrations { get; set; }
+    public DbSet<SakuraAiGuildIntegration> SakuraFmGuildIntegrations { get; set; }
     public DbSet<SakuraAiSpawnedCharacter> SakuraFmSpawnedCharacters { get; set; }
     public DbSet<DiscordGuildIntegration> DiscordGuildIntegrations { get; set; }
     public DbSet<DiscordChannelSpawnedCharacter> DiscordChannelSpawnedCharacters { get; set; }

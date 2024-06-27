@@ -13,6 +13,7 @@ public class MiscCommands : InteractionModuleBase<InteractionContext>
 {
     public required DiscordSocketClient DiscordClient { get; set; }
 
+
     [SlashCommand("ping", "ping")]
     public async Task Ping()
     {

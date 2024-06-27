@@ -2,7 +2,7 @@
 
 public static class BotConfig
 {
-    private static readonly string CONFIG_PATH;
+    private static string CONFIG_PATH => GetConfigPath();
 
     public static readonly string BOT_TOKEN = GetParamByName<string>("BOT_TOKEN").Trim();
     public static readonly string PLAYING_STATUS = GetParamByName<string>("PLAYING_STATUS").Trim();
@@ -34,12 +34,6 @@ public static class BotConfig
     public static string DATABASE_CONNECTION_STRING
         => GetParamByName<string>("DATABASE_CONNECTION_STRING");
 
-    static BotConfig()
-    {
-        var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage"));
-        CONFIG_PATH = files.GetFileThatStartsWith("env.config") ?? files.GetFileThatStartsWith("config")!;
-    }
-
 
     private static T GetParamByName<T>(string paramName) where T : notnull
     {
@@ -54,4 +48,19 @@ public static class BotConfig
 
     private static string? GetFileThatStartsWith(this string[] paths, string pattern)
         => paths.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
+
+
+    private static string? _configPath;
+    private static string GetConfigPath()
+    {
+        if (_configPath is not null)
+        {
+            return _configPath;
+        }
+
+        var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage"));
+        _configPath = files.GetFileThatStartsWith("env.config") ?? files.GetFileThatStartsWith("config")!;
+
+        return _configPath;
+    }
 }

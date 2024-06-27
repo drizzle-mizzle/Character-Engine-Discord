@@ -9,14 +9,21 @@ public static class DiscordMessagesHelper
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
-    public static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null)
+    public static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null, bool imageAsThumb = false)
     {
         string desc = bold ? $"**{text}**" : text;
 
         var embed = new EmbedBuilder().WithDescription(desc).WithColor(color);
         if (!string.IsNullOrWhiteSpace(imageUrl))
         {
-            embed.WithImageUrl(imageUrl);
+            if (imageAsThumb)
+            {
+                embed.WithThumbnailUrl(imageUrl);
+            }
+            else
+            {
+                embed.WithImageUrl(imageUrl);
+            }
         }
 
         return embed.Build();
@@ -33,10 +40,11 @@ public static class DiscordMessagesHelper
     private const int LIMIT = 1990;
     public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content)
     {
-        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
         _log.Error($"Error report: [ {title} ] {content}");
 
-        var thread = await channel.CreateThreadAsync(title, autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
+        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
+        var thread = await channel.CreateThreadAsync($"💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
+
         while (content.Length > 0)
         {
             if (content.Length <= LIMIT)
@@ -51,14 +59,29 @@ public static class DiscordMessagesHelper
     }
 
 
-    public static async Task ReportLogAsync(IDiscordClient discordClient, string title, string content, uint colorHex = 2067276U)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, uint colorHex = 2067276U, string? imageUrl = null)
     {
         _log.Info($"[ {title} ] {content}");
 
-        var channel = (SocketTextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
-        var embed = new EmbedBuilder().WithColor(new Color(colorHex)).WithTitle(title).WithDescription(content).Build();
+        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
+        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(Color.Green, false, imageUrl));
+        if (content is null)
+        {
+            return;
+        }
 
-        await channel.SendMessageAsync(embed: embed);
+        var thread = await channel.CreateThreadAsync("Info", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
+        while (content.Length > 0)
+        {
+            if (content.Length <= LIMIT)
+            {
+                await thread.SendMessageAsync(content);
+                break;
+            }
+
+            await thread.SendMessageAsync(content[..(LIMIT-1)]);
+            content = content[LIMIT..];
+        }
     }
 
 }

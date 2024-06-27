@@ -3,7 +3,7 @@
 namespace CharacterEngine.Models.Db.Integrations;
 
 
-public class SakuraAiIntegration : IIntegrationBase
+public class SakuraAiGuildIntegration : IGuildIntegration
 {
     // Base
     public required Guid Id { get; set; }

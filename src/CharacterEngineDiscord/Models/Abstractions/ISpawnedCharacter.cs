@@ -1,6 +1,6 @@
 ﻿namespace CharacterEngine.Models.Abstractions;
 
-public interface ISpawnedCharacterBase
+public interface ISpawnedCharacter
 {
     public Guid Id { get; set; }
 

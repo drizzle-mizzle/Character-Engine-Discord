@@ -21,9 +21,9 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
 
     [SlashCommand("create", "Create new integration for this guild")]
-    public async Task Create(Enums.IntegrationType type)
+    public async Task Create(IntegrationType type)
     {
-        var customId = DiscordModalsHelper.NewCustomId(ModalActionType.CreateIntegration, type.ToString("D"));
+        var customId = DiscordModalsHelper.NewCustomId(ModalActionType.CreateIntegration, $"{type:D}");
         var modalBuilder = new ModalBuilder().WithTitle($"Create {type:G} integration").WithCustomId(customId);
 
         var modal = type switch
@@ -35,8 +35,6 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         await RespondWithModalAsync(modal).ConfigureAwait(false);
     }
-
-
 
 
 }
