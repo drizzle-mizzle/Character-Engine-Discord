@@ -41,15 +41,15 @@ public static class CharacterEngineBot
 
     private static async Task OnConnected()
     {
-        _log.Info($"{_discordClient.CurrentUser.Username} - Online");
-
         var guilds = await GetGuildsAsync();
 
-        _log.Info($"Registering /start command to ({guilds.Count}) guilds...");
+        _log.Info($"Registering /start command to ({guilds.Length}) guilds...");
 
-        await guilds.RegisterStartCommandAsync();
-
-        _log.Info("Commands registered successfully");
+        if (guilds.Length != 0)
+        {
+            await guilds.RegisterStartCommandAsync();
+            _log.Info("Commands registered successfully");
+        }
 
         if (BotConfig.PLAYING_STATUS.Length != 0)
         {
@@ -57,11 +57,11 @@ public static class CharacterEngineBot
             _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
         }
 
-        await _discordClient.ReportLogAsync("Online", null);
+        await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
     }
 
 
-    private static async Task<ConcurrentBag<SocketGuild>> GetGuildsAsync()
+    private static async Task<SocketGuild[]> GetGuildsAsync()
     {
         ConcurrentBag<SocketGuild> guilds = [];
         await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
@@ -80,11 +80,11 @@ public static class CharacterEngineBot
             }
         }).ConfigureAwait(false);
 
-        return guilds;
+        return guilds.ToArray();
     }
 
 
-    private static async Task RegisterStartCommandAsync(this ConcurrentBag<SocketGuild> guilds)
+    private static async Task RegisterStartCommandAsync(this SocketGuild[] guilds)
     {
         await Parallel.ForEachAsync(guilds, async (guild, _) =>
         {

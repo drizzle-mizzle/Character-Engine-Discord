@@ -43,11 +43,6 @@ public static class CommonHelper
             services.AddSingleton(localStorage);
         }
 
-        // Scoped
-        {
-            services.AddDbContext<AppDbContext>();
-        }
-
 
         return services.BuildServiceProvider();
     }

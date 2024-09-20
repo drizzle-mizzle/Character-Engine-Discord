@@ -2,12 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord", "CharacterEngineDiscord\CharacterEngineDiscord.csproj", "{32B4C9D2-8D9A-4223-BF10-FBE73694C21C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libs", "Libs", "{FCD1224A-1F71-465A-B83C-0CDA5CA1B169}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterAiClient", "..\..\CharacterAI-Net-Client\src\CharacterAiClient\CharacterAiClient.csproj", "{607B3C1A-D41A-4471-9029-AD45545305FA}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SakuraAi", "..\..\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj", "{961D617F-8E1A-4542-98D4-5EC1200668D2}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Models", "CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj", "{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}"
 EndProject
 Global
@@ -20,21 +14,11 @@ Global
 		{32B4C9D2-8D9A-4223-BF10-FBE73694C21C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{32B4C9D2-8D9A-4223-BF10-FBE73694C21C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{32B4C9D2-8D9A-4223-BF10-FBE73694C21C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{607B3C1A-D41A-4471-9029-AD45545305FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{607B3C1A-D41A-4471-9029-AD45545305FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{607B3C1A-D41A-4471-9029-AD45545305FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{607B3C1A-D41A-4471-9029-AD45545305FA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{961D617F-8E1A-4542-98D4-5EC1200668D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{961D617F-8E1A-4542-98D4-5EC1200668D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{961D617F-8E1A-4542-98D4-5EC1200668D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{961D617F-8E1A-4542-98D4-5EC1200668D2}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{607B3C1A-D41A-4471-9029-AD45545305FA} = {FCD1224A-1F71-465A-B83C-0CDA5CA1B169}
-		{961D617F-8E1A-4542-98D4-5EC1200668D2} = {FCD1224A-1F71-465A-B83C-0CDA5CA1B169}
 	EndGlobalSection
 EndGlobal

@@ -21,18 +21,18 @@ public class BackgroundWorker
         => new BackgroundWorker(services).RunJobs();
 
 
-    private readonly IServiceProvider _services;
+    // private readonly IServiceProvider _services;
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
+    // private readonly InteractionService _interactions;
     private readonly SakuraAiClient _sakuraAiClient;
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
     private BackgroundWorker(IServiceProvider services)
     {
-        _services = services;
+        // _services = services;
         _discordClient = services.GetRequiredService<DiscordSocketClient>();
-        _interactions = services.GetRequiredService<InteractionService>();
+        // _interactions = services.GetRequiredService<InteractionService>();
         _sakuraAiClient = services.GetRequiredService<SakuraAiClient>();
     }
 

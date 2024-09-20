@@ -14,6 +14,8 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\..\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj" />
+      <ProjectReference Include="..\Libs\CharacterAI-Net-Client\src\CharacterAiClient\CharacterAiClient.csproj" />
+      <ProjectReference Include="..\Libs\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj" />
     </ItemGroup>
 
 </Project>

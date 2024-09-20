@@ -1,0 +1,6 @@
+[submodule "submodules/CharacterAI-Net-Client"]
+	path = submodules/CharacterAI-Net-Client
+	url = https://github.com/drizzle-mizzle/CharacterAI-Net-Client
+[submodule "submodules/SakuraAI-Net-Client"]
+	path = submodules/SakuraAI-Net-Client
+	url = https://github.com/drizzle-mizzle/SakuraAI-Net-Client

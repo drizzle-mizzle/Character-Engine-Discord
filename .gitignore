@@ -4,4 +4,6 @@
 [Ll]og/
 [Ll]ogs/
 */.idea
+*.idea
 env.*
+.vs/
