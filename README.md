@@ -1,6 +1,8 @@
-# ---⚡CURRENTLY UNDER RECONSTRUCTION!!!⚡---
-
+# \~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~
+# \~\~⚡UNDER RECONSTRUCTION!!!⚡\~\~
+# \~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~
 # Character Engine
+<s>
 Universal frontend for the various LLM APIs in the form of Discord bot.
 
 
@@ -32,3 +34,4 @@ Universal frontend for the various LLM APIs in the form of Discord bot.
 
 ## 🧱Build yourself
 - [.NET publishing guide](https://github.com/drizzle-mizzle/Character-Engine-Discord/wiki/Build-youself)
+</s>
