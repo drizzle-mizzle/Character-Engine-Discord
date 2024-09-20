@@ -1,5 +1,6 @@
+# ---⚡CURRENTLY UNDER RECONSTRUCTION!!!⚡---
+
 # Character Engine
-###### ⚡Still in active development. If you consider hosting it by yourself, be ready for really frequent updates and that STUFF WILL BREAK sometimes!
 Universal frontend for the various LLM APIs in the form of Discord bot.
 
 
