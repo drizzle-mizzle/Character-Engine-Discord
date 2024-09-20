@@ -1,5 +1,4 @@
 ﻿using Discord;
-using Discord.WebSocket;
 using NLog;
 
 namespace CharacterEngine.Helpers.Discord;
@@ -11,7 +10,7 @@ public static class DiscordMessagesHelper
 
     public static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null, bool imageAsThumb = false)
     {
-        string desc = bold ? $"**{text}**" : text;
+        var desc = bold ? $"**{text}**" : text;
 
         var embed = new EmbedBuilder().WithDescription(desc).WithColor(color);
         if (!string.IsNullOrWhiteSpace(imageUrl))
@@ -59,7 +58,7 @@ public static class DiscordMessagesHelper
     }
 
 
-    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, uint colorHex = 2067276U, string? imageUrl = null)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, string? imageUrl = null)
     {
         _log.Info($"[ {title} ] {content}");
 

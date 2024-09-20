@@ -11,7 +11,7 @@
 
     <ItemGroup>
       <PackageReference Include="Discord.Net" Version="3.15.0" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.5" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
       <PackageReference Include="NLog" Version="5.3.2" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
@@ -21,10 +21,25 @@
       <None Update="storage\**">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
-      <None Update="NLog.config">
+      <None Update="storage\config.txt">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
-      <None Update="storage\config.txt">
+      <None Update="App\config.txt">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="App\env.config.txt">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="App\img\good_duckling.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="App\img\nopower.gif">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="App\img\sakura64.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="AppSettings\NLog.config">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>
@@ -32,5 +47,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\..\CharacterAI-Net-Client\src\CharacterAiClient\CharacterAiClient.csproj" />
       <ProjectReference Include="..\..\..\SakuraAI-Net-Client\src\SakuraAiClient\SakuraAiClient.csproj" />
+      <ProjectReference Include="..\..\..\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj" />
+      <ProjectReference Include="..\CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj" />
     </ItemGroup>
 </Project>

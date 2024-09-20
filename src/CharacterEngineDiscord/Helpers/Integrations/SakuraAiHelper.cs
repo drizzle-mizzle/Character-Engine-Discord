@@ -1,7 +1,5 @@
-﻿using System.Collections.ObjectModel;
-using CharacterEngine.Models;
-using CharacterEngine.Models.Abstractions;
-using CharacterEngine.Models.Db.SpawnedCharacters;
+﻿using CharacterEngineDiscord.Db.Models;
+using CharacterEngineDiscord.Db.Models.Abstractions;
 using SakuraAi.Models.Common;
 
 namespace CharacterEngine.Helpers.Integrations;

@@ -2,10 +2,10 @@
 
 public static class BotConfig
 {
-    private static string CONFIG_PATH => GetConfigPath();
-
     public static readonly string BOT_TOKEN = GetParamByName<string>("BOT_TOKEN").Trim();
-    public static readonly string PLAYING_STATUS = GetParamByName<string>("PLAYING_STATUS").Trim();
+
+    public static string PLAYING_STATUS
+        => GetParamByName<string>("PLAYING_STATUS").Trim();
 
     public static ulong[] OWNER_USERS_IDS
         => GetParamByName<string>("OWNER_USERS_IDS").Split(',').Select(ulong.Parse).ToArray();
@@ -37,7 +37,7 @@ public static class BotConfig
 
     private static T GetParamByName<T>(string paramName) where T : notnull
     {
-        var configLines = File.ReadAllLines(CONFIG_PATH);
+        var configLines = File.ReadAllLines(GetConfigPath());
         var neededLine = configLines.First(line => line.Trim().StartsWith(paramName)) + " ";
         var valueIndex = neededLine.IndexOf(':') + 1;
         var configValue = neededLine[valueIndex..].Trim();
@@ -59,8 +59,7 @@ public static class BotConfig
         }
 
         var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage"));
-        _configPath = files.GetFileThatStartsWith("env.config") ?? files.GetFileThatStartsWith("config")!;
-
-        return _configPath;
+        return _configPath = files.GetFileThatStartsWith("env.config") ??
+                             files.GetFileThatStartsWith("config")!;
     }
 }

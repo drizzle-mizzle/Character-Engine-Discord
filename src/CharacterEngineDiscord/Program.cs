@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using CharacterEngine.App;
+using NLog;
 
 namespace CharacterEngine
 {
@@ -22,6 +23,7 @@ namespace CharacterEngine
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
             CharacterEngineBot.Run();
         }
     }
