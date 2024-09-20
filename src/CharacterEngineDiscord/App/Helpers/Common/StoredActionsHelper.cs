@@ -1,7 +1,7 @@
 ﻿using CharacterEngineDiscord.Models;
-using SakuraAi.Models.Common;
+using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngine.Helpers.Common;
+namespace CharacterEngine.App.Helpers.Common;
 
 
 public static class StoredActionsHelper

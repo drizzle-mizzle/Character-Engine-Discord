@@ -1,10 +1,10 @@
-﻿using CharacterEngine.Helpers.Common;
-using CharacterEngine.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers.Common;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
-using SakuraAi;
+using SakuraAi.Client;
 
 namespace CharacterEngine.App.Handlers;
 

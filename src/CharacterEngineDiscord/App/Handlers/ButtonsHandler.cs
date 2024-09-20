@@ -1,4 +1,4 @@
-﻿using CharacterEngine.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord.WebSocket;
 

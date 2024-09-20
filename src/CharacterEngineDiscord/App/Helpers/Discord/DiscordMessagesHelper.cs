@@ -1,7 +1,7 @@
 ﻿using Discord;
 using NLog;
 
-namespace CharacterEngine.Helpers.Discord;
+namespace CharacterEngine.App.Helpers.Discord;
 
 public static class DiscordMessagesHelper
 {

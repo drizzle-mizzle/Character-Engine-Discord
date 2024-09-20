@@ -1,5 +1,5 @@
 ﻿using CharacterEngineDiscord.Models.Abstractions;
-using SakuraAi.Models.Common;
+using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngineDiscord.Models;
 

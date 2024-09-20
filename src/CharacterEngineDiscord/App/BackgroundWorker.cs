@@ -1,16 +1,15 @@
 ﻿using System.Diagnostics;
-using CharacterEngine.Helpers;
-using CharacterEngine.Helpers.Common;
-using CharacterEngine.Helpers.Discord;
+using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Common;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
-using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using SakuraAi;
+using SakuraAi.Client;
 
 namespace CharacterEngine.App;
 

@@ -2,7 +2,7 @@
 using CharacterEngineDiscord.Models.Local;
 using Discord;
 
-namespace CharacterEngine.Helpers.Discord;
+namespace CharacterEngine.App.Helpers.Discord;
 
 
 public static class DiscordInteractionsHelper

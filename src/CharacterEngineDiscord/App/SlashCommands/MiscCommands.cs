@@ -1,9 +1,9 @@
-﻿using CharacterEngine.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers.Discord;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 
-namespace CharacterEngine.SlashCommands;
+namespace CharacterEngine.App.SlashCommands;
 
 
 public class MiscCommands : InteractionModuleBase<InteractionContext>

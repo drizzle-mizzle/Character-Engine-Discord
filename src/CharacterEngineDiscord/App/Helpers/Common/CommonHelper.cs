@@ -1,13 +1,11 @@
-﻿using CharacterEngine.App;
-using CharacterEngine.App.Handlers;
-using CharacterEngine.Helpers.Discord;
-using CharacterEngineDiscord.Models;
+﻿using CharacterEngine.App.Handlers;
+using CharacterEngine.App.Helpers.Discord;
 using Discord.Interactions;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using SakuraAi;
+using SakuraAi.Client;
 
-namespace CharacterEngine.Helpers.Common;
+namespace CharacterEngine.App.Helpers.Common;
 
 public static class CommonHelper
 {

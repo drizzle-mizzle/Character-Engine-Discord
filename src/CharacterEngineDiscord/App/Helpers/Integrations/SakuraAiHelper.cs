@@ -1,8 +1,8 @@
 ﻿using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using SakuraAi.Models.Common;
+using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngine.Helpers.Integrations;
+namespace CharacterEngine.App.Helpers.Integrations;
 
 
 public static class SakuraAiHelper

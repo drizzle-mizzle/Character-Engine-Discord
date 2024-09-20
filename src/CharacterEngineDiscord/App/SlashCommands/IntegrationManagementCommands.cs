@@ -1,11 +1,11 @@
-﻿using CharacterEngine.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using SakuraAi;
+using SakuraAi.Client;
 
-namespace CharacterEngine.SlashCommands;
+namespace CharacterEngine.App.SlashCommands;
 
 
 [Group("integration", "Integrations Management")]

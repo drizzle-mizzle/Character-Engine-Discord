@@ -1,15 +1,14 @@
-﻿using CharacterEngine.App;
-using CharacterEngine.App.Handlers;
-using CharacterEngine.Helpers.Discord;
-using CharacterEngine.Helpers.Integrations;
+﻿using CharacterEngine.App.Handlers;
+using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Local;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using SakuraAi;
+using SakuraAi.Client;
 
-namespace CharacterEngine.SlashCommands;
+namespace CharacterEngine.App.SlashCommands;
 
 
 public class CharacterCommands : InteractionModuleBase<InteractionContext>

@@ -1,7 +1,6 @@
-﻿using CharacterEngine.App;
-using NLog;
+﻿using NLog;
 
-namespace CharacterEngine
+namespace CharacterEngine.App
 {
     internal static class Program
     {

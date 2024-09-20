@@ -1,8 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
-using CharacterEngine.Helpers;
-using CharacterEngine.Helpers.Common;
-using CharacterEngine.Helpers.Discord;
+using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Common;
+using CharacterEngine.App.Helpers.Discord;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;

@@ -4,6 +4,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Models", "CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj", "{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libs", "Libs", "{B0D15590-D06A-4AFF-937F-D955F46A7322}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterAiClient", "..\submodules\CharacterAI-Net-Client\src\CharacterAiClient\CharacterAiClient.csproj", "{EE88BB46-6AAC-4539-B305-D03D544634AC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SakuraAi", "..\submodules\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj", "{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,7 +24,17 @@ Global
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE88BB46-6AAC-4539-B305-D03D544634AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE88BB46-6AAC-4539-B305-D03D544634AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE88BB46-6AAC-4539-B305-D03D544634AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE88BB46-6AAC-4539-B305-D03D544634AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{EE88BB46-6AAC-4539-B305-D03D544634AC} = {B0D15590-D06A-4AFF-937F-D955F46A7322}
+		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119} = {B0D15590-D06A-4AFF-937F-D955F46A7322}
 	EndGlobalSection
 EndGlobal
