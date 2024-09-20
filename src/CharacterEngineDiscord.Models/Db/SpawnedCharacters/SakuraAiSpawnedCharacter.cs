@@ -1,6 +1,6 @@
-﻿using CharacterEngineDiscord.Db.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models.Abstractions;
 
-namespace CharacterEngineDiscord.Db.Models.Db.SpawnedCharacters;
+namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 
 public class SakuraAiSpawnedCharacter : ISpawnedCharacter

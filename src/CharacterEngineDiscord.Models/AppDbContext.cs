@@ -1,10 +1,10 @@
-﻿using CharacterEngineDiscord.Db.Models.Db;
-using CharacterEngineDiscord.Db.Models.Db.Discord;
-using CharacterEngineDiscord.Db.Models.Db.Integrations;
-using CharacterEngineDiscord.Db.Models.Db.SpawnedCharacters;
+﻿using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Models.Db.Integrations;
+using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Db;
+namespace CharacterEngineDiscord.Models;
 
 public sealed class AppDbContext : DbContext
 {

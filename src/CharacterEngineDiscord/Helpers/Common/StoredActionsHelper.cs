@@ -1,4 +1,4 @@
-﻿using CharacterEngineDiscord.Db.Models;
+﻿using CharacterEngineDiscord.Models;
 using SakuraAi.Models.Common;
 
 namespace CharacterEngine.Helpers.Common;

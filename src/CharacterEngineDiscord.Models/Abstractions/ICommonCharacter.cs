@@ -1,4 +1,4 @@
-﻿namespace CharacterEngineDiscord.Db.Models.Abstractions;
+﻿namespace CharacterEngineDiscord.Models.Abstractions;
 
 
 public interface ICommonCharacter

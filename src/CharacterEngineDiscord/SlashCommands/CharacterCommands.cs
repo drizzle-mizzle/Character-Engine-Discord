@@ -2,7 +2,8 @@
 using CharacterEngine.App.Handlers;
 using CharacterEngine.Helpers.Discord;
 using CharacterEngine.Helpers.Integrations;
-using CharacterEngineDiscord.Db.Models;
+using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Local;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;

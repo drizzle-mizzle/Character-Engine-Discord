@@ -1,4 +1,4 @@
-﻿namespace CharacterEngineDiscord.Db.Models.Db;
+﻿namespace CharacterEngineDiscord.Models.Db;
 
 
 public class StoredAction

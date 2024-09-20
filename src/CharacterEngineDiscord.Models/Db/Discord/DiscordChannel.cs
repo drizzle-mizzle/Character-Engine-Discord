@@ -1,4 +1,4 @@
-﻿namespace CharacterEngineDiscord.Db.Models.Db.Discord;
+﻿namespace CharacterEngineDiscord.Models.Db.Discord;
 
 
 public class DiscordChannel

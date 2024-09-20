@@ -1,5 +1,5 @@
 ﻿using CharacterEngine.Helpers.Discord;
-using CharacterEngineDiscord.Db;
+using CharacterEngineDiscord.Models;
 using Discord.Interactions;
 using Discord.WebSocket;
 

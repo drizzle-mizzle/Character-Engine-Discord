@@ -1,4 +1,4 @@
-﻿namespace CharacterEngineDiscord.Db.Models;
+﻿namespace CharacterEngineDiscord.Models;
 
 public class Enums
 {

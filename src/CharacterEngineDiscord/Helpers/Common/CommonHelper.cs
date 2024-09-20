@@ -1,7 +1,7 @@
 ﻿using CharacterEngine.App;
 using CharacterEngine.App.Handlers;
 using CharacterEngine.Helpers.Discord;
-using CharacterEngineDiscord.Db;
+using CharacterEngineDiscord.Models;
 using Discord.Interactions;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;

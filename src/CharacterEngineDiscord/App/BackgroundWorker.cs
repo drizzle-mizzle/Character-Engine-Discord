@@ -2,8 +2,8 @@
 using CharacterEngine.Helpers;
 using CharacterEngine.Helpers.Common;
 using CharacterEngine.Helpers.Discord;
-using CharacterEngineDiscord.Db;
-using CharacterEngineDiscord.Db.Models.Db;
+using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;

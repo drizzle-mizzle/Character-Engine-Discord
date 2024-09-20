@@ -1,7 +1,7 @@
-﻿using CharacterEngineDiscord.Db.Models.Abstractions;
-using static CharacterEngineDiscord.Db.Models.Enums;
+﻿using CharacterEngineDiscord.Models.Abstractions;
+using static CharacterEngineDiscord.Models.Enums;
 
-namespace CharacterEngineDiscord.Db.Models;
+namespace CharacterEngineDiscord.Models.Local;
 
 
 public class SearchQuery

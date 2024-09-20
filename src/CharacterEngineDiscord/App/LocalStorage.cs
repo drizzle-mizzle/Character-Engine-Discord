@@ -1,5 +1,5 @@
 ﻿using System.Collections.Concurrent;
-using CharacterEngineDiscord.Db.Models;
+using CharacterEngineDiscord.Models.Local;
 
 namespace CharacterEngine.App;
 

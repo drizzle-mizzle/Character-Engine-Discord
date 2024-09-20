@@ -1,6 +1,6 @@
-﻿using CharacterEngineDiscord.Db.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models.Abstractions;
 
-namespace CharacterEngineDiscord.Db.Models.Db.Integrations;
+namespace CharacterEngineDiscord.Models.Db.Integrations;
 
 
 public class SakuraAiGuildIntegration : IGuildIntegration

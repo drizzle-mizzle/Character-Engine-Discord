@@ -1,4 +1,5 @@
-﻿using CharacterEngineDiscord.Db.Models;
+﻿using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Local;
 using Discord;
 
 namespace CharacterEngine.Helpers.Discord;

@@ -1,7 +1,7 @@
-﻿using CharacterEngineDiscord.Db.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models.Abstractions;
 using SakuraAi.Models.Common;
 
-namespace CharacterEngineDiscord.Db.Models;
+namespace CharacterEngineDiscord.Models;
 
 
 public record ModalData(Guid Id, Enums.ModalActionType ActionType, string Data);

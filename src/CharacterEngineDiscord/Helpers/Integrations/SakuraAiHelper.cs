@@ -1,5 +1,5 @@
-﻿using CharacterEngineDiscord.Db.Models;
-using CharacterEngineDiscord.Db.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Abstractions;
 using SakuraAi.Models.Common;
 
 namespace CharacterEngine.Helpers.Integrations;
