@@ -5,14 +5,32 @@ using Discord;
 namespace CharacterEngine.App.Helpers.Discord;
 
 
-public static class DiscordInteractionsHelper
+public static class InteractionsHelper
 {
+    public const string SEP = "~sep~";
+
+
     public static SlashCommandProperties BuildStartCommand()
         => new SlashCommandBuilder().WithName("start").WithDescription("Register bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
 
 
     public static SlashCommandProperties BuildDisableCommand()
         => new SlashCommandBuilder().WithName("disable").WithDescription("Unregister all bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
+
+
+    public static string NewCustomId(ModalActionType action, string data)
+        => NewCustomId(Guid.NewGuid(), action, data);
+
+
+    public static string NewCustomId(Guid id, ModalActionType action, string data)
+        => $"{id}{SEP}{action}{SEP}{data}";
+
+
+    public static ModalData ParseCustomId(string customId)
+    {
+        var parts = customId.Split(SEP);
+        return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
+    }
 
 
     public static Embed BuildSearchResultList(SearchQuery searchQuery)
@@ -40,20 +58,6 @@ public static class DiscordInteractionsHelper
     }
 
 
-    public static MessageComponent BuildSelectButtons(bool withPages)
-    {
-        // List navigation buttons
-        var buttons = new ComponentBuilder().WithButton(emote: new Emoji("\u2B06"), customId: "up", style: ButtonStyle.Secondary)
-                                            .WithButton(emote: new Emoji("\u2B07"), customId: "down", style: ButtonStyle.Secondary)
-                                            .WithButton(emote: new Emoji("\u2705"), customId: "select", style: ButtonStyle.Success);
-        // Pages navigation buttons
-        if (withPages)
-        {
-            buttons.WithButton(emote: new Emoji("\u2B05"), customId: "left", row: 1)
-                   .WithButton(emote: new Emoji("\u27A1"), customId: "right", row: 1);
-        }
 
-        return buttons.Build();
-    }
 
 }

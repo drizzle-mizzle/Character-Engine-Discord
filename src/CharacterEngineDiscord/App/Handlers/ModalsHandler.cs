@@ -22,16 +22,13 @@ public class ModalsHandler
         try
         {
             await modal.DeferAsync();
-            var parsedModal = DiscordModalsHelper.ParseCustomId(modal.Data.CustomId);
+            var parsedModal = ModalsHelper.ParseCustomId(modal.Data.CustomId);
 
-            switch (parsedModal.ActionType)
+            await (parsedModal.ActionType switch
             {
-                case ModalActionType.CreateIntegration:
-                {
-                    await CreateIntegrationAsync(modal, (IntegrationType)int.Parse(parsedModal.Data)); break;
-                }
-            };
-
+                ModalActionType.CreateIntegration
+                    => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
+            });
         }
         catch (Exception e)
         {
@@ -40,11 +37,11 @@ public class ModalsHandler
     }
 
 
-    private async Task CreateIntegrationAsync(SocketModal modal, IntegrationType intergrationType)
+    private Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
     {
-        switch (intergrationType)
+        return (IntegrationType)intergrationType switch
         {
-            case IntegrationType.SakuraAi: await CreateSakuraAiIntegrationAsync(modal); break;
+            IntegrationType.SakuraAi => CreateSakuraAiIntegrationAsync(modal)
         };
     }
 

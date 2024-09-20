@@ -19,14 +19,13 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     [SlashCommand("create", "Create new integration for this guild")]
     public async Task Create(IntegrationType type)
     {
-        var customId = DiscordModalsHelper.NewCustomId(ModalActionType.CreateIntegration, $"{type:D}");
+        var customId = InteractionsHelper.NewCustomId(ModalActionType.CreateIntegration, $"{type:D}");
         var modalBuilder = new ModalBuilder().WithTitle($"Create {type:G} integration").WithCustomId(customId);
 
         var modal = type switch
         {
             IntegrationType.SakuraAi => modalBuilder.BuildSakuraAiAuthModal(),
             IntegrationType.CharacterAI => throw new NotImplementedException(),
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
         };
 
         await RespondWithModalAsync(modal).ConfigureAwait(false);

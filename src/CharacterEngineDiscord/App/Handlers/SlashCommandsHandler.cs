@@ -19,28 +19,12 @@ public class SlashCommandsHandler
     {
         try
         {
-            switch (command.CommandName)
+            await (command.CommandName switch
             {
-                case "start":
-                {
-                    await command.DeferAsync();
-                    await HandleStartCommandAsync(command);
-                    return;
-                }
-                case "disable":
-                {
-                    await command.DeferAsync();
-                    await HandleDisableCommandAsync(command);
-                    return;
-                }
-                default:
-                {
-                    var context = new InteractionContext(DiscordClient, command, command.Channel);
-                    await Interactions.ExecuteCommandAsync(context, ServiceProvider);
-
-                    return;
-                }
-            }
+                "start" => HandleStartCommandAsync(command),
+                "disable" => HandleDisableCommandAsync(command),
+                _ => Interactions.ExecuteCommandAsync(new InteractionContext(DiscordClient, command, command.Channel), ServiceProvider)
+            });
         }
         catch (Exception e)
         {
@@ -51,8 +35,10 @@ public class SlashCommandsHandler
 
     private async Task HandleStartCommandAsync(SocketSlashCommand command)
     {
+        await command.DeferAsync();
+
         var guild = DiscordClient.Guilds.First(g => g.Id == command.GuildId);
-        var disableCommand = DiscordInteractionsHelper.BuildDisableCommand();
+        var disableCommand = InteractionsHelper.BuildDisableCommand();
 
         await guild.DeleteApplicationCommandsAsync();
         await guild.CreateApplicationCommandAsync(disableCommand);
@@ -64,8 +50,10 @@ public class SlashCommandsHandler
 
     private async Task HandleDisableCommandAsync(SocketSlashCommand command)
     {
+        await command.DeferAsync();
+
         var guild = DiscordClient.Guilds.First(g => g.Id == command.GuildId);
-        var startCommand = DiscordInteractionsHelper.BuildStartCommand();
+        var startCommand = InteractionsHelper.BuildStartCommand();
 
         await guild.DeleteApplicationCommandsAsync();
         await guild.CreateApplicationCommandAsync(startCommand);

@@ -1,6 +1,8 @@
 ﻿using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers.Discord;
+using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using SakuraAi.Client;
@@ -28,7 +30,7 @@ public static class CommonHelper
             var sakuraAiClient = new SakuraAiClient();
             services.AddSingleton(sakuraAiClient);
 
-            var discordClient = DiscordLaunchHelper.CreateDiscordClient();
+            var discordClient = CreateDiscordClient();
             services.AddSingleton(discordClient);
 
             var interactionService = new InteractionService(discordClient.Rest);
@@ -43,5 +45,22 @@ public static class CommonHelper
 
 
         return services.BuildServiceProvider();
+    }
+
+
+    private static DiscordSocketClient CreateDiscordClient()
+    {
+        const GatewayIntents intents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent | GatewayIntents.GuildWebhooks;
+
+        var clientConfig = new DiscordSocketConfig
+        {
+            MessageCacheSize = 15,
+            GatewayIntents = intents,
+            ConnectionTimeout = 20_000,
+            DefaultRetryMode = RetryMode.RetryRatelimit,
+            AlwaysDownloadDefaultStickers = true,
+        };
+
+        return new DiscordSocketClient(clientConfig);
     }
 }

@@ -3,7 +3,7 @@ using NLog;
 
 namespace CharacterEngine.App.Helpers.Discord;
 
-public static class DiscordMessagesHelper
+public static class MessagesHelper
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
@@ -31,6 +31,7 @@ public static class DiscordMessagesHelper
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e)
         => discordClient.ReportErrorAsync("Unknown exception", $"{e}");
+
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e)
         => discordClient.ReportErrorAsync(title, $"{e}");

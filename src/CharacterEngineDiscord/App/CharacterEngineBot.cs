@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
+using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
@@ -78,26 +79,63 @@ public static class CharacterEngineBot
             {
                 // nvm
             }
-        }).ConfigureAwait(false);
+        });
 
         return guilds.ToArray();
     }
 
 
-    private static async Task RegisterStartCommandAsync(this SocketGuild[] guilds)
+    private static Task RegisterStartCommandAsync(this SocketGuild[] guilds)
     {
-        await Parallel.ForEachAsync(guilds, async (guild, _) =>
+        return Parallel.ForEachAsync(guilds, async (guild, _) =>
         {
             try
             {
-                var startCommand = DiscordInteractionsHelper.BuildStartCommand();
+                var startCommand = InteractionsHelper.BuildStartCommand();
                 await guild.CreateApplicationCommandAsync(startCommand).ConfigureAwait(false);
             }
             catch (Exception e)
             {
                 _log.Error($"Failed to register command in guild {guild.Name} ({guild.Id}): {e}");
             }
-        }).ConfigureAwait(false);
+        });
     }
 
+
+    private static void BindEvents(this DiscordSocketClient discordClient, IServiceProvider sp)
+    {
+        discordClient.Log += msg =>
+        {
+            if (msg.Severity is LogSeverity.Error or LogSeverity.Critical)
+            {
+                _log.Error(msg.ToString());
+            }
+            else
+            {
+                _log.Info(msg.ToString());
+            }
+
+            return Task.CompletedTask;
+        };
+
+        discordClient.JoinedGuild += guild =>
+        {
+            _log.Info($"Joined guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
+            return Task.CompletedTask;
+        };
+
+        discordClient.LeftGuild += guild =>
+        {
+            _log.Info($"Left guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
+            return Task.CompletedTask;
+        };
+
+        var interactionService = sp.GetRequiredService<InteractionService>();
+
+        interactionService.InteractionExecuted += sp.GetRequiredService<InteractionsHandler>().HandleInteractionAsync;
+        discordClient.SlashCommandExecuted += sp.GetRequiredService<SlashCommandsHandler>().HandleSlashCommandAsync;
+        discordClient.ModalSubmitted += sp.GetRequiredService<ModalsHandler>().HandleModalAsync;
+        discordClient.ButtonExecuted += sp.GetRequiredService<ButtonsHandler>().HandleButtonAsync;
+
+    }
 }

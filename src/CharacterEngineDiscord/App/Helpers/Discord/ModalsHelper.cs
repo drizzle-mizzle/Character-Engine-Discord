@@ -5,11 +5,9 @@ using NLog;
 namespace CharacterEngine.App.Helpers.Discord;
 
 
-public static class DiscordModalsHelper
+public static class ModalsHelper
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
-
-    private const string SEP = "%data~sep%";
 
 
     public static Modal BuildSakuraAiAuthModal(this ModalBuilder modalBuilder)
@@ -20,16 +18,9 @@ public static class DiscordModalsHelper
     }
 
 
-    public static string NewCustomId(ModalActionType action, string data)
-        => NewCustomId(Guid.NewGuid(), action, data);
-
-    public static string NewCustomId(Guid id, ModalActionType action, string data)
-        => $"{id}{SEP}{action}{SEP}{data}";
-
-
     public static ModalData ParseCustomId(string customId)
     {
-        var parts = customId.Split(SEP);
+        var parts = customId.Split(InteractionsHelper.SEP);
         return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
     }
 }

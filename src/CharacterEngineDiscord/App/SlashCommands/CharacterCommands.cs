@@ -27,8 +27,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var characters = integrationType switch
         {
             IntegrationType.SakuraAi => await SakuraAiClient.SearchAsync(query),
-            IntegrationType.CharacterAI => [],
-            _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
+            IntegrationType.CharacterAI => []
         };
 
         if (characters.Count == 0)
@@ -40,6 +39,10 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters.AsCommonCharacters(), integrationType);
         LocalStorage.SearchQueries.Add(searchQuery);
 
-        await ModifyOriginalResponseAsync(msg => { msg.Embed = DiscordInteractionsHelper.BuildSearchResultList(searchQuery); msg.Components = DiscordInteractionsHelper.BuildSelectButtons(searchQuery.Pages > 1); });
+        await ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Embed = InteractionsHelper.BuildSearchResultList(searchQuery);
+            msg.Components = ButtonsHelper.BuildSelectButtons(searchQuery.Pages > 1);
+        });
     }
 }
