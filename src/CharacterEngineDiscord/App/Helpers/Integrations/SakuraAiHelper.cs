@@ -24,7 +24,7 @@ public static class SakuraAiHelper
     }
 
 
-    public static ICollection<ICommonCharacter> ToCommonCharacters (this ICollection<SakuraCharacter> characters)
+    public static ICollection<CommonCharacter> AsCommonCharacters (this ICollection<SakuraCharacter> characters)
     {
         return characters.Select(character => new CommonCharacter
                           {
@@ -36,6 +36,6 @@ public static class SakuraAiHelper
                               Stat = character.messageCount,
                               Author = character.creatorUsername
                           })
-                         .Cast<ICommonCharacter>().ToArray();
+                         .ToArray();
     }
 }

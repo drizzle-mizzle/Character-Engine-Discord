@@ -1,7 +1,4 @@
-﻿using CharacterEngineDiscord.Models.Abstractions;
-using static CharacterEngineDiscord.Models.Enums;
-
-namespace CharacterEngineDiscord.Models.Local;
+﻿namespace CharacterEngineDiscord.Models.Local;
 
 
 public class SearchQuery
@@ -15,11 +12,11 @@ public class SearchQuery
     public int CurrentPage { get; set; } = 1;
 
     public IntegrationType IntegrationType { get; }
-    public ICollection<ICommonCharacter> Characters { get; }
+    public ICollection<CommonCharacter> Characters { get; }
     public DateTime CreatedAt { get; } = DateTime.Now;
 
 
-    public SearchQuery(ulong channelId, ulong userId, string query, ICollection<ICommonCharacter> characters, IntegrationType type)
+    public SearchQuery(ulong channelId, ulong userId, string query, ICollection<CommonCharacter> characters, IntegrationType type)
     {
         ChannelId = channelId;
         UserId = userId;

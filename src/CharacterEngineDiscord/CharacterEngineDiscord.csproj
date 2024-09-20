@@ -18,35 +18,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="storage\**">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="storage\config.txt">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="App\config.txt">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="App\env.config.txt">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="App\img\good_duckling.png">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="App\img\nopower.gif">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="App\img\sakura64.png">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="AppSettings\NLog.config">
+      <None Update="App\Settings\**">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj" />
-      <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAiClient\CharacterAiClient.csproj" />
-      <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi\SakuraAi.csproj" />
+      <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
+      <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
     </ItemGroup>
 </Project>

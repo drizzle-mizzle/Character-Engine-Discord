@@ -9,4 +9,6 @@ public class LocalStorage
     public ConcurrentBag<SearchQuery> SearchQueries { get; } = [];
 
 
+
+
 }

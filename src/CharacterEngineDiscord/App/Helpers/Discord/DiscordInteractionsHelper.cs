@@ -19,8 +19,8 @@ public static class DiscordInteractionsHelper
     {
         (Color color, string iconEmoji) custom = searchQuery.IntegrationType switch
         {
-            Enums.IntegrationType.SakuraAi => (Color.Purple, MessagesTemplates.SAKURA_EMOJI),
-            Enums.IntegrationType.CharacterAI => (Color.Blue, "")
+            IntegrationType.SakuraAi => (Color.Purple, MessagesTemplates.SAKURA_EMOJI),
+            IntegrationType.CharacterAI => (Color.Blue, "")
         };
 
         var embed = new EmbedBuilder().WithColor(custom.color)

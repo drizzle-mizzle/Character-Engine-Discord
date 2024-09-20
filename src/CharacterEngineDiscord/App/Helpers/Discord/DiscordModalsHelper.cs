@@ -20,16 +20,16 @@ public static class DiscordModalsHelper
     }
 
 
-    public static string NewCustomId(Enums.ModalActionType action, string data)
+    public static string NewCustomId(ModalActionType action, string data)
         => NewCustomId(Guid.NewGuid(), action, data);
 
-    public static string NewCustomId(Guid id, Enums.ModalActionType action, string data)
+    public static string NewCustomId(Guid id, ModalActionType action, string data)
         => $"{id}{SEP}{action}{SEP}{data}";
 
 
     public static ModalData ParseCustomId(string customId)
     {
         var parts = customId.Split(SEP);
-        return new ModalData(Guid.Parse(parts[0]), (Enums.ModalActionType)Enum.Parse(typeof(Enums.ModalActionType), parts[1]), parts[2]);
+        return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
     }
 }

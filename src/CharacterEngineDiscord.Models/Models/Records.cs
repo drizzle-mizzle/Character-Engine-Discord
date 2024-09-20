@@ -4,11 +4,11 @@ using SakuraAi.Client.Models.Common;
 namespace CharacterEngineDiscord.Models;
 
 
-public record ModalData(Guid Id, Enums.ModalActionType ActionType, string Data);
+public record ModalData(Guid Id, ModalActionType ActionType, string Data);
 
 public record SakuraAiEnsureLoginData(SignInAttempt SignInAttempt, ulong ChannelId, ulong UserId);
 
-public record CommonCharacter : ICommonCharacter
+public record CommonCharacter
 {
     public required string CharacterId { get; set; }
     public required string CharacterName { get; set; }

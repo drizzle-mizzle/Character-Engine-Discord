@@ -1,18 +1,15 @@
 ﻿namespace CharacterEngineDiscord.Models;
 
-public class Enums
+
+public enum IntegrationType
 {
+    SakuraAi = 1,
+    CharacterAI = 2,
 
-    public enum IntegrationType
-    {
-        SakuraAi = 1,
-        CharacterAI = 2,
-
-    }
+}
 
 
-    public enum ModalActionType
-    {
-        CreateIntegration = 1
-    }
+public enum ModalActionType
+{
+    CreateIntegration = 1
 }

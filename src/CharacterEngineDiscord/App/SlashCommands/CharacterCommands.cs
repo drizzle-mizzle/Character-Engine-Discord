@@ -20,14 +20,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("spawn-character", "Spawn new character!")]
-    public async Task SpawnCharacter(string query, Enums.IntegrationType integrationType)
+    public async Task SpawnCharacter(string query, IntegrationType integrationType)
     {
         await RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
         var characters = integrationType switch
         {
-            Enums.IntegrationType.SakuraAi => await SakuraAiClient.SearchAsync(query),
-            Enums.IntegrationType.CharacterAI => [],
+            IntegrationType.SakuraAi => await SakuraAiClient.SearchAsync(query),
+            IntegrationType.CharacterAI => [],
             _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
         };
 
@@ -37,7 +37,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             return;
         }
 
-        var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters.ToCommonCharacters(), integrationType);
+        var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters.AsCommonCharacters(), integrationType);
         LocalStorage.SearchQueries.Add(searchQuery);
 
         await ModifyOriginalResponseAsync(msg => { msg.Embed = DiscordInteractionsHelper.BuildSearchResultList(searchQuery); msg.Components = DiscordInteractionsHelper.BuildSelectButtons(searchQuery.Pages > 1); });

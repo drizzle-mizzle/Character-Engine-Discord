@@ -26,9 +26,9 @@ public class ModalsHandler
 
             switch (parsedModal.ActionType)
             {
-                case Enums.ModalActionType.CreateIntegration:
+                case ModalActionType.CreateIntegration:
                 {
-                    await CreateIntegrationAsync(modal, (Enums.IntegrationType)int.Parse(parsedModal.Data)); break;
+                    await CreateIntegrationAsync(modal, (IntegrationType)int.Parse(parsedModal.Data)); break;
                 }
             };
 
@@ -40,11 +40,11 @@ public class ModalsHandler
     }
 
 
-    private async Task CreateIntegrationAsync(SocketModal modal, Enums.IntegrationType intergrationType)
+    private async Task CreateIntegrationAsync(SocketModal modal, IntegrationType intergrationType)
     {
         switch (intergrationType)
         {
-            case Enums.IntegrationType.SakuraAi: await CreateSakuraAiIntegrationAsync(modal); break;
+            case IntegrationType.SakuraAi: await CreateSakuraAiIntegrationAsync(modal); break;
         };
     }
 
