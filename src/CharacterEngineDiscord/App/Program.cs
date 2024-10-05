@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using CharacterEngineDiscord.Models;
+using NLog;
 
 namespace CharacterEngine.App
 {
@@ -9,6 +10,9 @@ namespace CharacterEngine.App
 
         private static void Main()
         {
+            var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"Settings\NLog.config");
+            LogManager.Configuration = new NLog.Config.XmlLoggingConfiguration(nlogPath);
+
             _log.Info("[ Starting Character Engine ]");
 
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>

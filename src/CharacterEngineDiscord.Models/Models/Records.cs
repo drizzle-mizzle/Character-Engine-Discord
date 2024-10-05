@@ -6,7 +6,8 @@ namespace CharacterEngineDiscord.Models;
 
 public record ModalData(Guid Id, ModalActionType ActionType, string Data);
 
-public record SakuraAiEnsureLoginData(SignInAttempt SignInAttempt, ulong ChannelId, ulong UserId);
+
+public record ActionSourceDiscordInfo(ulong ChannelId, ulong UserId);
 
 public record CommonCharacter
 {

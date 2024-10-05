@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -17,13 +18,6 @@ public static class CommonHelper
     public static IServiceProvider BuildServiceProvider()
     {
         var services = new ServiceCollection();
-
-        // Transient
-        {
-            services.AddTransient<SlashCommandsHandler>();
-            services.AddTransient<InteractionsHandler>();
-            services.AddTransient<ModalsHandler>();
-        }
 
         // Singleton
         {
@@ -43,6 +37,14 @@ public static class CommonHelper
             services.AddSingleton(localStorage);
         }
 
+        // Scoped
+        {
+            services.AddScoped(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
+            services.AddScoped<SlashCommandsHandler>();
+            services.AddScoped<InteractionsHandler>();
+            services.AddScoped<ModalsHandler>();
+            services.AddScoped<ButtonsHandler>();
+        }
 
         return services.BuildServiceProvider();
     }

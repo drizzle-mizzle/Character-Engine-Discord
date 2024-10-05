@@ -8,30 +8,8 @@ public static class MessagesHelper
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
-    public static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null, bool imageAsThumb = false)
-    {
-        var desc = bold ? $"**{text}**" : text;
-
-        var embed = new EmbedBuilder().WithDescription(desc).WithColor(color);
-        if (!string.IsNullOrWhiteSpace(imageUrl))
-        {
-            if (imageAsThumb)
-            {
-                embed.WithThumbnailUrl(imageUrl);
-            }
-            else
-            {
-                embed.WithImageUrl(imageUrl);
-            }
-        }
-
-        return embed.Build();
-    }
-
-
     public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e)
         => discordClient.ReportErrorAsync("Unknown exception", $"{e}");
-
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e)
         => discordClient.ReportErrorAsync(title, $"{e}");
@@ -40,7 +18,7 @@ public static class MessagesHelper
     private const int LIMIT = 1990;
     public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content)
     {
-        _log.Error($"Error report: [ {title} ] {content}");
+        _log.Error($"Error report: [ {title} ]\n{content}");
 
         var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
         var thread = await channel.CreateThreadAsync($"💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
@@ -82,6 +60,27 @@ public static class MessagesHelper
             await thread.SendMessageAsync(content[..(LIMIT-1)]);
             content = content[LIMIT..];
         }
+    }
+
+
+    public static Embed ToInlineEmbed(this string text, Color color, bool bold = true, string? imageUrl = null, bool imageAsThumb = false)
+    {
+        var desc = bold ? $"**{text}**" : text;
+
+        var embed = new EmbedBuilder().WithDescription(desc).WithColor(color);
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+        {
+            if (imageAsThumb)
+            {
+                embed.WithThumbnailUrl(imageUrl);
+            }
+            else
+            {
+                embed.WithImageUrl(imageUrl);
+            }
+        }
+
+        return embed.Build();
     }
 
 }

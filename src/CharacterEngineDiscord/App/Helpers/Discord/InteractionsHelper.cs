@@ -13,7 +13,6 @@ public static class InteractionsHelper
     public static SlashCommandProperties BuildStartCommand()
         => new SlashCommandBuilder().WithName("start").WithDescription("Register bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
 
-
     public static SlashCommandProperties BuildDisableCommand()
         => new SlashCommandBuilder().WithName("disable").WithDescription("Unregister all bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
 
@@ -21,6 +20,8 @@ public static class InteractionsHelper
     public static string NewCustomId(ModalActionType action, string data)
         => NewCustomId(Guid.NewGuid(), action, data);
 
+    public static string NewCustomId(ModalData modalData)
+        => NewCustomId(modalData.Id, modalData.ActionType, modalData.Data);
 
     public static string NewCustomId(Guid id, ModalActionType action, string data)
         => $"{id}{SEP}{action}{SEP}{data}";
@@ -41,19 +42,28 @@ public static class InteractionsHelper
             IntegrationType.CharacterAI => (Color.Blue, "")
         };
 
-        var embed = new EmbedBuilder().WithColor(custom.color)
-                                      .WithFooter($"Page {searchQuery.CurrentPage}/{searchQuery.Pages}");
+        var embed = new EmbedBuilder();
+        embed.WithColor(custom.color);
+        embed.AddField($"{custom.iconEmoji} {searchQuery.IntegrationType:G}",
+                       $"({searchQuery.Characters.Count}) Characters found by query **\"{searchQuery.OriginalQuery}\"**:");
 
-        embed.AddField($"{custom.iconEmoji} {searchQuery.IntegrationType:G}", $"({searchQuery.Characters.Count}) Characters found by query **\"{searchQuery.OriginalQuery}\"**:");
-
-        for (int index = 1; index <= Math.Min(searchQuery.Characters.Count, 10); index++)
+        var rows = Math.Min(searchQuery.Characters.Count, 10);
+        for (var row = 1; row <= rows; row++)
         {
-            var num = (searchQuery.CurrentPage - 1) * 10 + index;
-            var character = searchQuery.Characters.ElementAt(num);
-            embed.AddField($"{num}. {character.CharacterName}" + (index == searchQuery.CurrentRow ? " - ✅" : ""),
-                           $"{character.Stat} | Author: {character.Author}");
+            var characterIndex = row + (searchQuery.CurrentPage - 1) * 10;
+            var character = searchQuery.Characters.ElementAt(characterIndex);
+
+            var titleLine = $"{characterIndex}. {character.CharacterName}";
+            var descLine = $"{character.Stat} | Author: {character.Author}";
+            if (searchQuery.CurrentRow == row)
+            {
+                titleLine += " - ✅";
+            }
+
+            embed.AddField(titleLine, descLine);
         }
 
+        embed.WithFooter($"Page {searchQuery.CurrentPage}/{searchQuery.Pages}");
         return embed.Build();
     }
 

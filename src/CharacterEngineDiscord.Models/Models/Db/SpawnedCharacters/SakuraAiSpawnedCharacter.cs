@@ -1,11 +1,14 @@
-﻿using CharacterEngineDiscord.Models.Abstractions;
+﻿using System.ComponentModel.DataAnnotations;
+using CharacterEngineDiscord.Models.Abstractions;
 
 namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 
 public class SakuraAiSpawnedCharacter : ISpawnedCharacter
 {
+    [Key]
     public required Guid Id { get; set; }
+
     public required ulong WebhookId { get; set; }
     public required string WebhookToken { get; set; }
     public required string CallPrefix { get; set; }

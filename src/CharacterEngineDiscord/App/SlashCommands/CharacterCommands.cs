@@ -13,10 +13,24 @@ namespace CharacterEngine.App.SlashCommands;
 
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
-    public required DiscordSocketClient DiscordClient { get; set; }
-    public required SakuraAiClient SakuraAiClient { get; set; }
-    public required InteractionsHandler InteractionsHandler { get; set; }
-    public required LocalStorage LocalStorage { get; set; }
+    private readonly IServiceProvider _serviceProvider;
+    private readonly AppDbContext _db;
+    private readonly LocalStorage _localStorage;
+    private readonly DiscordSocketClient _discordClient;
+    private readonly InteractionService _interactions;
+    private readonly SakuraAiClient _sakuraAiClient;
+
+
+    public CharacterCommands(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions, SakuraAiClient sakuraAiClient)
+    {
+        _serviceProvider = serviceProvider;
+        _db = db;
+
+        _localStorage = localStorage;
+        _discordClient = discordClient;
+        _interactions = interactions;
+        _sakuraAiClient = sakuraAiClient;
+    }
 
 
     [SlashCommand("spawn-character", "Spawn new character!")]
@@ -26,18 +40,18 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var characters = integrationType switch
         {
-            IntegrationType.SakuraAi => await SakuraAiClient.SearchAsync(query),
+            IntegrationType.SakuraAi => await _sakuraAiClient.SearchAsync(query),
             IntegrationType.CharacterAI => []
         };
 
         if (characters.Count == 0)
         {
-            await ModifyOriginalResponseAsync(msg => msg.Embed = $"No characters were found by query **\"{query}\"**".ToInlineEmbed(Color.Orange, false));
+            await ModifyOriginalResponseAsync(msg => { msg.Embed = $"No characters were found by query **\"{query}\"**".ToInlineEmbed(Color.Orange, false); });
             return;
         }
 
         var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters.AsCommonCharacters(), integrationType);
-        LocalStorage.SearchQueries.Add(searchQuery);
+        _localStorage.SearchQueries.Add(searchQuery);
 
         await ModifyOriginalResponseAsync(msg =>
         {

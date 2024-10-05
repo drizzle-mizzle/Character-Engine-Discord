@@ -9,9 +9,22 @@ namespace CharacterEngine.App.Handlers;
 
 public class InteractionsHandler
 {
-    public required LocalStorage LocalStorage { get; set; }
-    public required DiscordSocketClient DiscordClient { get; set; }
-    public required AppDbContext db { get; set; }
+    private readonly IServiceProvider _serviceProvider;
+    private AppDbContext _db { get; set; }
+    private readonly LocalStorage _localStorage;
+    private readonly DiscordSocketClient _discordClient;
+    private readonly InteractionService _interactions;
+
+
+    public InteractionsHandler(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions)
+    {
+        _serviceProvider = serviceProvider;
+        _db = db;
+
+        _localStorage = localStorage;
+        _discordClient = discordClient;
+        _interactions = interactions;
+    }
 
 
     public async Task HandleInteractionAsync(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
@@ -29,6 +42,6 @@ public class InteractionsHandler
                       $"Guild: {interactionContext.Guild.Name} ({interactionContext.Guild.Id})\n" +
                       $"Exception:\n {((ExecuteResult)result).Exception}";
 
-        await DiscordClient.ReportErrorAsync("Interaction exception", content);
+        await _discordClient.ReportErrorAsync("Interaction exception", content);
     }
 }

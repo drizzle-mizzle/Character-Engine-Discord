@@ -2,7 +2,8 @@
 
 public static class BotConfig
 {
-    public static readonly string BOT_TOKEN = GetParamByName<string>("BOT_TOKEN").Trim();
+    public static string BOT_TOKEN
+        => GetParamByName<string>("BOT_TOKEN").Trim();
 
     public static string PLAYING_STATUS
         => GetParamByName<string>("PLAYING_STATUS").Trim();
@@ -35,31 +36,34 @@ public static class BotConfig
         => GetParamByName<string>("DATABASE_CONNECTION_STRING");
 
 
+    // Private
+
+    private static string? GetFileThatStartsWith(this string[] paths, string pattern)
+        => paths.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
+
+    private static string? _configPath;
+    private static string CONFIG_PATH
+    {
+        get
+        {
+            if (_configPath is not null)
+            {
+                return _configPath;
+            }
+
+            var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings"));
+            return _configPath = files.GetFileThatStartsWith("env.config") ??
+                                 files.GetFileThatStartsWith("config")!;
+        }
+    }
+
     private static T GetParamByName<T>(string paramName) where T : notnull
     {
-        var configLines = File.ReadAllLines(GetConfigPath());
+        var configLines = File.ReadAllLines(CONFIG_PATH);
         var neededLine = configLines.First(line => line.Trim().StartsWith(paramName)) + " ";
         var valueIndex = neededLine.IndexOf(':') + 1;
         var configValue = neededLine[valueIndex..].Trim();
 
         return string.IsNullOrWhiteSpace(configValue) ? default! : (T)Convert.ChangeType(configValue, typeof(T));
-    }
-
-
-    private static string? GetFileThatStartsWith(this string[] paths, string pattern)
-        => paths.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
-
-
-    private static string? _configPath;
-    private static string GetConfigPath()
-    {
-        if (_configPath is not null)
-        {
-            return _configPath;
-        }
-
-        var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage"));
-        return _configPath = files.GetFileThatStartsWith("env.config") ??
-                             files.GetFileThatStartsWith("config")!;
     }
 }

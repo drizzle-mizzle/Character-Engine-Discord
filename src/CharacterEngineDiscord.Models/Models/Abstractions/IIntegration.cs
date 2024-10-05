@@ -1,6 +1,8 @@
-﻿namespace CharacterEngineDiscord.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models.Db.Discord;
 
-public interface IGuildIntegration
+namespace CharacterEngineDiscord.Models.Abstractions;
+
+public interface IIntegration
 {
     public Guid Id { get; set; }
 

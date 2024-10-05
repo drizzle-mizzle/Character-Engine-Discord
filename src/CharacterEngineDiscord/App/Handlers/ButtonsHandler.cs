@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
+using Discord.Interactions;
 using Discord.WebSocket;
 
 namespace CharacterEngine.App.Handlers;
@@ -7,10 +8,22 @@ namespace CharacterEngine.App.Handlers;
 
 public class ButtonsHandler
 {
-    public required LocalStorage LocalStorage { get; set; }
-    public required DiscordSocketClient DiscordClient { get; set; }
-    public required AppDbContext db { get; set; }
+    private readonly IServiceProvider _serviceProvider;
+    private readonly AppDbContext _db;
+    private readonly LocalStorage _localStorage;
+    private readonly DiscordSocketClient _discordClient;
+    private readonly InteractionService _interactions;
 
+
+    public ButtonsHandler(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions)
+    {
+        _serviceProvider = serviceProvider;
+        _db = db;
+
+        _localStorage = localStorage;
+        _discordClient = discordClient;
+        _interactions = interactions;
+    }
 
     public async Task HandleButtonAsync(SocketMessageComponent component)
     {
@@ -42,7 +55,7 @@ public class ButtonsHandler
 
     private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = LocalStorage.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId && sq.UserId == component.User.Id);
+        var sq = _localStorage.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId && sq.UserId == component.User.Id);
         if (sq is null)
         {
             return;

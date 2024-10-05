@@ -1,20 +1,12 @@
-﻿namespace CharacterEngineDiscord.Models.Db;
+﻿using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
+
+namespace CharacterEngineDiscord.Models.Db;
 
 
 public class StoredAction
 {
-    public StoredAction(Guid id, StoredActionType storedActionType, string data)
-    {
-        Id = id;
-        StoredActionType = storedActionType;
-        Data = data;
-        CreatedAt = DateTime.Now;
-        Status = StoredActionStatus.Pending;
-        Attempt = 0;
-    }
-
-
-    public StoredAction(StoredActionType storedActionType, string data)
+    public StoredAction(StoredActionType storedActionType, string data, int maxAttemtps)
     {
         Id = Guid.NewGuid();
         StoredActionType = storedActionType;
@@ -22,20 +14,18 @@ public class StoredAction
         CreatedAt = DateTime.Now;
         Status = StoredActionStatus.Pending;
         Attempt = 0;
+        MaxAttemtps = maxAttemtps;
     }
 
+    [Key]
+    public Guid Id { get; init; }
 
-    public Guid Id { get; set; }
-
-    public StoredActionType StoredActionType { get; set; }
-
+    public StoredActionType StoredActionType { get; init; }
     public string Data { get; set; }
-
-    public DateTime CreatedAt { get; set; }
-
+    public DateTime CreatedAt { get; init; }
     public StoredActionStatus Status { get; set; }
-
     public int Attempt { get; set; }
+    public int MaxAttemtps { get; set; }
 }
 
 

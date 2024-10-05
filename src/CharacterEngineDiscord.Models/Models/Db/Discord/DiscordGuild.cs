@@ -1,9 +1,13 @@
-﻿namespace CharacterEngineDiscord.Models.Db.Discord;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace CharacterEngineDiscord.Models.Db.Discord;
 
 
 public class DiscordGuild
 {
+    [Key]
     public required ulong Id { get; set; }
+
 
     public required string GuildName { get; set; }
 

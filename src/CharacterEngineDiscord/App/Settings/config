@@ -1,11 +1,10 @@
 # CHARACTER ENGINE BOT CONFIG FILE
 # Supports hot-reload
-# Lines marked with [RR] require a restart of the application for the changes to take effect
 
-# [RR]
+# Application restart or reconnection event required for the changes to take effect
 BOT_TOKEN:
 
-# [RR]
+# Application restart or reconnection event required for the changes to take effect
 PLAYING_STATUS: Still in beta, stuff may break!
 
 # Users with absolute access to all bot commands, separated with ','

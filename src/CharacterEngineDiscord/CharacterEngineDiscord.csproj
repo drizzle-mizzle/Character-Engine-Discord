@@ -9,6 +9,16 @@
         <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     </PropertyGroup>
 
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <Optimize>false</Optimize>
+      <DebugSymbols>true</DebugSymbols>
+      <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
     <ItemGroup>
       <PackageReference Include="Discord.Net" Version="3.15.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
@@ -28,4 +38,8 @@
       <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
       <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
     </ItemGroup>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="xcopy &quot;$(TargetDir)\App\Settings&quot; &quot;$(TargetDir)Settings&quot; /i /e /r /y&#xA;rmdir $(TargetDir)\App\ /s /q" />
+    </Target>
 </Project>

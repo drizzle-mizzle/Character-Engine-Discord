@@ -3,18 +3,38 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
+using Discord.Interactions;
 using Discord.WebSocket;
+using NLog;
 using SakuraAi.Client;
+using SakuraAi.Client.Exceptions;
+using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngine.App.Handlers;
 
 
 public class ModalsHandler
 {
-    public required LocalStorage LocalStorage { get; set; }
-    public required DiscordSocketClient DiscordClient { get; set; }
-    public required AppDbContext db { get; set; }
-    public required SakuraAiClient SakuraAiClient { get; set; }
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger _log;
+    private AppDbContext _db { get; }
+    private readonly LocalStorage _localStorage;
+    private readonly DiscordSocketClient _discordClient;
+    private readonly InteractionService _interactions;
+    private readonly SakuraAiClient _sakuraAiClient;
+
+
+    public ModalsHandler(IServiceProvider serviceProvider, AppDbContext db, ILogger log, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions, SakuraAiClient sakuraAiClient)
+    {
+        _serviceProvider = serviceProvider;
+        _log = log;
+        _db = db;
+
+        _localStorage = localStorage;
+        _discordClient = discordClient;
+        _interactions = interactions;
+        _sakuraAiClient = sakuraAiClient;
+    }
 
 
     public async Task HandleModalAsync(SocketModal modal)
@@ -22,17 +42,16 @@ public class ModalsHandler
         try
         {
             await modal.DeferAsync();
-            var parsedModal = ModalsHelper.ParseCustomId(modal.Data.CustomId);
+            var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
 
             await (parsedModal.ActionType switch
             {
-                ModalActionType.CreateIntegration
-                    => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
+                ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
             });
         }
         catch (Exception e)
         {
-            await DiscordClient.ReportErrorAsync(e);
+            await _discordClient.ReportErrorAsync(e);
         }
     }
 
@@ -48,15 +67,34 @@ public class ModalsHandler
 
     private async Task CreateSakuraAiIntegrationAsync(SocketModal modal)
     {
+        // Sending mail
         var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
 
-        var attempt = await SakuraAiClient.SendLoginEmailAsync(email);
-        await modal.FollowupAsync(embed: $"{MessagesTemplates.SAKURA_EMOJI} Confirmation mail was sent to **{email}**".ToInlineEmbed(bold: false, color: Color.Green));
+        SakuraSignInAttempt attempt;
+        try
+        {
+            attempt = await _sakuraAiClient.SendLoginEmailAsync(email);
+        }
+        catch (SakuraAiException e)
+        {
+            await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} SakuraAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
+            throw;
+        }
 
+        // Respond to user
+        var msg = $"{MessagesTemplates.SAKURA_EMOJI} **SakuraAI**\n\n" +
+                  $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
+                  $"- *It's recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail; or simply open it in [incognito tab](https://support.google.com/chrome/answer/95464?hl=en&co=GENIE.Platform%3DDesktop&oco=1#:~:text=New%20Incognito%20Window).*\n" +
+                  $"- *It may take up to a minute for the bot to react on succeful confirmation.*";
+
+        await modal.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+
+        // Update db
         var data = StoredActionsHelper.CreateSakuraAiEnsureLoginData(attempt, (ulong)modal.ChannelId!, modal.User.Id);
-        var action = new StoredAction(StoredActionType.SakuraAiEnsureLogin, data);
+        var newAction = new StoredAction(StoredActionType.SakuraAiEnsureLogin, data, maxAttemtps: 25);
 
-        await db.StoredActions.AddAsync(action);
-        await db.SaveChangesAsync();
+        await _db.StoredActions.AddAsync(newAction);
+        await _db.SaveChangesAsync();
     }
+
 }

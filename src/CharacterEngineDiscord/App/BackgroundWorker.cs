@@ -4,81 +4,115 @@ using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using SakuraAi.Client;
+using SakuraAi.Client.Exceptions;
 
 namespace CharacterEngine.App;
 
 
 public class BackgroundWorker
 {
-    public static void Run(IServiceProvider services)
-        => new BackgroundWorker(services).RunJobs();
-
-
-    // private readonly IServiceProvider _services;
-    private readonly DiscordSocketClient _discordClient;
-    // private readonly InteractionService _interactions;
+    private readonly Logger _log;
     private readonly SakuraAiClient _sakuraAiClient;
-    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private readonly DiscordSocketClient _discordClient;
+
+
+    public static void Run(IServiceProvider services)
+    {
+        var worker = new BackgroundWorker(services);
+        var jobs = new List<Func<Task>> { worker.QuickJobs };
+
+        Parallel.ForEach(jobs, job => worker.RunInLoop(job, cooldownSeconds: 5));
+    }
 
 
     private BackgroundWorker(IServiceProvider services)
     {
-        // _services = services;
-        _discordClient = services.GetRequiredService<DiscordSocketClient>();
-        // _interactions = services.GetRequiredService<InteractionService>();
+        _log = (services.GetRequiredService<ILogger>() as Logger)!;
         _sakuraAiClient = services.GetRequiredService<SakuraAiClient>();
+        _discordClient = services.GetRequiredService<DiscordSocketClient>();
     }
 
 
-    private void RunJobs()
+    private void RunInLoop(Func<Task> jobTask, int cooldownSeconds)
     {
-        RunOnRepeat(QuickJobs, cooldownSeconds: 3);
-    }
-
-
-    private void RunOnRepeat(Func<Task> executeTaskFunc, int cooldownSeconds)
-    {
-        _log.Info($"Firing recursive {executeTaskFunc.Method.Name} with {cooldownSeconds}s cooldown");
+        _log.Info($"Starting loop {jobTask.Method.Name} with {cooldownSeconds}s cooldown");
 
         Task.Run(async () =>
         {
-            var sw = Stopwatch.StartNew();
-
-            await RunAsync();
+            var sw = new Stopwatch();
 
             while (true)
             {
-                if (sw.Elapsed.Seconds < cooldownSeconds)
+                if (sw.IsRunning && sw.Elapsed.TotalSeconds < cooldownSeconds)
                 {
                     continue;
                 }
 
-                await RunAsync();
-                sw.Restart();
-            }
+                _log.Info($"WORKER START: {jobTask.Method.Name}");
 
-            async Task RunAsync()
-            {
-                _log.Info($"WORKER START: {executeTaskFunc.Method.Name}");
+                sw.Restart();
 
                 try
                 {
-                    await executeTaskFunc();
+                    await jobTask();
                 }
                 catch (Exception e)
                 {
-                    await _discordClient.ReportErrorAsync($"Exception in {{executeTaskFunc.Method.Name}}: {e}", e);
+                    await _discordClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e);
                 }
 
-                _log.Info($"WORKER END: {executeTaskFunc.Method.Name} | Time: {sw.Elapsed.Seconds}s | Next run: {cooldownSeconds}s later");
+                _log.Info($"WORKER END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+
+                sw.Restart();
             }
         });
+    }
+
+
+    private void CallGiveUpFinalizer(StoredAction action)
+    {
+        var finalizer = action.StoredActionType switch
+        {
+            StoredActionType.SakuraAiEnsureLogin => SendSakuraAuthGiveUpNotificationAsync(action),
+        };
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                await finalizer;
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e);
+            }
+        });
+    }
+
+
+    private async Task SendSakuraAuthGiveUpNotificationAsync(StoredAction action)
+    {
+        var data = action.ExtractSakuraAiLoginData();
+        var source = action.ExtractDiscordSourceInfo();
+
+        var getChannelTask = _discordClient.GetChannelAsync(source.ChannelId);
+        if (await getChannelTask is not ITextChannel channel)
+        {
+            return;
+        }
+
+        var user = await channel.GetUserAsync(source.UserId);
+        var msg = $"{MessagesTemplates.SAKURA_EMOJI} SakuraAI\n\nAuthorization confirmation time for account **{data.Email}** has expired.\nPlease, try again.";
+
+        _log.Trace(msg);
+        await channel.SendMessageAsync(user?.Mention ?? "@?", embed: msg.ToInlineEmbed(Color.LightOrange, bold: false));
     }
 
 
@@ -87,28 +121,73 @@ public class BackgroundWorker
     /// Job groups ///
     //////////////////
 
-    private static readonly StoredActionType[] _quickJobs = [StoredActionType.SakuraAiEnsureLogin];
+    private static readonly StoredActionType[] _quickJobActionTypes = [StoredActionType.SakuraAiEnsureLogin];
     private async Task QuickJobs()
     {
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
-        var storedActions = await db.StoredActions.Where(sa => sa.Status == StoredActionStatus.Pending && _quickJobs.Contains(sa.StoredActionType)).ToArrayAsync();
+        var actions = await GetPendingActionsAsync(_quickJobActionTypes);
 
-        foreach (var action in storedActions)
+        foreach (var action in actions)
         {
             var job = action.StoredActionType switch
             {
-                StoredActionType.SakuraAiEnsureLogin => EnsureSakuraAiAuthsAsync(action),
+                StoredActionType.SakuraAiEnsureLogin => EnsureSakuraAiLoginAsync(action),
             };
 
             try
             {
                 await job;
             }
+            catch (SakuraAiException sae)
+            {
+                await _discordClient.ReportErrorAsync("SakuraAiException", sae);
+            }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync($"Exception in Quick Jobs loop", e);
+                await _discordClient.ReportErrorAsync("Exception in Quick Jobs loop", e);
+
+                await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+                action.Status = StoredActionStatus.Canceled;
+                db.StoredActions.Update(action);
+                await db.SaveChangesAsync();
             }
         }
+    }
+
+
+    private async Task<List<StoredAction>> GetPendingActionsAsync(StoredActionType[] actionTypes)
+    {
+        var actionsToRun = new List<StoredAction>();
+
+        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+        var storedActions = await db.StoredActions
+                                    .Where(sa => sa.Status == StoredActionStatus.Pending &&
+                                                 actionTypes.Contains(sa.StoredActionType))
+                                    .ToArrayAsync();
+
+        foreach (var action in storedActions)
+        {
+            if (action.Attempt <= action.MaxAttemtps)
+            {
+                actionsToRun.Add(action);
+                continue;
+            }
+
+            var sourceInfo = action.ExtractDiscordSourceInfo();
+
+            var title = $"Giving up on action **{action.StoredActionType:G}**";
+            var msg = $"**Attempt**: {action.Attempt}\n" +
+                      $"**ActionID**: {action.Id}\n" +
+                      $"**UserID**: {sourceInfo.UserId}\n" +
+                      $"**ChannelID**: {sourceInfo.ChannelId}";
+            await _discordClient.ReportLogAsync(title, msg);
+
+            action.Status = StoredActionStatus.Canceled;
+            await db.SaveChangesAsync();
+
+            CallGiveUpFinalizer(action);
+        }
+
+        return actionsToRun;
     }
 
 
@@ -116,23 +195,12 @@ public class BackgroundWorker
     /// Jobs ///
     ////////////
 
-    private async Task EnsureSakuraAiAuthsAsync(StoredAction action)
+    private async Task EnsureSakuraAiLoginAsync(StoredAction action)
     {
-        var data = StoredActionsHelper.ParseSakuraAiEnsureLoginData(action.Data);
         await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
 
-        if (action.Attempt > 20)
-        {
-            await _discordClient.ReportLogAsync($"Giving up on action **{action.StoredActionType:G}**", $"**Attempt**: {action.Attempt}\n**Id**: {action.Id}\n**UserId**: {data.UserId}\n**ChannelId**: {data.ChannelId}");
-
-            action.Status = StoredActionStatus.Canceled;
-            db.StoredActions.Update(action);
-            await db.SaveChangesAsync();
-
-            return;
-        }
-
-        var result = await _sakuraAiClient.EnsureLoginByEmailAsync(data.SignInAttempt);
+        var signInAttempt = action.ExtractSakuraAiLoginData();
+        var result = await _sakuraAiClient.EnsureLoginByEmailAsync(signInAttempt);
         if (result is null)
         {
             action.Attempt++;
@@ -142,20 +210,51 @@ public class BackgroundWorker
             return;
         }
 
-        var channel = (ITextChannel)await _discordClient.GetChannelAsync(data.ChannelId);
-        var user = await channel.GetUserAsync(data.UserId);
+        var sourceInfo = action.ExtractDiscordSourceInfo();
+        var channel = (ITextChannel)await _discordClient.GetChannelAsync(sourceInfo.ChannelId)!;
 
-        var message = $"**{MessagesTemplates.SAKURA_EMOJI} SakuraAI user authorized**\n" +
-                      $"Username: **{result.Username}**\n" +
-                      "From now on, this account will be used for all **SakuraAi**-related interactions on this server.\n" +
-                      "To spawn SakuraAi character, use **/spawn-character integration-type:SakuraAi** command.";
+        // TODO: EnsureGuildInDb
 
-        await channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Green, false, result.UserImageUrl, true));
+        var existingGuildIntegraion = await db.DiscordGuildIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
+        if (existingGuildIntegraion is not null)
+        {
+            var sakuraIntegraion = await db.SakuraAiIntegrations.FirstAsync(i => i.Id == existingGuildIntegraion.IntegraionId);
+            db.SakuraAiIntegrations.Remove(sakuraIntegraion);
+            db.DiscordGuildIntegrations.Remove(existingGuildIntegraion);
+        }
+
+        var newSakuraIntegration = new SakuraAiIntegration
+        {
+            Id = Guid.NewGuid(),
+            Email = signInAttempt.Email,
+            RefreshToken = result.RefreshToken,
+            GlobalMessagesFormat = "",
+            CreatedAt = DateTime.Now
+        };
+
+        var newLink = new DiscordGuildIntegration
+        {
+            Id = Guid.NewGuid(),
+            DiscordGuildId = channel.GuildId,
+            IntegraionId = newSakuraIntegration.Id,
+            IntegrationType = IntegrationType.SakuraAi
+        };
+
+        await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
+        await db.DiscordGuildIntegrations.AddAsync(newLink);
 
         action.Attempt++;
         action.Status = StoredActionStatus.Finished;
         db.StoredActions.Update(action);
+
         await db.SaveChangesAsync();
+
+        var user = await channel.GetUserAsync(sourceInfo.UserId);
+        var msg = $"**{MessagesTemplates.SAKURA_EMOJI} SakuraAI user authorized**\n\n" +
+                  $"Username: **{result.Username}**\n" +
+                  "From now on, this account will be used for all **SakuraAi**-related interactions on this server. For the next step, use **/spawn-character integration-type:SakuraAi** command to spawn SakuraAI character.";
+
+        await channel.SendMessageAsync(user.Mention, embed: msg.ToInlineEmbed(Color.Green, bold: false, result.UserImageUrl, imageAsThumb: true));
     }
 
 }

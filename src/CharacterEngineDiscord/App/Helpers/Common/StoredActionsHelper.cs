@@ -1,4 +1,5 @@
 ﻿using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
 using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngine.App.Helpers.Common;
@@ -6,16 +7,34 @@ namespace CharacterEngine.App.Helpers.Common;
 
 public static class StoredActionsHelper
 {
-    public static string CreateSakuraAiEnsureLoginData(SignInAttempt attempt, ulong channelId, ulong userId)
-        => $"{attempt.AttemptId};{attempt.ClientId};{channelId};{userId}";
+    public static string CreateSakuraAiEnsureLoginData(SakuraSignInAttempt attempt, ulong channelId, ulong userId)
+        => $"{channelId}~{userId}~{attempt.Id}~{attempt.Email}~{attempt.Cookie};";
 
 
-    public static SakuraAiEnsureLoginData ParseSakuraAiEnsureLoginData(string data)
+    public static SakuraSignInAttempt ExtractSakuraAiLoginData(this StoredAction action)
     {
-        var parts = data.Split(';');
+        if (action.StoredActionType is StoredActionType.SakuraAiEnsureLogin)
+        {
+            var parts = action.Data.Split('~');
+            return new SakuraSignInAttempt
+            {
+                Id = parts[2],
+                Email = parts[3],
+                Cookie = parts[4]
+            };
+        }
 
-        return new SakuraAiEnsureLoginData(new SignInAttempt { AttemptId = parts[0], ClientId = parts[1] }, ulong.Parse(parts[2]), ulong.Parse(parts[3]));
+        throw new ArgumentException("Not Discord based action source");
     }
 
+    public static ActionSourceDiscordInfo ExtractDiscordSourceInfo(this StoredAction action)
+    {
+        if (action.StoredActionType is StoredActionType.SakuraAiEnsureLogin)
+        {
+            var parts = action.Data.Split('~');
+            return new ActionSourceDiscordInfo(ChannelId: ulong.Parse(parts[0]), UserId: ulong.Parse(parts[1]));
+        }
 
+        throw new ArgumentException("Not Discord based action source");
+    }
 }

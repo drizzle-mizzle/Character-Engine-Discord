@@ -4,9 +4,11 @@ using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 
@@ -18,7 +20,8 @@ public static class CharacterEngineBot
     private static readonly IServiceProvider _services = CommonHelper.BuildServiceProvider();
     private static readonly DiscordSocketClient _discordClient = _services.GetRequiredService<DiscordSocketClient>();
     private static readonly InteractionService _interactions = _services.GetRequiredService<InteractionService>();
-    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static readonly Logger _log = (_services.GetRequiredService<ILogger>() as Logger)!;
+
 
 
     public static void Run()
@@ -28,13 +31,18 @@ public static class CharacterEngineBot
     private static async Task RunAsync()
     {
         await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services).ConfigureAwait(false);
-        _discordClient.BindEvents(_services);
+        _discordClient.BindEvents();
         _discordClient.Connected += OnConnected;
 
         await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN).ConfigureAwait(false);
         await _discordClient.StartAsync().ConfigureAwait(false);
 
-        BackgroundWorker.Run(_services);
+        var db = _services.GetRequiredService<AppDbContext>();
+
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
+        // await db.Database.MigrateAsync();
+
 
         await Task.Delay(-1);
     }
@@ -42,15 +50,34 @@ public static class CharacterEngineBot
 
     private static async Task OnConnected()
     {
-        var guilds = await GetGuildsAsync();
-
-        _log.Info($"Registering /start command to ({guilds.Length}) guilds...");
-
-        if (guilds.Length != 0)
+        var guildsToStart = await GetGuildsWithNoCommandsAsync();
+        if (guildsToStart.Length != 0)
         {
-            await guilds.RegisterStartCommandAsync();
+            _log.Info($"Registering /start command to ({guildsToStart.Length}) guilds...");
+
+            await guildsToStart.RegisterStartCommandAsync();
+
             _log.Info("Commands registered successfully");
         }
+
+        await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
+        {
+            try
+            {
+                var commands = await guild.GetApplicationCommandsAsync();
+                if (commands.Select(c => c.Name).Contains("disable") == false)
+                {
+                    var disableCommand = InteractionsHelper.BuildDisableCommand();
+                    await guild.CreateApplicationCommandAsync(disableCommand);
+                }
+
+                await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync($"Failed to register slash commands to guild {guild.Name} ({guild.Id})", e);
+            }
+        });
 
         if (BotConfig.PLAYING_STATUS.Length != 0)
         {
@@ -59,10 +86,11 @@ public static class CharacterEngineBot
         }
 
         await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
+        BackgroundWorker.Run(_services);
     }
 
 
-    private static async Task<SocketGuild[]> GetGuildsAsync()
+    private static async Task<SocketGuild[]> GetGuildsWithNoCommandsAsync()
     {
         ConcurrentBag<SocketGuild> guilds = [];
         await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
@@ -70,7 +98,7 @@ public static class CharacterEngineBot
             try
             {
                 var guildCommands = await guild.GetApplicationCommandsAsync();
-                if (guildCommands.Count != 0)
+                if (guildCommands.Count == 0)
                 {
                     guilds.Add(guild);
                 }
@@ -102,7 +130,7 @@ public static class CharacterEngineBot
     }
 
 
-    private static void BindEvents(this DiscordSocketClient discordClient, IServiceProvider sp)
+    private static void BindEvents(this DiscordSocketClient discordClient)
     {
         discordClient.Log += msg =>
         {
@@ -130,12 +158,12 @@ public static class CharacterEngineBot
             return Task.CompletedTask;
         };
 
-        var interactionService = sp.GetRequiredService<InteractionService>();
+        var interactionService = _services.GetRequiredService<InteractionService>();
 
-        interactionService.InteractionExecuted += sp.GetRequiredService<InteractionsHandler>().HandleInteractionAsync;
-        discordClient.SlashCommandExecuted += sp.GetRequiredService<SlashCommandsHandler>().HandleSlashCommandAsync;
-        discordClient.ModalSubmitted += sp.GetRequiredService<ModalsHandler>().HandleModalAsync;
-        discordClient.ButtonExecuted += sp.GetRequiredService<ButtonsHandler>().HandleButtonAsync;
+        interactionService.InteractionExecuted += _services.GetRequiredService<InteractionsHandler>().HandleInteractionAsync;
+        discordClient.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleSlashCommandAsync;
+        discordClient.ModalSubmitted += _services.GetRequiredService<ModalsHandler>().HandleModalAsync;
+        discordClient.ButtonExecuted += _services.GetRequiredService<ButtonsHandler>().HandleButtonAsync;
 
     }
 }
