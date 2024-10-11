@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db.Discord;
 
 namespace CharacterEngineDiscord.Models.Db;
@@ -16,6 +15,7 @@ public class DiscordChannelSpawnedCharacter
 
     public required Guid SpawnedCharacterId { get; set; }
     public required IntegrationType IntegrationType { get; set; }
+
 
     public virtual DiscordChannel? DiscordChannel { get; set; }
 }

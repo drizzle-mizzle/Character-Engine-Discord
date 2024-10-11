@@ -1,5 +1,4 @@
-﻿using CharacterEngineDiscord.Models;
-using Discord;
+﻿using Discord;
 using NLog;
 
 namespace CharacterEngine.App.Helpers.Discord;

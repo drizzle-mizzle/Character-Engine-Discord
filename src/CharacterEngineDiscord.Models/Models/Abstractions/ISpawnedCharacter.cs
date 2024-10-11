@@ -44,4 +44,14 @@ public interface ISpawnedCharacter
     public uint MessagesSent { get; set; }
 
     public DateTime LastCallTime { get; set; }
+
+
+    // Character Info
+    public string CharacterId { get; set; }
+    public string CharacterName { get; set; }
+    public string CharacterDesc { get; set; }
+    public string CharacterFirstMessage { get; set; }
+    public string? CharacterImageLink { get; set; }
+    public string CharacterAuthor { get; set; }
+    public float? CharacterStat { get; set; }
 }

@@ -1,7 +1,12 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models;
+using Discord;
 using Discord.Interactions;
+using Discord.Webhook;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
+using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -9,23 +14,29 @@ namespace CharacterEngine.App.Handlers;
 public class ButtonsHandler
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger _log;
     private readonly AppDbContext _db;
-    private readonly LocalStorage _localStorage;
+
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
 
 
-    public ButtonsHandler(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions)
+    public ButtonsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
     {
         _serviceProvider = serviceProvider;
+        _log = log;
         _db = db;
 
-        _localStorage = localStorage;
         _discordClient = discordClient;
         _interactions = interactions;
     }
 
-    public async Task HandleButtonAsync(SocketMessageComponent component)
+
+    public Task HandleButton(SocketMessageComponent component)
+        => Task.Run(async () => await HandleButtonAsync(component));
+
+
+    private async Task HandleButtonAsync(SocketMessageComponent component)
     {
         await component.DeferAsync();
 
@@ -53,13 +64,30 @@ public class ButtonsHandler
         };
     }
 
+
     private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = _localStorage.SearchQueries.FirstOrDefault(sq => sq.ChannelId == component.ChannelId && sq.UserId == component.User.Id);
+        // var sq = LocalStorage.SearchQueries.FirstOrDefault(sq => sq.Value.ChannelId == component.ChannelId && sq.Value.UserId == component.User.Id);
+        var sq = RuntimeStorage.SearchQueries.GetByChannelId((ulong)component.ChannelId!);
         if (sq is null)
         {
+            await component.ModifyOriginalResponseAsync(msg =>
+            {
+                var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request.".ToInlineEmbed(color: Color.Purple);
+                msg.Embeds = new Optional<Embed[]>([msg.Embeds.Value.First(), newEmbed]);
+            }).ConfigureAwait(false);
             return;
         }
+
+        if (sq.UserId != component.User.Id)
+        {
+            var isManager = await _db.Managers.AnyAsync(m => m.UserId == component.User.Id && m.GuildId == component.GuildId);
+            if (!isManager)
+            {
+                return;
+            }
+        }
+
 
         var action = component.Data.CustomId.Replace($"sq{InteractionsHelper.SEP}", string.Empty);
         switch (action)
@@ -86,10 +114,29 @@ public class ButtonsHandler
             }
             case "select":
             {
-                break;
+                await component.ModifyOriginalResponseAsync(msg => { msg.Embed = MessagesTemplates.WAIT_MESSAGE; });
+                var (_, spawnedCharacter) = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
+
+                var characterMessage = sq.SelectedCharacter
+                                         .FirstMessage
+                                         .Replace("{{char}}", sq.SelectedCharacter.Name)
+                                         .Replace("{{user}}", $"**{(component.User as IGuildUser)!.DisplayName}**");
+
+                await component.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Embed = MessagesHelper.BuildCharacterDescriptionCard(spawnedCharacter, sq.SelectedCharacter);
+                });
+
+                var webhookClient = new DiscordWebhookClient(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
+                RuntimeStorage.WebhookClients.TryAdd(spawnedCharacter.WebhookId, webhookClient);
+                await webhookClient.SendMessageAsync(characterMessage);
+
+                RuntimeStorage.SearchQueries.Remove(sq.ChannelId);
+
+                return;
             }
         }
 
-        await component.Message.ModifyAsync(m => { m.Embed = InteractionsHelper.BuildSearchResultList(sq); }).ConfigureAwait(false);
+        await component.ModifyOriginalResponseAsync(msg => { msg.Embed = InteractionsHelper.BuildSearchResultList(sq); }).ConfigureAwait(false);
     }
 }

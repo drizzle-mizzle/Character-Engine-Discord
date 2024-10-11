@@ -1,41 +1,14 @@
-﻿using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using SakuraAi.Client.Models.Common;
+﻿using CharacterEngine.App.Helpers.Mappings;
+using CharacterEngineDiscord.Models;
 
 namespace CharacterEngine.App.Helpers.Integrations;
 
 
 public static class SakuraAiHelper
 {
-    public static CommonCharacter ToCommonCharacter (this SakuraCharacter character)
+    public static async Task<ICollection<CommonCharacter>> SearchAsync(string query)
     {
-        var spawnedCharacter = new CommonCharacter
-        {
-            CharacterId = character.id,
-            CharacterName = character.name,
-            CharacterDesc = character.description,
-            CharacterFirstMessage = character.firstMessage,
-            CharacterImageLink = character.imageUri,
-            Stat = character.messageCount,
-            Author = character.creatorUsername
-        };
-
-        return spawnedCharacter;
-    }
-
-
-    public static ICollection<CommonCharacter> AsCommonCharacters (this ICollection<SakuraCharacter> characters)
-    {
-        return characters.Select(character => new CommonCharacter
-                          {
-                              CharacterId = character.id,
-                              CharacterName = character.name,
-                              CharacterDesc = character.description,
-                              CharacterFirstMessage = character.firstMessage,
-                              CharacterImageLink = character.imageUri,
-                              Stat = character.messageCount,
-                              Author = character.creatorUsername
-                          })
-                         .ToArray();
+        var characters = await RuntimeStorage.SakuraAiClient.SearchAsync(query);
+        return characters.Select(sc => sc.ToCommonCharacter()).ToArray();
     }
 }

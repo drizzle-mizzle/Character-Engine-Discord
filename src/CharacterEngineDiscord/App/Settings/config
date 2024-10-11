@@ -23,5 +23,7 @@ USER_SECOND_BLOCK_HOURS: 24
 # Image or GIF file from /img/ directory that will be sent when user tries to execute a command he has no access to. Leave empty to disable.
 NO_POWER_FILE: nopower.gif
 
+DEFAULT_AVATAR_FILE: good_duckling.png
+
 # Postgres only
 DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki

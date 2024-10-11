@@ -32,6 +32,9 @@ public static class BotConfig
     public static string NO_POWER_FILE
         => GetParamByName<string>("NO_POWER_FILE");
 
+    public static string DEFAULT_AVATAR_FILE
+        => GetParamByName<string>("DEFAULT_AVATAR_FILE");
+
     public static string DATABASE_CONNECTION_STRING
         => GetParamByName<string>("DATABASE_CONNECTION_STRING");
 

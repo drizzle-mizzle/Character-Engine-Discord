@@ -3,9 +3,8 @@
 
 public enum IntegrationType
 {
-    SakuraAi = 1,
+    SakuraAI = 1,
     CharacterAI = 2,
-
 }
 
 

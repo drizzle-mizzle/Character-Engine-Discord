@@ -6,6 +6,8 @@ namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 public class SakuraAiSpawnedCharacter : ISpawnedCharacter
 {
+    private float _characterStat;
+
     [Key]
     public required Guid Id { get; set; }
 
@@ -23,9 +25,19 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter
     public required uint MessagesSent { get; set; }
     public required DateTime LastCallTime { get; set; }
 
-    public required string CharacterId { get; set; }
-    public required string CharacterName { get; set; }
-    public required string CharacterDesc { get; set; }
-    public required string CharacterFirstMessage { get; set; }
-    public required string? CharacterImageLink { get; set; }
+    public string CharacterId { get; set; }
+    public string CharacterName { get; set; }
+    public string CharacterDesc { get; set; }
+    public string CharacterFirstMessage { get; set; }
+    public string? CharacterImageLink { get; set; }
+    public string CharacterAuthor { get; set; }
+
+    public float? CharacterStat
+    {
+        get => SakuraConverstaionsCount;
+        set => SakuraConverstaionsCount = value ?? 0;
+    }
+
+    // Own
+    public float SakuraConverstaionsCount { get; set; }
 }

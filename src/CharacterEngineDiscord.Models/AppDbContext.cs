@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Models;
 
+
 public sealed class AppDbContext : DbContext
 {
     private readonly string CONNECTION_STRING;
@@ -17,6 +18,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<SakuraAiIntegration> SakuraAiIntegrations { get; init; }
 
 
+    public DbSet<Manager> Managers { get; init; }
     public DbSet<StoredAction> StoredActions { get; init; }
 
     // Discord

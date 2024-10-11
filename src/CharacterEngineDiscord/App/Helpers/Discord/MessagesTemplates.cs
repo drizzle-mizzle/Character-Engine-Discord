@@ -5,11 +5,14 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public static class MessagesTemplates
 {
-    public const string OK_SIGN_DISCORD = ":white_check_mark: ";
     public const string WARN_SIGN_UNICODE = "⚠";
-    public const string WARN_SIGN_DISCORD = ":warning:";
 
-    public const string SAKURA_EMOJI = "<:sakura128:1254405302099644539>";
+    public const string OK_SIGN_DISCORD = ":white_check_mark: ";
+    public const string WARN_SIGN_DISCORD = ":warning:";
+    public const string QUESTION_SIGN_DISCORD = ":question:";
+    public const string X_SIGN_DISCORD = ":x:";
+
+    public const string SAKURA_EMOJI = "<:sakura64:>";
 
     public static readonly Emoji ARROW_LEFT = new("\u2B05");
     public static readonly Emoji ARROW_RIGHT = new("\u27A1");

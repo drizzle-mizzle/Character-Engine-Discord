@@ -1,12 +1,10 @@
-﻿using CharacterEngine.App.Handlers;
-using CharacterEngine.App.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Local;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using SakuraAi.Client;
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -15,21 +13,17 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly AppDbContext _db;
-    private readonly LocalStorage _localStorage;
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
-    private readonly SakuraAiClient _sakuraAiClient;
 
 
-    public CharacterCommands(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions, SakuraAiClient sakuraAiClient)
+    public CharacterCommands(IServiceProvider serviceProvider, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
     {
         _serviceProvider = serviceProvider;
         _db = db;
 
-        _localStorage = localStorage;
         _discordClient = discordClient;
         _interactions = interactions;
-        _sakuraAiClient = sakuraAiClient;
     }
 
 
@@ -38,20 +32,20 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
-        var characters = integrationType switch
+        var characters = await (integrationType switch
         {
-            IntegrationType.SakuraAi => await _sakuraAiClient.SearchAsync(query),
-            IntegrationType.CharacterAI => []
-        };
+            IntegrationType.SakuraAI => SakuraAiHelper.SearchAsync(query),
+            // IntegrationType.CharacterAI =>
+        });
 
         if (characters.Count == 0)
         {
-            await ModifyOriginalResponseAsync(msg => { msg.Embed = $"No characters were found by query **\"{query}\"**".ToInlineEmbed(Color.Orange, false); });
+            await ModifyOriginalResponseAsync(msg => { msg.Embed = $"{integrationType.GetIcon()} No characters were found by query **\"{query}\"**".ToInlineEmbed(Color.Orange, false); });
             return;
         }
 
-        var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters.AsCommonCharacters(), integrationType);
-        _localStorage.SearchQueries.Add(searchQuery);
+        var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters, integrationType);
+        RuntimeStorage.SearchQueries.Add(searchQuery);
 
         await ModifyOriginalResponseAsync(msg =>
         {

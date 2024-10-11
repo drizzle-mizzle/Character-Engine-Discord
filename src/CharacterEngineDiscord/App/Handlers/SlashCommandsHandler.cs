@@ -3,6 +3,7 @@ using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -10,18 +11,20 @@ namespace CharacterEngine.App.Handlers;
 public class SlashCommandsHandler
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger _log;
     private readonly AppDbContext _db;
-    private readonly LocalStorage _localStorage;
+
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
 
 
-    public SlashCommandsHandler(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions)
+    public SlashCommandsHandler(IServiceProvider serviceProvider, AppDbContext db, ILogger log,
+                                DiscordSocketClient discordClient, InteractionService interactions)
     {
         _serviceProvider = serviceProvider;
+        _log = log;
         _db = db;
 
-        _localStorage = localStorage;
         _discordClient = discordClient;
         _interactions = interactions;
     }
@@ -29,10 +32,13 @@ public class SlashCommandsHandler
     private static readonly ChannelPermission[] REQUIRED_PERMS = [ ChannelPermission.ViewChannel, ChannelPermission.SendMessages, ChannelPermission.AddReactions, ChannelPermission.EmbedLinks, ChannelPermission.AttachFiles, ChannelPermission.ManageWebhooks ];
 
 
+    public Task HandleSlashCommand(SocketSlashCommand command)
+        => Task.Run(async () => await HandleSlashCommandAsync(command));
+    
 
     private static readonly Embed _errMsgEmbed1 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot can opearte only in text channels".ToInlineEmbed(Color.Red);
     private static readonly Embed _errMsgEmbed2 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel".ToInlineEmbed(Color.Red);
-    public async Task HandleSlashCommandAsync(SocketSlashCommand command)
+    private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
         try
         {

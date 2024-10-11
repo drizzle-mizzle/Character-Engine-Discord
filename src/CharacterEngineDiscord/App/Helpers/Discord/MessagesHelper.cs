@@ -1,4 +1,7 @@
-﻿using Discord;
+﻿using CharacterEngine.App.Helpers.Integrations;
+using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Abstractions;
+using Discord;
 using NLog;
 
 namespace CharacterEngine.App.Helpers.Discord;
@@ -37,12 +40,12 @@ public static class MessagesHelper
     }
 
 
-    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, string? imageUrl = null)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, string? imageUrl = null, Color? color = null)
     {
         _log.Info($"[ {title} ] {content}");
 
         var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
-        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(Color.Green, false, imageUrl));
+        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl));
         if (content is null)
         {
             return;
@@ -79,6 +82,26 @@ public static class MessagesHelper
                 embed.WithImageUrl(imageUrl);
             }
         }
+
+        return embed.Build();
+    }
+
+
+    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter, CommonCharacter commonCharacter)
+    {
+        var type = commonCharacter.IntegrationType;
+        var embed = new EmbedBuilder().WithTitle($"{type:G}").WithColor(type.GetColor());
+        var l = Math.Min(commonCharacter.Desc.Length, 4000) - 1;
+
+
+        var desc = "**Description**\n";
+        desc += l > 0 ? "[none]" : spawnedCharacter.CharacterDesc;
+        if (spawnedCharacter.CharacterDesc.Length >= 4000)
+        {
+            desc = $"{desc}[...]";
+        }
+
+        embed.WithDescription(desc);
 
         return embed.Build();
     }

@@ -13,9 +13,10 @@ public class DiscordGuild
 
     public required ulong OwnerId { get; set; }
 
-    public required string OwnerUsername { get; set; }
+    public required string? OwnerUsername { get; set; }
 
     public required uint MessagesSent { get; set; }
 
+    public required bool Joined { get; set; }
     public required DateTime FirstJoinDate { get; set; }
 }

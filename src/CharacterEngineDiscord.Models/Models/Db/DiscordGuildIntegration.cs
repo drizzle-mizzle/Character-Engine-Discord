@@ -1,8 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db.Discord;
-using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace CharacterEngineDiscord.Models.Db;
 

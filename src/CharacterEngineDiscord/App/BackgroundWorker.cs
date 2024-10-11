@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
@@ -10,7 +9,6 @@ using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using SakuraAi.Client;
 using SakuraAi.Client.Exceptions;
 
 namespace CharacterEngine.App;
@@ -19,8 +17,8 @@ namespace CharacterEngine.App;
 public class BackgroundWorker
 {
     private readonly Logger _log;
-    private readonly SakuraAiClient _sakuraAiClient;
     private readonly DiscordSocketClient _discordClient;
+
 
 
     public static void Run(IServiceProvider services)
@@ -35,7 +33,6 @@ public class BackgroundWorker
     private BackgroundWorker(IServiceProvider services)
     {
         _log = (services.GetRequiredService<ILogger>() as Logger)!;
-        _sakuraAiClient = services.GetRequiredService<SakuraAiClient>();
         _discordClient = services.GetRequiredService<DiscordSocketClient>();
     }
 
@@ -145,7 +142,7 @@ public class BackgroundWorker
             {
                 await _discordClient.ReportErrorAsync("Exception in Quick Jobs loop", e);
 
-                await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+                await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
                 db.StoredActions.Update(action);
                 await db.SaveChangesAsync();
@@ -158,7 +155,7 @@ public class BackgroundWorker
     {
         var actionsToRun = new List<StoredAction>();
 
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+        await using var db = DatabaseHelper.GetDbContext();
         var storedActions = await db.StoredActions
                                     .Where(sa => sa.Status == StoredActionStatus.Pending &&
                                                  actionTypes.Contains(sa.StoredActionType))
@@ -197,10 +194,10 @@ public class BackgroundWorker
 
     private async Task EnsureSakuraAiLoginAsync(StoredAction action)
     {
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+        await using var db = DatabaseHelper.GetDbContext();
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
-        var result = await _sakuraAiClient.EnsureLoginByEmailAsync(signInAttempt);
+        var result = await RuntimeStorage.SakuraAiClient.EnsureLoginByEmailAsync(signInAttempt);
         if (result is null)
         {
             action.Attempt++;
@@ -212,8 +209,6 @@ public class BackgroundWorker
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
         var channel = (ITextChannel)await _discordClient.GetChannelAsync(sourceInfo.ChannelId)!;
-
-        // TODO: EnsureGuildInDb
 
         var existingGuildIntegraion = await db.DiscordGuildIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (existingGuildIntegraion is not null)
@@ -237,7 +232,7 @@ public class BackgroundWorker
             Id = Guid.NewGuid(),
             DiscordGuildId = channel.GuildId,
             IntegraionId = newSakuraIntegration.Id,
-            IntegrationType = IntegrationType.SakuraAi
+            IntegrationType = IntegrationType.SakuraAI
         };
 
         await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);

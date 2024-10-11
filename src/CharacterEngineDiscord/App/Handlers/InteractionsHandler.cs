@@ -3,6 +3,7 @@ using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -10,24 +11,30 @@ namespace CharacterEngine.App.Handlers;
 public class InteractionsHandler
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger _log;
     private AppDbContext _db { get; set; }
-    private readonly LocalStorage _localStorage;
+
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
 
 
-    public InteractionsHandler(IServiceProvider serviceProvider, AppDbContext db, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions)
+    public InteractionsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db,
+                               DiscordSocketClient discordClient, InteractionService interactions)
     {
         _serviceProvider = serviceProvider;
+        _log = log;
         _db = db;
 
-        _localStorage = localStorage;
         _discordClient = discordClient;
         _interactions = interactions;
     }
 
 
-    public async Task HandleInteractionAsync(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
+    public Task HandleInteraction(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
+        => Task.Run(async () => await HandleInteractionAsync(commandInfo, interactionContext, result));
+
+
+    private async Task HandleInteractionAsync(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
     {
         if (result.IsSuccess)
         {

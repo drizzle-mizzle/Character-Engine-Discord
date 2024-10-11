@@ -1,12 +1,12 @@
 ﻿using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using NLog;
-using SakuraAi.Client;
 using SakuraAi.Client.Exceptions;
 using SakuraAi.Client.Models.Common;
 
@@ -18,26 +18,27 @@ public class ModalsHandler
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _log;
     private AppDbContext _db { get; }
-    private readonly LocalStorage _localStorage;
+
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
-    private readonly SakuraAiClient _sakuraAiClient;
 
 
-    public ModalsHandler(IServiceProvider serviceProvider, AppDbContext db, ILogger log, LocalStorage localStorage, DiscordSocketClient discordClient, InteractionService interactions, SakuraAiClient sakuraAiClient)
+    public ModalsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
     {
         _serviceProvider = serviceProvider;
         _log = log;
         _db = db;
 
-        _localStorage = localStorage;
         _discordClient = discordClient;
         _interactions = interactions;
-        _sakuraAiClient = sakuraAiClient;
     }
 
 
-    public async Task HandleModalAsync(SocketModal modal)
+    public Task HandleModal(SocketModal modal)
+        => Task.Run(async () => await HandleModalAsync(modal));
+    
+
+    private async Task HandleModalAsync(SocketModal modal)
     {
         try
         {
@@ -60,7 +61,7 @@ public class ModalsHandler
     {
         return (IntegrationType)intergrationType switch
         {
-            IntegrationType.SakuraAi => CreateSakuraAiIntegrationAsync(modal)
+            IntegrationType.SakuraAI => CreateSakuraAiIntegrationAsync(modal)
         };
     }
 
@@ -73,7 +74,7 @@ public class ModalsHandler
         SakuraSignInAttempt attempt;
         try
         {
-            attempt = await _sakuraAiClient.SendLoginEmailAsync(email);
+            attempt = await RuntimeStorage.SakuraAiClient.SendLoginEmailAsync(email);
         }
         catch (SakuraAiException e)
         {

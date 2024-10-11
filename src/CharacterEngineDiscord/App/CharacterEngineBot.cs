@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
-using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
@@ -8,125 +7,40 @@ using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
+using DI = CharacterEngine.App.Helpers.Common.DependencyInjectionHelper;
+
 
 namespace CharacterEngine.App;
 
 
 public static class CharacterEngineBot
 {
-    private static readonly IServiceProvider _services = CommonHelper.BuildServiceProvider();
-    private static readonly DiscordSocketClient _discordClient = _services.GetRequiredService<DiscordSocketClient>();
-    private static readonly InteractionService _interactions = _services.GetRequiredService<InteractionService>();
-    private static readonly Logger _log = (_services.GetRequiredService<ILogger>() as Logger)!;
+    private static readonly IServiceProvider _serviceProvider = DI.GetServiceProvider;
+    private static readonly ILogger _log = _serviceProvider.GetRequiredService<ILogger>();
+    private static readonly DiscordSocketClient _discordClient = _serviceProvider.GetRequiredService<DiscordSocketClient>();
+    private static readonly InteractionService _interactions = _serviceProvider.GetRequiredService<InteractionService>();
 
 
-
-    public static void Run()
-        => RunAsync().GetAwaiter().GetResult();
-
-
+    public static void Run() => RunAsync().GetAwaiter().GetResult();
     private static async Task RunAsync()
     {
-        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _services).ConfigureAwait(false);
+        InteractionsHelper.Initialize(_serviceProvider);
+
+        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).ConfigureAwait(false);
         _discordClient.BindEvents();
-        _discordClient.Connected += OnConnected;
 
         await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN).ConfigureAwait(false);
         await _discordClient.StartAsync().ConfigureAwait(false);
 
-        var db = _services.GetRequiredService<AppDbContext>();
+        var db = _serviceProvider.GetRequiredService<AppDbContext>();
 
         await db.Database.EnsureDeletedAsync();
         await db.Database.EnsureCreatedAsync();
         // await db.Database.MigrateAsync();
 
-
         await Task.Delay(-1);
-    }
-
-
-    private static async Task OnConnected()
-    {
-        var guildsToStart = await GetGuildsWithNoCommandsAsync();
-        if (guildsToStart.Length != 0)
-        {
-            _log.Info($"Registering /start command to ({guildsToStart.Length}) guilds...");
-
-            await guildsToStart.RegisterStartCommandAsync();
-
-            _log.Info("Commands registered successfully");
-        }
-
-        await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
-        {
-            try
-            {
-                var commands = await guild.GetApplicationCommandsAsync();
-                if (commands.Select(c => c.Name).Contains("disable") == false)
-                {
-                    var disableCommand = InteractionsHelper.BuildDisableCommand();
-                    await guild.CreateApplicationCommandAsync(disableCommand);
-                }
-
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
-            }
-            catch (Exception e)
-            {
-                await _discordClient.ReportErrorAsync($"Failed to register slash commands to guild {guild.Name} ({guild.Id})", e);
-            }
-        });
-
-        if (BotConfig.PLAYING_STATUS.Length != 0)
-        {
-            await _discordClient.SetGameAsync(BotConfig.PLAYING_STATUS);
-            _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
-        }
-
-        await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
-        BackgroundWorker.Run(_services);
-    }
-
-
-    private static async Task<SocketGuild[]> GetGuildsWithNoCommandsAsync()
-    {
-        ConcurrentBag<SocketGuild> guilds = [];
-        await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
-        {
-            try
-            {
-                var guildCommands = await guild.GetApplicationCommandsAsync();
-                if (guildCommands.Count == 0)
-                {
-                    guilds.Add(guild);
-                }
-            }
-            catch
-            {
-                // nvm
-            }
-        });
-
-        return guilds.ToArray();
-    }
-
-
-    private static Task RegisterStartCommandAsync(this SocketGuild[] guilds)
-    {
-        return Parallel.ForEachAsync(guilds, async (guild, _) =>
-        {
-            try
-            {
-                var startCommand = InteractionsHelper.BuildStartCommand();
-                await guild.CreateApplicationCommandAsync(startCommand).ConfigureAwait(false);
-            }
-            catch (Exception e)
-            {
-                _log.Error($"Failed to register command in guild {guild.Name} ({guild.Id}): {e}");
-            }
-        });
     }
 
 
@@ -146,24 +60,75 @@ public static class CharacterEngineBot
             return Task.CompletedTask;
         };
 
-        discordClient.JoinedGuild += guild =>
+        discordClient.JoinedGuild += async guild =>
         {
             _log.Info($"Joined guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            return Task.CompletedTask;
+            await Task.Run(async () => await guild.EnsureExistInDbAsync());
         };
 
-        discordClient.LeftGuild += guild =>
+        discordClient.LeftGuild += async guild =>
         {
             _log.Info($"Left guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            return Task.CompletedTask;
+            await Task.Run(async () => await guild.MarkAsLeftAsync());
         };
 
-        var interactionService = _services.GetRequiredService<InteractionService>();
+        discordClient.Connected += OnConnected;
 
-        interactionService.InteractionExecuted += _services.GetRequiredService<InteractionsHandler>().HandleInteractionAsync;
-        discordClient.SlashCommandExecuted += _services.GetRequiredService<SlashCommandsHandler>().HandleSlashCommandAsync;
-        discordClient.ModalSubmitted += _services.GetRequiredService<ModalsHandler>().HandleModalAsync;
-        discordClient.ButtonExecuted += _services.GetRequiredService<ButtonsHandler>().HandleButtonAsync;
+        var interactionService = _serviceProvider.GetRequiredService<InteractionService>();
+        interactionService.InteractionExecuted += DI.GetInteractionsHandler.HandleInteraction;
+        discordClient.SlashCommandExecuted += DI.GetSlashCommandsHandler.HandleSlashCommand;
+        discordClient.ModalSubmitted += DI.GetModalsHandler.HandleModal;
+        discordClient.ButtonExecuted += DI.GetButtonsHandler.HandleButton;
+    }
 
+
+    private static async Task OnConnected()
+    {
+        foreach (var guild in _discordClient.Guilds)
+        {
+            await guild.EnsureExistInDbAsync();
+        }
+
+        var failedGuilds = new ConcurrentBag<(IGuild guild, string err)>();
+        await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
+        {
+            try
+            {
+                var commands = await guild.GetApplicationCommandsAsync();
+                if (commands.Count == 0)
+                {
+                    var startCommand = InteractionsHelper.BuildStartCommand();
+                    await guild.CreateApplicationCommandAsync(startCommand).ConfigureAwait(false);
+                    return;
+                }
+
+                if (commands.Select(c => c.Name).Contains("start"))
+                {
+                    return;
+                }
+
+                await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
+            }
+            catch (Exception e)
+            {
+                failedGuilds.Add((guild, e.Message));
+                _log.Error(e.ToString());
+            }
+        });
+
+        if (!failedGuilds.IsEmpty)
+        {
+            var guildsListLine = string.Join('\n', failedGuilds.Select(pair => $"> {pair.guild.Name} ({pair.guild.Id}): {pair.err}"));
+            await _discordClient.ReportLogAsync($"Failed to register slash commands to guilds ({guildsListLine.Length})", guildsListLine, color: Color.Red);
+        }
+
+        if (BotConfig.PLAYING_STATUS.Length != 0)
+        {
+            await _discordClient.SetGameAsync(BotConfig.PLAYING_STATUS);
+            _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
+        }
+
+        await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
+        BackgroundWorker.Run(_serviceProvider);
     }
 }

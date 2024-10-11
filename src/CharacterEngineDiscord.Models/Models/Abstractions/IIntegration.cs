@@ -1,6 +1,4 @@
-﻿using CharacterEngineDiscord.Models.Db.Discord;
-
-namespace CharacterEngineDiscord.Models.Abstractions;
+﻿namespace CharacterEngineDiscord.Models.Abstractions;
 
 public interface IIntegration
 {
