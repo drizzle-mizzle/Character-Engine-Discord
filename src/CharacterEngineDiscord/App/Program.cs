@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using CharacterEngineDiscord.Helpers.Common;
+using NLog;
 
 namespace CharacterEngine.App
 {
@@ -7,7 +8,7 @@ namespace CharacterEngine.App
         private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
-        private static void Main()
+        private static async Task Main()
         {
             var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"Settings\NLog.config");
             LogManager.Configuration = new NLog.Config.XmlLoggingConfiguration(nlogPath);
@@ -25,6 +26,10 @@ namespace CharacterEngine.App
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+            await using var db = DatabaseHelper.GetDbContext();
+            await db.Database.EnsureDeletedAsync();
+            await db.Database.EnsureCreatedAsync();
+            // await db.Database.MigrateAsync();
 
             CharacterEngineBot.Run();
         }

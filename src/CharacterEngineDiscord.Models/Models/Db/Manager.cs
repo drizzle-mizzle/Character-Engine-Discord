@@ -10,10 +10,12 @@ public class Manager
     [Key]
     public Guid Id { get; set; }
 
-    public ulong UserId { get; set; }
-
     [ForeignKey("DiscordGuild")]
     public ulong GuildId { get; set; }
+
+    public ulong UserId { get; set; }
+
+
 
     public virtual DiscordGuild DiscordGuild { get; set; }
 }

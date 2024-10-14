@@ -1,21 +1,17 @@
-using CharacterEngine.App.Helpers.Integrations;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
+using CharacterEngineDiscord.Models.Common;
 using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngine.App.Helpers.Mappings;
+namespace CharacterEngineDiscord.Helpers.Mappings;
 
 
 public static class CommonCharacterMapper
 {
     public static CommonCharacter ToCommonCharacter(this ISpawnedCharacter spawnedCharacter)
     {
-        var type = spawnedCharacter switch
-        {
-            SakuraAiSpawnedCharacter => IntegrationType.SakuraAI
-        };
-
+        var type = spawnedCharacter.GetIntegrationType();
         var link = type.GetCharacterLink(spawnedCharacter.CharacterId);
 
         var commonCharacter = new CommonCharacter
@@ -23,12 +19,12 @@ public static class CommonCharacterMapper
             IntegrationType = type,
             CharacterId = spawnedCharacter.CharacterId,
             Name = spawnedCharacter.CharacterName,
-            Desc = spawnedCharacter.CharacterDesc,
+            ShortDesc = spawnedCharacter.CharacterShortDesc,
+            FullDesc = spawnedCharacter.CharacterFullDesc,
             FirstMessage = spawnedCharacter.CharacterFirstMessage,
             Author = spawnedCharacter.CharacterAuthor,
             ImageLink = spawnedCharacter.CharacterImageLink,
-            Stat = spawnedCharacter.CharacterStat,
-            OriginalLink = link
+            Stat = spawnedCharacter.CharacterStat
         };
 
         return commonCharacter;
@@ -42,12 +38,12 @@ public static class CommonCharacterMapper
             IntegrationType = IntegrationType.SakuraAI,
             CharacterId = character.id,
             Name = character.name,
-            Desc = character.description,
+            ShortDesc = character.description,
+            FullDesc = $"**Scenario:**\n{character.scenario}\n**Persona:**\n{character.persona}",
             FirstMessage = character.firstMessage,
             Author = character.creatorUsername,
             ImageLink = character.imageUri,
             Stat = character.messageCount,
-            OriginalLink = IntegrationType.SakuraAI.GetCharacterLink(character.id),
             OriginalCharacterModel = character
         };
 

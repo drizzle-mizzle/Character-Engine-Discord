@@ -31,7 +31,17 @@ public class InteractionsHandler
 
 
     public Task HandleInteraction(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)
-        => Task.Run(async () => await HandleInteractionAsync(commandInfo, interactionContext, result));
+        => Task.Run(async () =>
+        {
+            try
+            {
+                await HandleInteractionAsync(commandInfo, interactionContext, result);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync(e);
+            }
+        });
 
 
     private async Task HandleInteractionAsync(ICommandInfo commandInfo, IInteractionContext interactionContext, IResult result)

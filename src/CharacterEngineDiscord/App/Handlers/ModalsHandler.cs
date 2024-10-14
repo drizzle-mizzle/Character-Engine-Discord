@@ -1,6 +1,7 @@
-﻿using CharacterEngine.App.Helpers.Common;
-using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
+﻿using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Modules;
+using CharacterEngineDiscord.Helpers.Common;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
@@ -35,25 +36,28 @@ public class ModalsHandler
 
 
     public Task HandleModal(SocketModal modal)
-        => Task.Run(async () => await HandleModalAsync(modal));
+        => Task.Run(async () =>
+        {
+            try
+            {
+                await HandleModalAsync(modal);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync(e);
+            }
+        });
     
 
     private async Task HandleModalAsync(SocketModal modal)
     {
-        try
-        {
-            await modal.DeferAsync();
-            var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
+        await modal.DeferAsync();
+        var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
 
-            await (parsedModal.ActionType switch
-            {
-                ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
-            });
-        }
-        catch (Exception e)
+        await (parsedModal.ActionType switch
         {
-            await _discordClient.ReportErrorAsync(e);
-        }
+            ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
+        });
     }
 
 
@@ -74,16 +78,16 @@ public class ModalsHandler
         SakuraSignInAttempt attempt;
         try
         {
-            attempt = await RuntimeStorage.SakuraAiClient.SendLoginEmailAsync(email);
+            attempt = await SakuraAiModule.SendLoginEmailAsync(email);
         }
-        catch (SakuraAiException e)
+        catch (SakuraException e)
         {
             await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} SakuraAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
             throw;
         }
 
         // Respond to user
-        var msg = $"{MessagesTemplates.SAKURA_EMOJI} **SakuraAI**\n\n" +
+        var msg = $"{IntegrationType.SakuraAI.GetIcon()} **SakuraAI**\n\n" +
                   $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
                   $"- *It's recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail; or simply open it in [incognito tab](https://support.google.com/chrome/answer/95464?hl=en&co=GENIE.Platform%3DDesktop&oco=1#:~:text=New%20Incognito%20Window).*\n" +
                   $"- *It may take up to a minute for the bot to react on succeful confirmation.*";

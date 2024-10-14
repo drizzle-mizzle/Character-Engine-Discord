@@ -1,6 +1,6 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Integrations;
-using CharacterEngineDiscord.Models;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -34,7 +34,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var characters = await (integrationType switch
         {
-            IntegrationType.SakuraAI => SakuraAiHelper.SearchAsync(query),
+            IntegrationType.SakuraAI => RuntimeStorage.SakuraAiModule.SearchAsync(query),
             // IntegrationType.CharacterAI =>
         });
 
@@ -50,7 +50,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await ModifyOriginalResponseAsync(msg =>
         {
             msg.Embed = InteractionsHelper.BuildSearchResultList(searchQuery);
-            msg.Components = ButtonsHelper.BuildSelectButtons(searchQuery.Pages > 1);
+            msg.Components = ButtonsHelper.BuildSearchButtons(searchQuery.Pages > 1);
         });
     }
 }

@@ -4,6 +4,7 @@ using CharacterEngineDiscord.Models.Db.Integrations;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Microsoft.EntityFrameworkCore;
 
+// ReSharper disable once CheckNamespace
 namespace CharacterEngineDiscord.Models;
 
 
@@ -11,10 +12,10 @@ public sealed class AppDbContext : DbContext
 {
     private readonly string CONNECTION_STRING;
 
-    public DbSet<DiscordChannelSpawnedCharacter> DiscordChannelSpawnedCharacters { get; init; }
+    // public DbSet<DiscordChannelSpawnedCharacter> DiscordChannelSpawnedCharacters { get; init; }
     public DbSet<SakuraAiSpawnedCharacter> SakuraAiSpawnedCharacters { get; init; }
 
-    public DbSet<DiscordGuildIntegration> DiscordGuildIntegrations { get; init; }
+    // public DbSet<DiscordGuildIntegration> DiscordGuildIntegrations { get; init; }
     public DbSet<SakuraAiIntegration> SakuraAiIntegrations { get; init; }
 
 

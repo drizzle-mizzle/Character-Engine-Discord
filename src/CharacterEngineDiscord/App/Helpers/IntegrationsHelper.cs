@@ -1,10 +1,10 @@
-using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 
-namespace CharacterEngine.App.Helpers.Integrations;
+namespace CharacterEngineDiscord.Helpers.Integrations;
 
 
 public static class IntegrationsHelper
@@ -17,11 +17,21 @@ public static class IntegrationsHelper
         };
     }
 
+
+    public static string GetStatLabel(this IntegrationType type)
+    {
+        return type switch
+        {
+            IntegrationType.SakuraAI => "Conversations"
+        };
+    }
+
+
     public static string GetIcon(this IntegrationType type)
     {
         return type switch
         {
-            IntegrationType.SakuraAI => MessagesTemplates.SAKURA_EMOJI
+            IntegrationType.SakuraAI => BotConfig.SAKURA_AI_EMOJI
         };
     }
 
@@ -40,7 +50,17 @@ public static class IntegrationsHelper
     {
         return type switch
         {
-            IntegrationType.SakuraAI => $"https://www.sakura.fm/ru/chat/{characterId}"
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{characterId}"
         };
     }
+
+
+    public static string GetAuthorLink(this IntegrationType type, string author)
+    {
+        return type switch
+        {
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/user/{author}"
+        };
+    }
+
 }

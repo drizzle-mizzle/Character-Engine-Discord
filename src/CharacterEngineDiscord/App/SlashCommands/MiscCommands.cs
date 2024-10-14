@@ -30,4 +30,11 @@ public class MiscCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: $":ping_pong: Pong! - {_discordClient.Latency} ms".ToInlineEmbed(Color.Red));
     }
+
+
+    [SlashCommand("say", "say")]
+    public async Task Say(string text)
+    {
+        await RespondAsync(text);
+    }
 }

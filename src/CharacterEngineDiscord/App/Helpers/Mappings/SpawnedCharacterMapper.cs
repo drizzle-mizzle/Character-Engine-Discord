@@ -1,7 +1,7 @@
-using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Common;
 
-namespace CharacterEngine.App.Helpers.Mappings;
+namespace CharacterEngineDiscord.Helpers.Mappings;
 
 
 public static class SpawnedCharacterMapper
@@ -10,7 +10,8 @@ public static class SpawnedCharacterMapper
     {
         spawnedCharacter.CharacterId = commonCharacter.CharacterId;
         spawnedCharacter.CharacterName = commonCharacter.Name;
-        spawnedCharacter.CharacterDesc = commonCharacter.Desc;
+        spawnedCharacter.CharacterShortDesc = commonCharacter.ShortDesc;
+        spawnedCharacter.CharacterFullDesc = commonCharacter.FullDesc;
         spawnedCharacter.CharacterFirstMessage = commonCharacter.FirstMessage;
         spawnedCharacter.CharacterImageLink = commonCharacter.ImageLink;
         spawnedCharacter.CharacterAuthor = commonCharacter.Author;

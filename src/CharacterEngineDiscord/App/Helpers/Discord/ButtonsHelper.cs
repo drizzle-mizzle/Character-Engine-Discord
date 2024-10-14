@@ -1,3 +1,4 @@
+using CharacterEngineDiscord.Helpers.Common;
 using Discord;
 
 namespace CharacterEngine.App.Helpers.Discord;
@@ -5,14 +6,14 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public class ButtonsHelper
 {
-    private const string _upCustomId = $"sq{InteractionsHelper.SEP}up";
-    private const string _downCustomId = $"sq{InteractionsHelper.SEP}down";
-    private const string _selectCustomId = $"sq{InteractionsHelper.SEP}select";
-    private const string _leftCustomId = $"sq{InteractionsHelper.SEP}left";
-    private const string _rightCustomId = $"sq{InteractionsHelper.SEP}right";
+    private const string _upCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}up";
+    private const string _downCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}down";
+    private const string _selectCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}select";
+    private const string _leftCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}left";
+    private const string _rightCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}right";
 
 
-    public static MessageComponent BuildSelectButtons(bool withPages)
+    public static MessageComponent BuildSearchButtons(bool withPages)
     {
         // List navigation buttons
         var buttons = new ComponentBuilder().WithButton(emote: new Emoji("\u2B06"), customId: _upCustomId, style: ButtonStyle.Secondary)

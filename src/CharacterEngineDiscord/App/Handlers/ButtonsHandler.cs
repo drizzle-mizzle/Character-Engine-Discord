@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -33,7 +34,17 @@ public class ButtonsHandler
 
 
     public Task HandleButton(SocketMessageComponent component)
-        => Task.Run(async () => await HandleButtonAsync(component));
+        => Task.Run(async () =>
+        {
+            try
+            {
+                await HandleButtonAsync(component);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync(e);
+            }
+        });
 
 
     private async Task HandleButtonAsync(SocketMessageComponent component)
@@ -50,7 +61,7 @@ public class ButtonsHandler
 
     private static ButtonActionType GetActionType(string customId)
     {
-        var i = customId.IndexOf(InteractionsHelper.SEP, StringComparison.Ordinal);
+        var i = customId.IndexOf(CommonHelper.COMMAND_SEPARATOR, StringComparison.Ordinal);
         if (i == -1)
         {
             return ButtonActionType.Unknown;
@@ -89,7 +100,7 @@ public class ButtonsHandler
         }
 
 
-        var action = component.Data.CustomId.Replace($"sq{InteractionsHelper.SEP}", string.Empty);
+        var action = component.Data.CustomId.Replace($"sq{CommonHelper.COMMAND_SEPARATOR}", string.Empty);
         switch (action)
         {
             case "up":
@@ -115,7 +126,7 @@ public class ButtonsHandler
             case "select":
             {
                 await component.ModifyOriginalResponseAsync(msg => { msg.Embed = MessagesTemplates.WAIT_MESSAGE; });
-                var (_, spawnedCharacter) = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
+                var spawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
 
                 var characterMessage = sq.SelectedCharacter
                                          .FirstMessage
@@ -124,14 +135,14 @@ public class ButtonsHandler
 
                 await component.ModifyOriginalResponseAsync(msg =>
                 {
-                    msg.Embed = MessagesHelper.BuildCharacterDescriptionCard(spawnedCharacter, sq.SelectedCharacter);
+                    msg.Embed = MessagesHelper.BuildCharacterDescriptionCard(spawnedCharacter);
                 });
+                RuntimeStorage.SearchQueries.Remove(sq.ChannelId);
 
                 var webhookClient = new DiscordWebhookClient(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
-                RuntimeStorage.WebhookClients.TryAdd(spawnedCharacter.WebhookId, webhookClient);
-                await webhookClient.SendMessageAsync(characterMessage);
+                RuntimeStorage.WebhookClients.Add(spawnedCharacter.WebhookId, webhookClient);
 
-                RuntimeStorage.SearchQueries.Remove(sq.ChannelId);
+                await webhookClient.SendMessageAsync(characterMessage);
 
                 return;
             }

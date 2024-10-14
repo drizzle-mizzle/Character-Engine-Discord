@@ -2,7 +2,7 @@
 using CharacterEngineDiscord.Models.Db;
 using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngine.App.Helpers.Common;
+namespace CharacterEngineDiscord.Helpers.Common;
 
 
 public static class StoredActionsHelper
@@ -26,6 +26,7 @@ public static class StoredActionsHelper
 
         throw new ArgumentException("Not Discord based action source");
     }
+
 
     public static ActionSourceDiscordInfo ExtractDiscordSourceInfo(this StoredAction action)
     {

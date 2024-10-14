@@ -1,4 +1,6 @@
-﻿namespace CharacterEngineDiscord.Models;
+﻿using CharacterEngineDiscord.Models.Common;
+
+namespace CharacterEngineDiscord.Models;
 
 
 public record SearchQuery

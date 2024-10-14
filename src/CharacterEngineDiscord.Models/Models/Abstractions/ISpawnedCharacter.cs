@@ -4,6 +4,8 @@ public interface ISpawnedCharacter
 {
     public Guid Id { get; set; }
 
+    public ulong DiscordChannelId { get; set; }
+
     /// <summary>
     /// Associated Discord webhook ID
     /// </summary>
@@ -31,6 +33,8 @@ public interface ISpawnedCharacter
 
     public bool SkipNextBotMessage { get; set; }
 
+    public bool ResetWithNextMessage { get; set; }
+
     /// <summary>
     /// Latest user who called a character
     /// </summary>
@@ -49,9 +53,7 @@ public interface ISpawnedCharacter
     // Character Info
     public string CharacterId { get; set; }
     public string CharacterName { get; set; }
-    public string CharacterDesc { get; set; }
     public string CharacterFirstMessage { get; set; }
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; }
-    public float? CharacterStat { get; set; }
 }

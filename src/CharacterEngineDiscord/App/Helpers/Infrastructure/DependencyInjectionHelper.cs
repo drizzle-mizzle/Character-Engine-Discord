@@ -1,11 +1,13 @@
 using CharacterEngine.App.Handlers;
+using CharacterEngineDiscord.Helpers.Common;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 
-namespace CharacterEngine.App.Helpers.Common;
+namespace CharacterEngine.App.Helpers.Infrastructure;
 
 
 public static class DependencyInjectionHelper
@@ -14,10 +16,11 @@ public static class DependencyInjectionHelper
 
 
     public static IServiceProvider GetServiceProvider => _serviceProvider ??= BuildServiceProvider();
-    public static InteractionsHandler GetInteractionsHandler => _serviceProvider.GetRequiredService<InteractionsHandler>();
-    public static SlashCommandsHandler GetSlashCommandsHandler => _serviceProvider.GetRequiredService<SlashCommandsHandler>();
-    public static ModalsHandler GetModalsHandler => _serviceProvider.GetRequiredService<ModalsHandler>();
-    public static ButtonsHandler GetButtonsHandler => _serviceProvider.GetRequiredService<ButtonsHandler>();
+    public static InteractionsHandler GetInteractionsHandler => GetServiceProvider.GetRequiredService<InteractionsHandler>();
+    public static SlashCommandsHandler GetSlashCommandsHandler => GetServiceProvider.GetRequiredService<SlashCommandsHandler>();
+    public static ModalsHandler GetModalsHandler => GetServiceProvider.GetRequiredService<ModalsHandler>();
+    public static ButtonsHandler GetButtonsHandler => GetServiceProvider.GetRequiredService<ButtonsHandler>();
+    public static MessagesHandler GetMessagesHandler => GetServiceProvider.GetRequiredService<MessagesHandler>();
 
 
     private static ServiceProvider BuildServiceProvider()
@@ -37,11 +40,12 @@ public static class DependencyInjectionHelper
 
         // Scoped
         {
-            services.AddScoped(_ => DatabaseHelper.GetDbContext());
+            services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
             services.AddScoped<SlashCommandsHandler>();
             services.AddScoped<InteractionsHandler>();
             services.AddScoped<ModalsHandler>();
             services.AddScoped<ButtonsHandler>();
+            services.AddScoped<MessagesHandler>();
         }
 
         return services.BuildServiceProvider();
@@ -58,7 +62,7 @@ public static class DependencyInjectionHelper
             GatewayIntents = intents,
             ConnectionTimeout = 20_000,
             DefaultRetryMode = RetryMode.RetryRatelimit,
-            AlwaysDownloadDefaultStickers = true,
+            AlwaysDownloadDefaultStickers = true
         };
 
         return new DiscordSocketClient(clientConfig);

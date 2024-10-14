@@ -27,3 +27,6 @@ DEFAULT_AVATAR_FILE: good_duckling.png
 
 # Postgres only
 DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki
+
+
+SAKURA_AI_EMOJI: <:sakura64:1294009130595520643>

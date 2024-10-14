@@ -1,15 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
-using CharacterEngine.App.Helpers;
-using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Common;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using DI = CharacterEngine.App.Helpers.Common.DependencyInjectionHelper;
+using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
 
 namespace CharacterEngine.App;
@@ -33,12 +32,6 @@ public static class CharacterEngineBot
 
         await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN).ConfigureAwait(false);
         await _discordClient.StartAsync().ConfigureAwait(false);
-
-        var db = _serviceProvider.GetRequiredService<AppDbContext>();
-
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.EnsureCreatedAsync();
-        // await db.Database.MigrateAsync();
 
         await Task.Delay(-1);
     }
@@ -79,6 +72,7 @@ public static class CharacterEngineBot
         discordClient.SlashCommandExecuted += DI.GetSlashCommandsHandler.HandleSlashCommand;
         discordClient.ModalSubmitted += DI.GetModalsHandler.HandleModal;
         discordClient.ButtonExecuted += DI.GetButtonsHandler.HandleButton;
+        discordClient.MessageReceived += DI.GetMessagesHandler.HandleMessage;
     }
 
 

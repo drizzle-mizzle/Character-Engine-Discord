@@ -6,7 +6,7 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public static class ModalsHelper
 {
-    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static readonly ILogger _log = LogManager.GetCurrentClassLogger();
 
 
     public static Modal BuildSakuraAiAuthModal(this ModalBuilder modalBuilder)

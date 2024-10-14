@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
-using CharacterEngine.App.Helpers.Common;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Modules;
+using CharacterEngineDiscord.Helpers.Common;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;
@@ -18,7 +20,6 @@ public class BackgroundWorker
 {
     private readonly Logger _log;
     private readonly DiscordSocketClient _discordClient;
-
 
 
     public static void Run(IServiceProvider services)
@@ -52,7 +53,7 @@ public class BackgroundWorker
                     continue;
                 }
 
-                _log.Info($"WORKER START: {jobTask.Method.Name}");
+                _log.Info($"JOB START: {jobTask.Method.Name}");
 
                 sw.Restart();
 
@@ -65,7 +66,7 @@ public class BackgroundWorker
                     await _discordClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e);
                 }
 
-                _log.Info($"WORKER END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+                _log.Info($"JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
 
                 sw.Restart();
             }
@@ -106,7 +107,7 @@ public class BackgroundWorker
         }
 
         var user = await channel.GetUserAsync(source.UserId);
-        var msg = $"{MessagesTemplates.SAKURA_EMOJI} SakuraAI\n\nAuthorization confirmation time for account **{data.Email}** has expired.\nPlease, try again.";
+        var msg = $"{IntegrationType.SakuraAI.GetIcon()} SakuraAI\n\nAuthorization confirmation time for account **{data.Email}** has expired.\nPlease, try again.";
 
         _log.Trace(msg);
         await channel.SendMessageAsync(user?.Mention ?? "@?", embed: msg.ToInlineEmbed(Color.LightOrange, bold: false));
@@ -134,7 +135,7 @@ public class BackgroundWorker
             {
                 await job;
             }
-            catch (SakuraAiException sae)
+            catch (SakuraException sae)
             {
                 await _discordClient.ReportErrorAsync("SakuraAiException", sae);
             }
@@ -197,7 +198,7 @@ public class BackgroundWorker
         await using var db = DatabaseHelper.GetDbContext();
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
-        var result = await RuntimeStorage.SakuraAiClient.EnsureLoginByEmailAsync(signInAttempt);
+        var result = await SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
         if (result is null)
         {
             action.Attempt++;
@@ -210,33 +211,29 @@ public class BackgroundWorker
         var sourceInfo = action.ExtractDiscordSourceInfo();
         var channel = (ITextChannel)await _discordClient.GetChannelAsync(sourceInfo.ChannelId)!;
 
-        var existingGuildIntegraion = await db.DiscordGuildIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
-        if (existingGuildIntegraion is not null)
+        var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
+        if (integration is not null)
         {
-            var sakuraIntegraion = await db.SakuraAiIntegrations.FirstAsync(i => i.Id == existingGuildIntegraion.IntegraionId);
-            db.SakuraAiIntegrations.Remove(sakuraIntegraion);
-            db.DiscordGuildIntegrations.Remove(existingGuildIntegraion);
+            integration.Email = signInAttempt.Email;
+            integration.SessionId = result.SessionId;
+            integration.RefreshToken = result.RefreshToken;
+            integration.CreatedAt = DateTime.Now;
         }
-
-        var newSakuraIntegration = new SakuraAiIntegration
+        else
         {
-            Id = Guid.NewGuid(),
-            Email = signInAttempt.Email,
-            RefreshToken = result.RefreshToken,
-            GlobalMessagesFormat = "",
-            CreatedAt = DateTime.Now
-        };
+            var newSakuraIntegration = new SakuraAiIntegration
+            {
+                Id = Guid.NewGuid(),
+                DiscordGuildId = channel.GuildId,
+                Email = signInAttempt.Email,
+                SessionId = result.SessionId,
+                RefreshToken = result.RefreshToken,
+                GlobalMessagesFormat = "",
+                CreatedAt = DateTime.Now
+            };
 
-        var newLink = new DiscordGuildIntegration
-        {
-            Id = Guid.NewGuid(),
-            DiscordGuildId = channel.GuildId,
-            IntegraionId = newSakuraIntegration.Id,
-            IntegrationType = IntegrationType.SakuraAI
-        };
-
-        await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
-        await db.DiscordGuildIntegrations.AddAsync(newLink);
+            await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
+        }
 
         action.Attempt++;
         action.Status = StoredActionStatus.Finished;
@@ -244,12 +241,18 @@ public class BackgroundWorker
 
         await db.SaveChangesAsync();
 
-        var user = await channel.GetUserAsync(sourceInfo.UserId);
-        var msg = $"**{MessagesTemplates.SAKURA_EMOJI} SakuraAI user authorized**\n\n" +
-                  $"Username: **{result.Username}**\n" +
-                  "From now on, this account will be used for all **SakuraAi**-related interactions on this server. For the next step, use **/spawn-character integration-type:SakuraAi** command to spawn SakuraAI character.";
+        var msg = $"Username: **{result.Username}**\n" +
+                  "From now on, this account will be used for all SakuraAI interactions on this server.\n" +
+                  "For the next step, use *`/spawn-character `* command to spawn new SakuraAI character in this channel.";
 
-        await channel.SendMessageAsync(user.Mention, embed: msg.ToInlineEmbed(Color.Green, bold: false, result.UserImageUrl, imageAsThumb: true));
+        var embed = new EmbedBuilder()
+                   .WithTitle($"{IntegrationType.SakuraAI.GetIcon()} SakuraAI user authorized")
+                   .WithDescription(msg)
+                   .WithColor(IntegrationType.SakuraAI.GetColor())
+                   .WithThumbnailUrl(result.UserImageUrl);
+
+        var user = await channel.GetUserAsync(sourceInfo.UserId);
+        await channel.SendMessageAsync(user.Mention, embed: embed.Build());
     }
 
 }

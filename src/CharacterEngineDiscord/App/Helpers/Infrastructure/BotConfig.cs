@@ -1,4 +1,4 @@
-﻿namespace CharacterEngine.App.Helpers;
+﻿namespace CharacterEngine.App.Helpers.Infrastructure;
 
 public static class BotConfig
 {
@@ -37,6 +37,9 @@ public static class BotConfig
 
     public static string DATABASE_CONNECTION_STRING
         => GetParamByName<string>("DATABASE_CONNECTION_STRING");
+
+    public static string SAKURA_AI_EMOJI
+        => GetParamByName<string>("SAKURA_AI_EMOJI");
 
 
     // Private

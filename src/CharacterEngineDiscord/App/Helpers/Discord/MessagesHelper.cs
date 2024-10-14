@@ -1,6 +1,8 @@
-﻿using CharacterEngine.App.Helpers.Integrations;
-using CharacterEngineDiscord.Models;
+﻿using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using NLog;
 
@@ -8,7 +10,7 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public static class MessagesHelper
 {
-    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static readonly ILogger _log = LogManager.GetCurrentClassLogger();
 
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e)
@@ -87,23 +89,78 @@ public static class MessagesHelper
     }
 
 
-    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter, CommonCharacter commonCharacter)
+    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter)
     {
-        var type = commonCharacter.IntegrationType;
-        var embed = new EmbedBuilder().WithTitle($"{type:G}").WithColor(type.GetColor());
-        var l = Math.Min(commonCharacter.Desc.Length, 4000) - 1;
+        var type = spawnedCharacter.GetIntegrationType();
+        var embed = new EmbedBuilder();
 
+        // var l = Math.Min(commonCharacter.Desc.Length, 4000) - 1;
+        // desc += l > 0 ? "[none]" : spawnedCharacter.CharacterDesc;
 
-        var desc = "**Description**\n";
-        desc += l > 0 ? "[none]" : spawnedCharacter.CharacterDesc;
-        if (spawnedCharacter.CharacterDesc.Length >= 4000)
+        var desc = spawnedCharacter switch
+        {
+            SakuraAiSpawnedCharacter s => s.GetSakuraDesc()
+        };
+
+        if (desc.Length >= 4000)
         {
             desc = $"{desc}[...]";
         }
 
+        embed.WithColor(type.GetColor());
+        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
         embed.WithDescription(desc);
+        embed.AddField("Configuration", $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\nUse it or character's call prefix to modify this integration with *`/conf `* commands.");
+
+        // TODO: redo
+        var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
+                      "*Source: [SakuraAI](https://www.sakura.fm/)*\n" +
+                      $"*Original link: [__Chat with {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetIntegrationType().GetCharacterLink(spawnedCharacter.CharacterId)})*\n" +
+                      $"*Conversations on [SakuraAI](https://www.sakura.fm/): `{((SakuraAiSpawnedCharacter)spawnedCharacter).SakuraConverstaionsCount}`*\n" +
+                      "*Can generate images: `No`*";
+        embed.AddField("Details", details);
+
+        if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
+        {
+            embed.WithImageUrl(spawnedCharacter.CharacterImageLink);
+        }
+
+        embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
 
         return embed.Build();
     }
 
+
+    private const int DESC_LIMIT = 4000;
+    private static string GetSakuraDesc(this SakuraAiSpawnedCharacter sakuraCharacter)
+    {
+        var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
+        if (desc.Length < 2)
+        {
+            desc = "*No description*";
+        }
+
+        var scenario = sakuraCharacter.SakuraScenario.Trim(' ', '\n');
+        if (scenario.Length < 2)
+        {
+            scenario = "*No scenario*";
+        }
+
+        var persona = sakuraCharacter.SakuraPersona.Trim(' ', '\n');
+        if (persona.Length < 2)
+        {
+            persona = "*No persona*";
+        }
+
+        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
+                     $"**Scenario**\n{scenario}\n\n" +
+                     $"**Persona**\n{persona}";
+
+        if (result.Length > DESC_LIMIT)
+        {
+            result = result[..DESC_LIMIT] + " [...]";
+        }
+
+        return result;
+    }
 }

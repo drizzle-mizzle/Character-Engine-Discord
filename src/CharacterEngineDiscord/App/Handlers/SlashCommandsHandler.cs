@@ -33,61 +33,65 @@ public class SlashCommandsHandler
 
 
     public Task HandleSlashCommand(SocketSlashCommand command)
-        => Task.Run(async () => await HandleSlashCommandAsync(command));
+        => Task.Run(async () =>
+        {
+            try
+            {
+                await HandleSlashCommandAsync(command);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync(e);
+            }
+        });
     
 
     private static readonly Embed _errMsgEmbed1 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot can opearte only in text channels".ToInlineEmbed(Color.Red);
     private static readonly Embed _errMsgEmbed2 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel".ToInlineEmbed(Color.Red);
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        try
+        if (command.Channel is not ITextChannel channel)
         {
-            if (command.Channel is not ITextChannel channel)
+            await command.RespondAsync(embed: _errMsgEmbed1);
+            return;
+        }
+
+        var getUserTask = channel.GetUserAsync(_discordClient.CurrentUser.Id);
+        if (await getUserTask is not IGuildUser botGuildUser)
+        {
+            await command.RespondAsync(embed: _errMsgEmbed2);
+            return;
+        }
+
+        var botRoles = channel.Guild.Roles.Where(role => botGuildUser.RoleIds.Contains(role.Id)).ToArray();
+        var guildPermissions = botRoles.SelectMany(role => role.Permissions.ToList()).ToArray();
+
+        if (!guildPermissions.Contains(GuildPermission.Administrator))
+        {
+            var channelRoleOws = botRoles
+                                .Select(role => channel.GetPermissionOverwrite(role))
+                                .Where(ow => ow.HasValue)
+                                .ToList()
+                                .ConvertAll(ow => (OverwritePermissions)ow!);
+
+            var channelAllowedPerms = channelRoleOws.SelectMany(ow => ow.ToAllowList()).ToList();
+            var missingPerms = string.Join("\n", REQUIRED_PERMS.Where(channelPermission => !channelAllowedPerms.Contains(channelPermission) && !guildPermissions.Contains((GuildPermission)channelPermission))
+                                                               .Select(p => $"> {p:G}"));
+
+            if (missingPerms.Length != 0)
             {
-                await command.RespondAsync(embed: _errMsgEmbed1);
+                var msg = $"{MessagesTemplates.WARN_SIGN_DISCORD} **Permissions required for the bot to operate in this channel:**\n```{missingPerms}```\n";
+                await command.RespondAsync(embed: msg.ToInlineEmbed(Color.Red, bold: false));
                 return;
             }
-
-            var getUserTask = channel.GetUserAsync(_discordClient.CurrentUser.Id);
-            if (await getUserTask is not IGuildUser botGuildUser)
-            {
-                await command.RespondAsync(embed: _errMsgEmbed2);
-                return;
-            }
-
-            var botRoles = channel.Guild.Roles.Where(role => botGuildUser.RoleIds.Contains(role.Id)).ToArray();
-            var guildPermissions = botRoles.SelectMany(role => role.Permissions.ToList()).ToArray();
-
-            if (!guildPermissions.Contains(GuildPermission.Administrator))
-            {
-                var channelRoleOws = botRoles
-                                    .Select(role => channel.GetPermissionOverwrite(role))
-                                    .Where(ow => ow.HasValue)
-                                    .ToList()
-                                    .ConvertAll(ow => (OverwritePermissions)ow!);
-
-                var channelAllowedPerms = channelRoleOws.SelectMany(ow => ow.ToAllowList()).ToList();
-                var missingPerms = string.Join("\n", REQUIRED_PERMS.Where(channelPermission => !channelAllowedPerms.Contains(channelPermission) && !guildPermissions.Contains((GuildPermission)channelPermission))
-                                                                   .Select(p => $"> {p:G}"));
-                if (missingPerms.Length != 0)
-                {
-                    var msg = $"{MessagesTemplates.WARN_SIGN_DISCORD} **Permissions required for the bot to operate in this channel:**\n```{missingPerms}```\n";
-                    await command.RespondAsync(embed: msg.ToInlineEmbed(Color.Red, bold: false));
-                    return;
-                }
-            }
-
-            await (command.CommandName switch
-            {
-                "start" => HandleStartCommandAsync(command),
-                "disable" => HandleDisableCommandAsync(command),
-                _ => _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider)
-            });
         }
-        catch (Exception e)
+
+        await (command.CommandName switch
         {
-            await _discordClient.ReportErrorAsync(e);
-        }
+            "start" => HandleStartCommandAsync(command),
+            "disable" => HandleDisableCommandAsync(command),
+            _ => _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider)
+        });
     }
 
 

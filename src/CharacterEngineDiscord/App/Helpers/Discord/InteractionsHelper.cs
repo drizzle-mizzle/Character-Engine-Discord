@@ -1,9 +1,10 @@
 ﻿using System.Text.RegularExpressions;
-using CharacterEngine.App.Helpers.Common;
-using CharacterEngine.App.Helpers.Integrations;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Common;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Models.Common;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +17,7 @@ namespace CharacterEngine.App.Helpers.Discord;
 public static class InteractionsHelper
 {
     private static IServiceProvider _serviceProvider = null!;
-    private static readonly ILogger _log = _serviceProvider.GetRequiredService<ILogger>();
+    private static ILogger _log = null!;
 
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
@@ -24,10 +25,8 @@ public static class InteractionsHelper
     public static void Initialize(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
+        _log = _serviceProvider.GetRequiredService<ILogger>();
     }
-
-
-    public const string SEP = "~sep~";
 
 
     public static SlashCommandProperties BuildStartCommand()
@@ -44,12 +43,12 @@ public static class InteractionsHelper
         => NewCustomId(modalData.Id, modalData.ActionType, modalData.Data);
 
     public static string NewCustomId(Guid id, ModalActionType action, string data)
-        => $"{id}{SEP}{action}{SEP}{data}";
+        => $"{id}{CommonHelper.COMMAND_SEPARATOR}{action}{CommonHelper.COMMAND_SEPARATOR}{data}";
 
 
     public static ModalData ParseCustomId(string customId)
     {
-        var parts = customId.Split(SEP);
+        var parts = customId.Split(CommonHelper.COMMAND_SEPARATOR);
         return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
     }
 
@@ -64,19 +63,21 @@ public static class InteractionsHelper
         embed.AddField(title, listTitle);
 
         var rows = Math.Min(searchQuery.Characters.Count, 10);
+        var pageMultiplier = (searchQuery.CurrentPage - 1) * 10;
+
         for (var row = 1; row <= rows; row++)
         {
-            var characterNumber = row + (searchQuery.CurrentPage - 1) * 10;
+            var characterNumber = row + pageMultiplier;
             var character = searchQuery.Characters.ElementAt(characterNumber - 1);
 
-            var rowContent = $"{characterNumber}. {character.Name} [[link]({searchQuery.SelectedCharacter.OriginalLink})]";
-            var rowFooter = $"{character.Stat} | Author: {character.Author}";
+            var rowTitle = $"{characterNumber}. {character.Name}";
+            var rowContent = $"{type.GetStatLabel()}: {character.Stat} **|** Author: [__{character.Author}__]({character.IntegrationType.GetAuthorLink(character.Author)}) **|** [[__character link__]({character.IntegrationType.GetCharacterLink(character.CharacterId)})]";
             if (searchQuery.CurrentRow == row)
             {
-                rowContent += " - ✅";
+                rowTitle += " - ✅";
             }
 
-            embed.AddField(rowContent, rowFooter);
+            embed.AddField(rowTitle, rowContent);
         }
 
         embed.WithFooter($"Page {searchQuery.CurrentPage}/{searchQuery.Pages}");
@@ -85,13 +86,10 @@ public static class InteractionsHelper
     }
 
 
-    public static async Task<(DiscordChannelSpawnedCharacter newChannelCharacter, ISpawnedCharacter newSpawnedCharacter)> SpawnCharacterAsync(
-            ulong channelId, CommonCharacter character)
+    public static async Task<ISpawnedCharacter> SpawnCharacterAsync(ulong channelId, CommonCharacter character)
     {
         var discordClient = _serviceProvider.GetRequiredService<DiscordSocketClient>();
-        var channel = await discordClient.GetChannelAsync(channelId) as ITextChannel;
-
-        if (channel is null)
+        if (await discordClient.GetChannelAsync(channelId) is not ITextChannel channel)
         {
             throw new Exception($"Failed to get channel {channelId}");
         }
@@ -99,9 +97,8 @@ public static class InteractionsHelper
         await channel.EnsureExistInDbAsync();
         var webhook = await discordClient.CreateDiscordWebhookAsync(channel, character);
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(character, webhook);
-        var newChannelCharacter = await newSpawnedCharacter.LinkToChannelAsync(channel);
 
-        return (newChannelCharacter, newSpawnedCharacter);
+        return newSpawnedCharacter;
     }
 
 
