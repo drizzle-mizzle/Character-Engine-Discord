@@ -2,7 +2,6 @@
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
-using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using NLog;
 

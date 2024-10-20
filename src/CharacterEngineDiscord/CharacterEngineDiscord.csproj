@@ -34,7 +34,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="App\Settings\**">
+      <None Update="Settings\**">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>
@@ -44,8 +44,5 @@
       <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
       <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
     </ItemGroup>
-
-    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-      <Exec Command="xcopy &quot;$(TargetDir)\App\Settings&quot; &quot;$(TargetDir)Settings&quot; /i /e /r /y&#xA;rmdir $(TargetDir)\App\ /s /q" />
-    </Target>
+    
 </Project>

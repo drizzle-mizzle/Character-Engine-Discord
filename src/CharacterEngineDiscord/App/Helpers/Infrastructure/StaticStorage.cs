@@ -3,14 +3,13 @@ using CharacterEngine.App.IntegraionModules;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord.Webhook;
-using RestSharp;
 
 namespace CharacterEngine.App.Helpers.Infrastructure;
 
 
 public static class StaticStorage
 {
-    public static RestClient CommonRestClient { get; } = new();
+    public static HttpClient CommonHttpClient { get; } = new();
 
     public static SearchQueryCollection SearchQueries { get; } = new();
 

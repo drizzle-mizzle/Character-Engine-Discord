@@ -33,7 +33,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         };
 
-        await RespondWithModalAsync(modal).ConfigureAwait(false);
+        await RespondWithModalAsync(modal);
     }
 
 }

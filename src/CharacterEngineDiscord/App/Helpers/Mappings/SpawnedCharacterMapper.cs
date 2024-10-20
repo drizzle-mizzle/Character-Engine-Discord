@@ -1,8 +1,6 @@
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
-using Newtonsoft.Json.Linq;
 using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngineDiscord.Helpers.Mappings;

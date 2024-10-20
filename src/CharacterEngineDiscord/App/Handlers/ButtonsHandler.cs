@@ -81,7 +81,7 @@ public class ButtonsHandler
             {
                 var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request.".ToInlineEmbed(color: Color.Purple);
                 msg.Embeds = new Optional<Embed[]>([msg.Embeds.Value.First(), newEmbed]);
-            }).ConfigureAwait(false);
+            });
             return;
         }
 
@@ -141,7 +141,7 @@ public class ButtonsHandler
             }
         }
 
-        await component.ModifyOriginalResponseAsync(msg => { msg.Embed = InteractionsHelper.BuildSearchResultList(sq); }).ConfigureAwait(false);
+        await component.ModifyOriginalResponseAsync(msg => { msg.Embed = InteractionsHelper.BuildSearchResultList(sq); });
     }
 
 }

@@ -3,7 +3,6 @@ using System.Reflection;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngineDiscord.Helpers.Common;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -11,47 +10,63 @@ using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
-
 namespace CharacterEngine.App;
 
 
-public static class CharacterEngineBot
+public class CharacterEngineBot
 {
-    private static DiscordSocketClient _discordClient = null!;
-    private static InteractionService _interactions = null!;
-    private static ILogger _log = null!;
+    private InteractionService _interactions = null!;
+    private DiscordSocketClient _discordClient = null!;
+    private ILogger _log = null!;
 
 
-    public static void Run() => RunAsync().GetAwaiter().GetResult();
-    private static async Task RunAsync()
+    public static void Run()
+        => new CharacterEngineBot().RunAsync().GetAwaiter().GetResult();
+
+
+    private async Task RunAsync()
     {
         var serviceProvider = DI.BuildServiceProvider();
+        _discordClient = serviceProvider.GetRequiredService<DiscordSocketClient>();
         _interactions = serviceProvider.GetRequiredService<InteractionService>();
+        _log = serviceProvider.GetRequiredService<ILogger>();
 
-        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider).ConfigureAwait(false);
+        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider);
 
         // Cache all characters from db
-        var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
-        StaticStorage.CachedCharacters.AddRange(allCharacters);
+        await Task.Run(async () =>
+        {
+            var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
+            StaticStorage.CachedCharacters.AddRange(allCharacters);
+            _log.Info($"Cached {allCharacters.Count} characters");
+        });
 
         // Configure event handlers
-        await BindEventsAsync();
+        BindEvents();
 
         // Connect
-        _discordClient = DI.GetDiscordSocketClient;
-        await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN).ConfigureAwait(false);
-        await _discordClient.StartAsync().ConfigureAwait(false);
+        await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN);
+
+        // Launch the bot
+        await _discordClient.StartAsync();
 
         // Prevent application from closing
         await Task.Delay(-1);
     }
 
 
-    private static async Task BindEventsAsync()
+    private void BindEvents()
     {
-        _discordClient.Connected += OnConnected;
+        AppDomain.CurrentDomain.UnhandledException += async (_, e) =>
+        {
+            await _discordClient.ReportErrorAsync("UnhandledException", e.ExceptionObject.ToString() ?? "");
+        };
 
-        _log = DI.GetLogger;
+        TaskScheduler.UnobservedTaskException += async (_, e) =>
+        {
+            await _discordClient.ReportErrorAsync("UnobservedTaskException", e.Exception.ToString());
+        };
+
         _discordClient.Log += msg =>
         {
             if (msg.Severity is LogSeverity.Error or LogSeverity.Critical)
@@ -69,25 +84,26 @@ public static class CharacterEngineBot
         _discordClient.JoinedGuild += async guild =>
         {
             _log.Info($"Joined guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            await Task.Run(async () => await guild.EnsureExistInDbAsync());
+            await Task.Run(guild.EnsureExistInDbAsync);
         };
 
         _discordClient.LeftGuild += async guild =>
         {
             _log.Info($"Left guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            await Task.Run(async () => await guild.MarkAsLeftAsync());
+            await Task.Run(guild.MarkAsLeftAsync);
         };
-
 
         _interactions.InteractionExecuted += DI.GetInteractionsHandler.HandleInteraction;
         _discordClient.SlashCommandExecuted += DI.GetSlashCommandsHandler.HandleSlashCommand;
         _discordClient.ModalSubmitted += DI.GetModalsHandler.HandleModal;
         _discordClient.ButtonExecuted += DI.GetButtonsHandler.HandleButton;
         _discordClient.MessageReceived += DI.GetMessagesHandler.HandleMessage;
+
+        _discordClient.Connected += OnConnected;
     }
 
 
-    private static async Task OnConnected()
+    private async Task OnConnected()
     {
         foreach (var guild in _discordClient.Guilds)
         {
@@ -103,7 +119,7 @@ public static class CharacterEngineBot
                 if (commands.Count == 0)
                 {
                     var startCommand = InteractionsHelper.BuildStartCommand();
-                    await guild.CreateApplicationCommandAsync(startCommand).ConfigureAwait(false);
+                    await guild.CreateApplicationCommandAsync(startCommand);
                     return;
                 }
 

@@ -19,16 +19,10 @@ public static class DatabaseHelper
     public static AppDbContext GetDbContext() => new(BotConfig.DATABASE_CONNECTION_STRING);
 
 
-    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
+    public static Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
-        var result = new List<ISpawnedCharacter>();
-
-        await using var db = GetDbContext();
-
-        var sakuraCharacters = await db.SakuraAiSpawnedCharacters.ToListAsync();
-        result.AddRange(sakuraCharacters);
-
-        return result;
+        using var db = GetDbContext();
+        return db.SakuraAiSpawnedCharacters.ToListAsync<ISpawnedCharacter>();
     }
 
 

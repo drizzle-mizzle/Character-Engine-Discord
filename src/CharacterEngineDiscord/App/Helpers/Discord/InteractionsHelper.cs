@@ -10,7 +10,6 @@ using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using NLog;
-using RestSharp;
 using SakuraAi.Client.Exceptions;
 using SakuraAi.Client.Models.Common;
 using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
@@ -114,8 +113,7 @@ public static class InteractionsHelper
         {
             try
             {
-                var request = new RestRequest(character.CharacterImageLink);
-                avatar = await StaticStorage.CommonRestClient.DownloadStreamAsync(request);
+                avatar = await StaticStorage.CommonHttpClient.GetStreamAsync(character.CharacterImageLink);
             }
             catch (Exception e)
             {

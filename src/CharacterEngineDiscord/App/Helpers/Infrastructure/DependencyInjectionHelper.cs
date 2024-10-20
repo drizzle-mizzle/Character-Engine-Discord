@@ -1,5 +1,4 @@
 using CharacterEngine.App.Handlers;
-using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
