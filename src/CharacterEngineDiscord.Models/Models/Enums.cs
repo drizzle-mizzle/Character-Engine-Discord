@@ -4,7 +4,7 @@
 public enum IntegrationType
 {
     SakuraAI = 1,
-    CharacterAI = 2,
+    // CharacterAI = 2,
 }
 
 
@@ -16,6 +16,5 @@ public enum ModalActionType
 
 public enum ButtonActionType
 {
-    Unknown = 0,
     SearchQuery = 1,
 }

@@ -11,19 +11,14 @@ namespace CharacterEngine.App.SlashCommands;
 
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
-    public CharacterCommands(IServiceProvider serviceProvider, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
+    public CharacterCommands(AppDbContext db, DiscordSocketClient discordClient)
     {
-        _serviceProvider = serviceProvider;
         _db = db;
-
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 
@@ -32,11 +27,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
-        var characters = await (integrationType switch
-        {
-            IntegrationType.SakuraAI => RuntimeStorage.SakuraAiModule.SearchAsync(query),
-            // IntegrationType.CharacterAI =>
-        });
+        var module = integrationType.GetIntegrationModule();
+        var characters = await module.SearchAsync(query);
 
         if (characters.Count == 0)
         {
@@ -45,7 +37,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters, integrationType);
-        RuntimeStorage.SearchQueries.Add(searchQuery);
+        StaticStorage.SearchQueries.Add(searchQuery);
 
         await ModifyOriginalResponseAsync(msg =>
         {

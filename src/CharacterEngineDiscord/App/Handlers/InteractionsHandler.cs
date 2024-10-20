@@ -15,18 +15,16 @@ public class InteractionsHandler
     private AppDbContext _db { get; set; }
 
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
     public InteractionsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db,
-                               DiscordSocketClient discordClient, InteractionService interactions)
+                               DiscordSocketClient discordClient)
     {
         _serviceProvider = serviceProvider;
         _log = log;
         _db = db;
 
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 

@@ -1,4 +1,5 @@
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Helpers.Mappings;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
@@ -10,7 +11,7 @@ using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using IIntegration = CharacterEngineDiscord.Models.Abstractions.IIntegration;
 
-namespace CharacterEngineDiscord.Helpers.Common;
+namespace CharacterEngine.App.Helpers;
 
 
 public static class DatabaseHelper
@@ -18,14 +19,37 @@ public static class DatabaseHelper
     public static AppDbContext GetDbContext() => new(BotConfig.DATABASE_CONNECTION_STRING);
 
 
-    public static async Task<IIntegration> GetIntegrationAsync(this ISpawnedCharacter spawnedCharacter)
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
+    {
+        var result = new List<ISpawnedCharacter>();
+
+        await using var db = GetDbContext();
+
+        var sakuraCharacters = await db.SakuraAiSpawnedCharacters.ToListAsync();
+        result.AddRange(sakuraCharacters);
+
+        return result;
+    }
+
+
+    public static async Task<ISpawnedCharacter?> GetSpawnedCharacterByIdAsync(Guid characterId)
+    {
+        await using var db = GetDbContext();
+
+        return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId)
+            ?? null;
+    }
+
+
+    public static async Task<IIntegration> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = GetDbContext();
         var channel = await db.DiscordChannels.SingleAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
 
-        var integration = await (spawnedCharacter switch
+        var type = spawnedCharacter.GetIntegrationType();
+        var integration = await (type switch
         {
-            SakuraAiSpawnedCharacter => db.SakuraAiIntegrations.SingleAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
+            IntegrationType.SakuraAI => db.SakuraAiIntegrations.SingleAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
         });
 
         return integration;
@@ -34,7 +58,7 @@ public static class DatabaseHelper
 
     public static async Task<ISpawnedCharacter> CreateSpawnedCharacterAsync(CommonCharacter commonCharacter, IWebhook webhook)
     {
-        var characterName = commonCharacter.Name.Trim();
+        var characterName = commonCharacter.CharacterName.Trim();
         if (characterName.Length == 0)
         {
             throw new Exception("Invalid character name");
@@ -46,16 +70,16 @@ public static class DatabaseHelper
             var split = characterName.Split(' ');
             callPrefix = $"@{split[0][0]}{split[1][0]}".ToLower();
         }
-        else if (characterName.Length == 1)
+        else if (characterName.Length <= 2)
         {
-            callPrefix = $"@{characterName[0]}";
+            callPrefix = $"@{characterName}";
         }
         else
         {
-            callPrefix = $"@{characterName[..1]}";
+            callPrefix = $"@{characterName[..2]}";
         }
 
-        var newSpawnedCharacter = (commonCharacter.IntegrationType switch
+        var newSpawnedCharacter = (commonCharacter.GetIntegrationType() switch
         {
             IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter
             {
@@ -73,15 +97,17 @@ public static class DatabaseHelper
                 LastCallerId = 0,
                 LastMessageId = 0,
                 MessagesSent = 0,
-                LastCallTime = default
+                LastCallTime = default,
             }
         }).FillWith(commonCharacter);
 
-        await using var db = GetDbContext();
-        await (commonCharacter.IntegrationType switch
-        {
-            IntegrationType.SakuraAI => db.SakuraAiSpawnedCharacters.AddAsync((SakuraAiSpawnedCharacter)newSpawnedCharacter),
 
+        await using var db = GetDbContext();
+        await (newSpawnedCharacter switch
+        {
+            SakuraAiSpawnedCharacter castedCharacter => db.SakuraAiSpawnedCharacters.AddAsync(castedCharacter),
+
+            _ => throw new ArgumentOutOfRangeException()
         });
         await db.SaveChangesAsync();
 

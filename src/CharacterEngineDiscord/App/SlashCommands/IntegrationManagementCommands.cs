@@ -10,19 +10,14 @@ namespace CharacterEngine.App.SlashCommands;
 [Group("integration", "Integrations Management")]
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
-    public IntegrationManagementCommands(IServiceProvider serviceProvider, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
+    public IntegrationManagementCommands(AppDbContext db, DiscordSocketClient discordClient)
     {
-        _serviceProvider = serviceProvider;
         _db = db;
-
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 
@@ -34,8 +29,8 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         var modal = type switch
         {
-            IntegrationType.SakuraAI => modalBuilder.BuildSakuraAiAuthModal(),
-            IntegrationType.CharacterAI => throw new NotImplementedException(),
+            IntegrationType.SakuraAI => modalBuilder.BuildSakuraAiAuthModal()
+
         };
 
         await RespondWithModalAsync(modal).ConfigureAwait(false);

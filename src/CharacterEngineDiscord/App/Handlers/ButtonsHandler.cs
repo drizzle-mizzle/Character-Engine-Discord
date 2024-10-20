@@ -2,8 +2,8 @@
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
-using Discord.Interactions;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -14,22 +14,18 @@ namespace CharacterEngine.App.Handlers;
 
 public class ButtonsHandler
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _log;
     private readonly AppDbContext _db;
 
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
-    public ButtonsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
+    public ButtonsHandler(ILogger log, AppDbContext db, DiscordSocketClient discordClient)
     {
-        _serviceProvider = serviceProvider;
         _log = log;
         _db = db;
 
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 
@@ -64,14 +60,13 @@ public class ButtonsHandler
         var i = customId.IndexOf(CommonHelper.COMMAND_SEPARATOR, StringComparison.Ordinal);
         if (i == -1)
         {
-            return ButtonActionType.Unknown;
+            throw new ArgumentException("Unknown Button Action Type");
         }
 
         return customId[..i] switch
         {
             "sq" => ButtonActionType.SearchQuery,
-
-            _ => ButtonActionType.Unknown
+            _ => throw new ArgumentOutOfRangeException()
         };
     }
 
@@ -79,7 +74,7 @@ public class ButtonsHandler
     private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
         // var sq = LocalStorage.SearchQueries.FirstOrDefault(sq => sq.Value.ChannelId == component.ChannelId && sq.Value.UserId == component.User.Id);
-        var sq = RuntimeStorage.SearchQueries.GetByChannelId((ulong)component.ChannelId!);
+        var sq = StaticStorage.SearchQueries.GetByChannelId((ulong)component.ChannelId!);
         if (sq is null)
         {
             await component.ModifyOriginalResponseAsync(msg =>
@@ -98,7 +93,6 @@ public class ButtonsHandler
                 return;
             }
         }
-
 
         var action = component.Data.CustomId.Replace($"sq{CommonHelper.COMMAND_SEPARATOR}", string.Empty);
         switch (action)
@@ -126,23 +120,22 @@ public class ButtonsHandler
             case "select":
             {
                 await component.ModifyOriginalResponseAsync(msg => { msg.Embed = MessagesTemplates.WAIT_MESSAGE; });
-                var spawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
 
-                var characterMessage = sq.SelectedCharacter
-                                         .FirstMessage
-                                         .Replace("{{char}}", sq.SelectedCharacter.Name)
-                                         .Replace("{{user}}", $"**{(component.User as IGuildUser)!.DisplayName}**");
+                // Create character
+                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
+                StaticStorage.CachedCharacters.Add(newSpawnedCharacter);
+                StaticStorage.SearchQueries.Remove(sq.ChannelId);
 
-                await component.ModifyOriginalResponseAsync(msg =>
-                {
-                    msg.Embed = MessagesHelper.BuildCharacterDescriptionCard(spawnedCharacter);
-                });
-                RuntimeStorage.SearchQueries.Remove(sq.ChannelId);
+                // Cache webhook
+                var webhookClient = new DiscordWebhookClient(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
+                StaticStorage.CachedWebhookClients.Add(newSpawnedCharacter.WebhookId, webhookClient);
 
-                var webhookClient = new DiscordWebhookClient(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
-                RuntimeStorage.WebhookClients.Add(spawnedCharacter.WebhookId, webhookClient);
+                var character = (ICharacter)newSpawnedCharacter;
+                var characterDescription = MessagesHelper.BuildCharacterDescriptionCard(character);
+                await component.ModifyOriginalResponseAsync(msg => { msg.Embed = characterDescription; });
 
-                await webhookClient.SendMessageAsync(characterMessage);
+                var greetedUser = ((IGuildUser)component.User).DisplayName;
+                await character.SendGreetingAsync(greetedUser);
 
                 return;
             }
@@ -150,4 +143,5 @@ public class ButtonsHandler
 
         await component.ModifyOriginalResponseAsync(msg => { msg.Embed = InteractionsHelper.BuildSearchResultList(sq); }).ConfigureAwait(false);
     }
+
 }

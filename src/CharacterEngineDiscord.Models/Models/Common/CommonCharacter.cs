@@ -1,14 +1,17 @@
+using CharacterEngineDiscord.Models.Abstractions;
+
 namespace CharacterEngineDiscord.Models.Common;
 
 
-public record CommonCharacter
+public class CommonCharacter : ICharacter
 {
-    public required IntegrationType IntegrationType { get; set; }
     public required string CharacterId { get; set; }
-    public required string Name { get; set; }
-    public required string FirstMessage { get; set; }
-    public required string Author { get; set; }
-    public required string? ImageLink { get; set; }
-    public float? Stat { get; set; }
-    public dynamic? OriginalCharacterModel { get; set; }
+    public required string CharacterName { get; set; }
+    public required string CharacterFirstMessage { get; set; }
+    public required string CharacterAuthor { get; set; }
+    public required string? CharacterImageLink { get; set; }
+
+    public required object? OriginalCharacterObject { get; init; }
+
+    public required string? CharacterStat { get; set; }
 }

@@ -1,5 +1,9 @@
 ﻿namespace CharacterEngineDiscord.Models.Abstractions;
 
+
+/// <summary>
+/// Character spawned in DiscordChannel
+/// </summary>
 public interface ISpawnedCharacter
 {
     public Guid Id { get; set; }
@@ -49,11 +53,4 @@ public interface ISpawnedCharacter
 
     public DateTime LastCallTime { get; set; }
 
-
-    // Character Info
-    public string CharacterId { get; set; }
-    public string CharacterName { get; set; }
-    public string CharacterFirstMessage { get; set; }
-    public string? CharacterImageLink { get; set; }
-    public string CharacterAuthor { get; set; }
 }

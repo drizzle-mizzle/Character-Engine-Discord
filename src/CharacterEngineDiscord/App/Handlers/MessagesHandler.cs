@@ -1,6 +1,8 @@
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
-using Discord.Interactions;
 using Discord.WebSocket;
 using NLog;
 
@@ -14,17 +16,15 @@ public class MessagesHandler
     private AppDbContext _db { get; set; }
 
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
-    public MessagesHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
+    public MessagesHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient)
     {
         _serviceProvider = serviceProvider;
         _log = log;
         _db = db;
 
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 
@@ -44,6 +44,30 @@ public class MessagesHandler
 
     private async Task HandleMessageAsync(SocketMessage socketMessage)
     {
+        var message = socketMessage.Content.Trim('\n', ' ');
 
+        var prefixValidation = DoMessageStartsWithPrefix(message);
+
+        if (prefixValidation.Pass)
+        {
+            var calledCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(prefixValidation.CachedCharacter!.Id);
+            if (calledCharacter is null)
+            {
+                return;
+            }
+
+        }
+    }
+
+
+    // Validate and define path
+
+    private static (bool Pass, CachedCharacterInfo? CachedCharacter) DoMessageStartsWithPrefix(string message)
+    {
+        var character = StaticStorage.CachedCharacters
+                                      .ToList()
+                                      .FirstOrDefault(c => message.StartsWith(c.CallPrefix, StringComparison.Ordinal));
+
+        return (character is not null, character);
     }
 }

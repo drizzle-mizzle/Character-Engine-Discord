@@ -1,13 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Db.Discord;
-using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 
-public class SakuraAiSpawnedCharacter : ISpawnedCharacter
+public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCharacter
 {
     [Key]
     public required Guid Id { get; set; }
@@ -30,20 +30,19 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter
     public required uint MessagesSent { get; set; }
     public required DateTime LastCallTime { get; set; }
 
-    public string CharacterId { get; set; }
-    public string CharacterName { get; set; }
-    public string CharacterFirstMessage { get; set; }
+    public string CharacterId { get; set; } = null!;
+    public string CharacterName { get; set; } = null!;
+    public string CharacterFirstMessage { get; set; } = null!;
     public string? CharacterImageLink { get; set; }
-    public string CharacterAuthor { get; set; }
+    public string CharacterAuthor { get; set; } = null!;
+    public string CharacterStat => SakuraMessagesCount.ToString();
 
-    // Own
-    public string SakuraDescription { get; set; }
-    public string SakuraPersona { get; set; }
-    public string SakuraScenario { get; set; }
-    public float SakuraConverstaionsCount { get; set; } = 0;
-    public string? SakuraChatId { get; set; } = null;
+    public string? SakuraDescription { get; set; }
+    public string? SakuraPersona { get; set; }
+    public string? SakuraScenario { get; set; }
+    public int SakuraMessagesCount { get; set; }
+    public string? SakuraChatId { get; set; }
 
 
-
-    public virtual DiscordChannel DiscordChannel { get; set; }
+    public virtual DiscordChannel DiscordChannel { get; set; } = null!;
 }

@@ -1,7 +1,9 @@
+using CharacterEngine.App.Abstractions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
+using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Common;
 using Discord;
 
 namespace CharacterEngineDiscord.Helpers.Integrations;
@@ -9,11 +11,31 @@ namespace CharacterEngineDiscord.Helpers.Integrations;
 
 public static class IntegrationsHelper
 {
-    public static IntegrationType GetIntegrationType(this ISpawnedCharacter spawnedCharacter)
+    public static IntegrationType GetIntegrationType(this ISpawnedCharacter character)
+        => ((ICharacter)character).GetIntegrationType();
+
+    public static IntegrationType GetIntegrationType(this CommonCharacter character)
+        => ((ICharacter)character).GetIntegrationType();
+
+    public static IntegrationType GetIntegrationType(this ICharacter character)
     {
-        return spawnedCharacter switch
+        return character switch
         {
-            SakuraAiSpawnedCharacter => IntegrationType.SakuraAI
+            ISakuraCharacter => IntegrationType.SakuraAI,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+        };
+    }
+
+
+    #region TypeBased
+
+    public static IInterationModule GetIntegrationModule(this IntegrationType type)
+    {
+        return type switch
+        {
+            IntegrationType.SakuraAI => StaticStorage.IntegrationModules.SakuraAiModule
+
         };
     }
 
@@ -22,7 +44,7 @@ public static class IntegrationsHelper
     {
         return type switch
         {
-            IntegrationType.SakuraAI => "Conversations"
+            IntegrationType.SakuraAI => "Messages"
         };
     }
 
@@ -41,26 +63,57 @@ public static class IntegrationsHelper
         return type switch
         {
             IntegrationType.SakuraAI => Color.Purple,
-            IntegrationType.CharacterAI => Color.Blue
+            // IntegrationType.CharacterAI => Color.Blue
         };
     }
 
 
-    public static string GetCharacterLink(this IntegrationType type, string characterId)
+    public static string GetLinkPrefix(this IntegrationType type)
     {
         return type switch
         {
-            IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{characterId}"
+            IntegrationType.SakuraAI => "Chat with"
         };
     }
 
 
-    public static string GetAuthorLink(this IntegrationType type, string author)
+    #endregion
+
+
+    #region ObjectBased
+
+    public static string GetCharacterLink(this ICharacter character)
     {
-        return type switch
+        return character switch
         {
-            IntegrationType.SakuraAI => $"https://www.sakura.fm/user/{author}"
+            ISakuraCharacter => $"https://www.sakura.fm/chat/{character.CharacterId}",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
     }
+
+
+    public static string GetAuthorLink(this ICharacter character)
+    {
+        return character switch
+        {
+            ISakuraCharacter => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+        };
+    }
+
+
+    public static string GetStat(this ICharacter character)
+    {
+        return character switch
+        {
+            ISakuraCharacter sakuraCharacter => sakuraCharacter.SakuraMessagesCount.ToString(),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+        };
+    }
+
+    #endregion
 
 }

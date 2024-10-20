@@ -12,20 +12,22 @@ namespace CharacterEngine.App.Helpers.Infrastructure;
 
 public static class DependencyInjectionHelper
 {
-    private static IServiceProvider _serviceProvider = null!;
+    private static ServiceProvider _serviceProvider = null!;
+
+    // Kinda cursed, but it's convenient for events, helpers and background workers
+    public static InteractionsHandler GetInteractionsHandler => _serviceProvider.GetRequiredService<InteractionsHandler>();
+    public static SlashCommandsHandler GetSlashCommandsHandler => _serviceProvider.GetRequiredService<SlashCommandsHandler>();
+    public static ModalsHandler GetModalsHandler => _serviceProvider.GetRequiredService<ModalsHandler>();
+    public static ButtonsHandler GetButtonsHandler => _serviceProvider.GetRequiredService<ButtonsHandler>();
+    public static MessagesHandler GetMessagesHandler => _serviceProvider.GetRequiredService<MessagesHandler>();
+    public static DiscordSocketClient GetDiscordSocketClient => _serviceProvider.GetRequiredService<DiscordSocketClient>();
+    public static ILogger GetLogger => _serviceProvider.GetRequiredService<ILogger>();
 
 
-    public static IServiceProvider GetServiceProvider => _serviceProvider ??= BuildServiceProvider();
-    public static InteractionsHandler GetInteractionsHandler => GetServiceProvider.GetRequiredService<InteractionsHandler>();
-    public static SlashCommandsHandler GetSlashCommandsHandler => GetServiceProvider.GetRequiredService<SlashCommandsHandler>();
-    public static ModalsHandler GetModalsHandler => GetServiceProvider.GetRequiredService<ModalsHandler>();
-    public static ButtonsHandler GetButtonsHandler => GetServiceProvider.GetRequiredService<ButtonsHandler>();
-    public static MessagesHandler GetMessagesHandler => GetServiceProvider.GetRequiredService<MessagesHandler>();
-
-
-    private static ServiceProvider BuildServiceProvider()
+    public static ServiceProvider BuildServiceProvider()
     {
         var services = new ServiceCollection();
+
         // Singleton
         {
             var discordClient = CreateDiscordClient();
@@ -48,7 +50,8 @@ public static class DependencyInjectionHelper
             services.AddScoped<MessagesHandler>();
         }
 
-        return services.BuildServiceProvider();
+        _serviceProvider = services.BuildServiceProvider();
+        return _serviceProvider;
     }
 
 
@@ -67,4 +70,5 @@ public static class DependencyInjectionHelper
 
         return new DiscordSocketClient(clientConfig);
     }
+
 }

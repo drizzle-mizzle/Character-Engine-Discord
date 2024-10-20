@@ -1,41 +1,34 @@
 ﻿using System.Diagnostics;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Modules;
+using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using SakuraAi.Client.Exceptions;
+using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
 namespace CharacterEngine.App;
 
 
 public class BackgroundWorker
 {
-    private readonly Logger _log;
-    private readonly DiscordSocketClient _discordClient;
+    private readonly ILogger _log = DI.GetLogger;
 
 
-    public static void Run(IServiceProvider services)
+    public static void Run()
     {
-        var worker = new BackgroundWorker(services);
+        var worker = new BackgroundWorker();
         var jobs = new List<Func<Task>> { worker.QuickJobs };
 
         Parallel.ForEach(jobs, job => worker.RunInLoop(job, cooldownSeconds: 5));
     }
 
-
-    private BackgroundWorker(IServiceProvider services)
-    {
-        _log = (services.GetRequiredService<ILogger>() as Logger)!;
-        _discordClient = services.GetRequiredService<DiscordSocketClient>();
-    }
 
 
     private void RunInLoop(Func<Task> jobTask, int cooldownSeconds)
@@ -63,7 +56,7 @@ public class BackgroundWorker
                 }
                 catch (Exception e)
                 {
-                    await _discordClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e);
+                    await DI.GetDiscordSocketClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e);
                 }
 
                 _log.Info($"JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
@@ -78,7 +71,7 @@ public class BackgroundWorker
     {
         var finalizer = action.StoredActionType switch
         {
-            StoredActionType.SakuraAiEnsureLogin => SendSakuraAuthGiveUpNotificationAsync(action),
+            StoredActionType.SakuraAiEnsureLogin => SendSakuraAuthGiveUpNotificationAsync(action)
         };
 
         Task.Run(async () =>
@@ -89,7 +82,7 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e);
+                await DI.GetDiscordSocketClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e);
             }
         });
     }
@@ -100,7 +93,7 @@ public class BackgroundWorker
         var data = action.ExtractSakuraAiLoginData();
         var source = action.ExtractDiscordSourceInfo();
 
-        var getChannelTask = _discordClient.GetChannelAsync(source.ChannelId);
+        var getChannelTask = DI.GetDiscordSocketClient.GetChannelAsync(source.ChannelId);
         if (await getChannelTask is not ITextChannel channel)
         {
             return;
@@ -135,13 +128,13 @@ public class BackgroundWorker
             {
                 await job;
             }
-            catch (SakuraException sae)
+            catch (SakuraException se)
             {
-                await _discordClient.ReportErrorAsync("SakuraAiException", sae);
+                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraAiException", se);
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync("Exception in Quick Jobs loop", e);
+                await DI.GetDiscordSocketClient.ReportErrorAsync("Exception in Quick Jobs loop", e);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
@@ -177,7 +170,7 @@ public class BackgroundWorker
                       $"**ActionID**: {action.Id}\n" +
                       $"**UserID**: {sourceInfo.UserId}\n" +
                       $"**ChannelID**: {sourceInfo.ChannelId}";
-            await _discordClient.ReportLogAsync(title, msg);
+            await DI.GetDiscordSocketClient.ReportLogAsync(title, msg);
 
             action.Status = StoredActionStatus.Canceled;
             await db.SaveChangesAsync();
@@ -198,7 +191,7 @@ public class BackgroundWorker
         await using var db = DatabaseHelper.GetDbContext();
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
-        var result = await SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
+        var result = await StaticStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
         if (result is null)
         {
             action.Attempt++;
@@ -209,14 +202,14 @@ public class BackgroundWorker
         }
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
-        var channel = (ITextChannel)await _discordClient.GetChannelAsync(sourceInfo.ChannelId)!;
+        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(sourceInfo.ChannelId)!;
 
         var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (integration is not null)
         {
-            integration.Email = signInAttempt.Email;
-            integration.SessionId = result.SessionId;
-            integration.RefreshToken = result.RefreshToken;
+            integration.SakuraEmail = signInAttempt.Email;
+            integration.SakuraSessionId = result.SessionId;
+            integration.SakuraRefreshToken = result.RefreshToken;
             integration.CreatedAt = DateTime.Now;
         }
         else
@@ -225,9 +218,9 @@ public class BackgroundWorker
             {
                 Id = Guid.NewGuid(),
                 DiscordGuildId = channel.GuildId,
-                Email = signInAttempt.Email,
-                SessionId = result.SessionId,
-                RefreshToken = result.RefreshToken,
+                SakuraEmail = signInAttempt.Email,
+                SakuraSessionId = result.SessionId,
+                SakuraRefreshToken = result.RefreshToken,
                 GlobalMessagesFormat = "",
                 CreatedAt = DateTime.Now
             };

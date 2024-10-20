@@ -11,12 +11,18 @@
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
       <DebugType>embedded</DebugType>
+      <NoWarn>CS8524</NoWarn>
+      <WarningsAsErrors>CS8509</WarningsAsErrors>
+      <PlatformTarget>x64</PlatformTarget>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
       <Optimize>false</Optimize>
       <DebugSymbols>true</DebugSymbols>
       <DebugType>embedded</DebugType>
+      <NoWarn>CS8524</NoWarn>
+      <WarningsAsErrors>CS8509</WarningsAsErrors>
+      <PlatformTarget>x64</PlatformTarget>
     </PropertyGroup>
 
     <ItemGroup>

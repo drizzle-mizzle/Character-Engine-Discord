@@ -1,4 +1,5 @@
-﻿using CharacterEngineDiscord.Helpers.Common;
+﻿using CharacterEngine.App.Helpers;
+using CharacterEngineDiscord.Helpers.Common;
 using NLog;
 
 namespace CharacterEngine.App
@@ -27,7 +28,7 @@ namespace CharacterEngine.App
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             await using var db = DatabaseHelper.GetDbContext();
-            await db.Database.EnsureDeletedAsync();
+            // await db.Database.EnsureDeletedAsync();
             await db.Database.EnsureCreatedAsync();
             // await db.Database.MigrateAsync();
 

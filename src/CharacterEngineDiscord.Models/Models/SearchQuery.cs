@@ -1,4 +1,5 @@
-﻿using CharacterEngineDiscord.Models.Common;
+﻿using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Common;
 
 namespace CharacterEngineDiscord.Models;
 

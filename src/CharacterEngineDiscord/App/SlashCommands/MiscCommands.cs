@@ -9,19 +9,14 @@ namespace CharacterEngine.App.SlashCommands;
 
 public class MiscCommands : InteractionModuleBase<InteractionContext>
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
 
-    public MiscCommands(IServiceProvider serviceProvider, AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
+    public MiscCommands(AppDbContext db, DiscordSocketClient discordClient)
     {
-        _serviceProvider = serviceProvider;
         _db = db;
-
         _discordClient = discordClient;
-        _interactions = interactions;
     }
 
 

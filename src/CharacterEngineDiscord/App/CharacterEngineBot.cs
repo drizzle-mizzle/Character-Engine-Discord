@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Common;
@@ -16,30 +17,42 @@ namespace CharacterEngine.App;
 
 public static class CharacterEngineBot
 {
-    private static readonly IServiceProvider _serviceProvider = DI.GetServiceProvider;
-    private static readonly ILogger _log = _serviceProvider.GetRequiredService<ILogger>();
-    private static readonly DiscordSocketClient _discordClient = _serviceProvider.GetRequiredService<DiscordSocketClient>();
-    private static readonly InteractionService _interactions = _serviceProvider.GetRequiredService<InteractionService>();
+    private static DiscordSocketClient _discordClient = null!;
+    private static InteractionService _interactions = null!;
+    private static ILogger _log = null!;
 
 
     public static void Run() => RunAsync().GetAwaiter().GetResult();
     private static async Task RunAsync()
     {
-        InteractionsHelper.Initialize(_serviceProvider);
+        var serviceProvider = DI.BuildServiceProvider();
+        _interactions = serviceProvider.GetRequiredService<InteractionService>();
 
-        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).ConfigureAwait(false);
-        _discordClient.BindEvents();
+        await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider).ConfigureAwait(false);
 
+        // Cache all characters from db
+        var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
+        StaticStorage.CachedCharacters.AddRange(allCharacters);
+
+        // Configure event handlers
+        await BindEventsAsync();
+
+        // Connect
+        _discordClient = DI.GetDiscordSocketClient;
         await _discordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN).ConfigureAwait(false);
         await _discordClient.StartAsync().ConfigureAwait(false);
 
+        // Prevent application from closing
         await Task.Delay(-1);
     }
 
 
-    private static void BindEvents(this DiscordSocketClient discordClient)
+    private static async Task BindEventsAsync()
     {
-        discordClient.Log += msg =>
+        _discordClient.Connected += OnConnected;
+
+        _log = DI.GetLogger;
+        _discordClient.Log += msg =>
         {
             if (msg.Severity is LogSeverity.Error or LogSeverity.Critical)
             {
@@ -53,26 +66,24 @@ public static class CharacterEngineBot
             return Task.CompletedTask;
         };
 
-        discordClient.JoinedGuild += async guild =>
+        _discordClient.JoinedGuild += async guild =>
         {
             _log.Info($"Joined guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
             await Task.Run(async () => await guild.EnsureExistInDbAsync());
         };
 
-        discordClient.LeftGuild += async guild =>
+        _discordClient.LeftGuild += async guild =>
         {
             _log.Info($"Left guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
             await Task.Run(async () => await guild.MarkAsLeftAsync());
         };
 
-        discordClient.Connected += OnConnected;
 
-        var interactionService = _serviceProvider.GetRequiredService<InteractionService>();
-        interactionService.InteractionExecuted += DI.GetInteractionsHandler.HandleInteraction;
-        discordClient.SlashCommandExecuted += DI.GetSlashCommandsHandler.HandleSlashCommand;
-        discordClient.ModalSubmitted += DI.GetModalsHandler.HandleModal;
-        discordClient.ButtonExecuted += DI.GetButtonsHandler.HandleButton;
-        discordClient.MessageReceived += DI.GetMessagesHandler.HandleMessage;
+        _interactions.InteractionExecuted += DI.GetInteractionsHandler.HandleInteraction;
+        _discordClient.SlashCommandExecuted += DI.GetSlashCommandsHandler.HandleSlashCommand;
+        _discordClient.ModalSubmitted += DI.GetModalsHandler.HandleModal;
+        _discordClient.ButtonExecuted += DI.GetButtonsHandler.HandleButton;
+        _discordClient.MessageReceived += DI.GetMessagesHandler.HandleMessage;
     }
 
 
@@ -123,6 +134,6 @@ public static class CharacterEngineBot
         }
 
         await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
-        BackgroundWorker.Run(_serviceProvider);
+        BackgroundWorker.Run();
     }
 }

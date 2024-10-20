@@ -1,7 +1,7 @@
 ﻿using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using NLog;
@@ -89,18 +89,18 @@ public static class MessagesHelper
     }
 
 
-    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter)
+    public static Embed BuildCharacterDescriptionCard(ICharacter character)
     {
-        var type = spawnedCharacter.GetIntegrationType();
+        var type = character.GetIntegrationType();
         var embed = new EmbedBuilder();
 
-        // var l = Math.Min(commonCharacter.Desc.Length, 4000) - 1;
-        // desc += l > 0 ? "[none]" : spawnedCharacter.CharacterDesc;
-
-        var desc = spawnedCharacter switch
+        var desc = character switch
         {
-            SakuraAiSpawnedCharacter s => s.GetSakuraDesc()
+            ISakuraCharacter s => s.GetSakuraDesc(),
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
+
+        var spawnedCharacter = (ISpawnedCharacter)character;
 
         if (desc.Length >= 4000)
         {
@@ -110,29 +110,29 @@ public static class MessagesHelper
         embed.WithColor(type.GetColor());
         embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
         embed.WithDescription(desc);
-        embed.AddField("Configuration", $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\nUse it or character's call prefix to modify this integration with *`/conf `* commands.");
 
-        // TODO: redo
+        var conf = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\nUse it or character's call prefix to modify this integration with *`/conf `* commands.";
+        embed.AddField("Configuration", conf);
+
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
-                      "*Source: [SakuraAI](https://www.sakura.fm/)*\n" +
-                      $"*Original link: [__Chat with {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetIntegrationType().GetCharacterLink(spawnedCharacter.CharacterId)})*\n" +
-                      $"*Conversations on [SakuraAI](https://www.sakura.fm/): `{((SakuraAiSpawnedCharacter)spawnedCharacter).SakuraConverstaionsCount}`*\n" +
+                      $"*Original link: [__{type.GetLinkPrefix()} {character.CharacterName}__]({character.GetCharacterLink()})*\n" +
+                      $"*{type.GetStatLabel()}: `{character.GetStat()}`*\n" +
                       "*Can generate images: `No`*";
         embed.AddField("Details", details);
 
-        if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
+        if (!string.IsNullOrEmpty(character.CharacterImageLink))
         {
-            embed.WithImageUrl(spawnedCharacter.CharacterImageLink);
+            embed.WithImageUrl(character.CharacterImageLink);
         }
 
-        embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
+        embed.WithFooter($"Created by {character.CharacterAuthor}");
 
         return embed.Build();
     }
 
 
     private const int DESC_LIMIT = 4000;
-    private static string GetSakuraDesc(this SakuraAiSpawnedCharacter sakuraCharacter)
+    private static string GetSakuraDesc(this ISakuraCharacter sakuraCharacter)
     {
         var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
         if (desc.Length < 2)
@@ -146,15 +146,17 @@ public static class MessagesHelper
             scenario = "*No scenario*";
         }
 
-        var persona = sakuraCharacter.SakuraPersona.Trim(' ', '\n');
-        if (persona.Length < 2)
-        {
-            persona = "*No persona*";
-        }
+        // var persona = sakuraCharacter.SakuraPersona.Trim(' ', '\n');
+        // if (persona.Length < 2)
+        // {
+        //     persona = "*No persona*";
+        // }
 
-        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
-                     $"**Scenario**\n{scenario}\n\n" +
-                     $"**Persona**\n{persona}";
+        var result = $"**{((ICharacter)sakuraCharacter).CharacterName}**\n{desc}\n\n" +
+                     $"**Scenario**\n{scenario}"
+                     // + $"\n\n" +
+                     // $"**Persona**\n{persona}"
+                     ;
 
         if (result.Length > DESC_LIMIT)
         {

@@ -17,5 +17,5 @@ public class Manager
 
 
 
-    public virtual DiscordGuild DiscordGuild { get; set; }
+    public virtual DiscordGuild DiscordGuild { get; set; } = null!;
 }
