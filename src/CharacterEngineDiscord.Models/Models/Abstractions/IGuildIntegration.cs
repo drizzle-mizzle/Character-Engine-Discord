@@ -1,8 +1,8 @@
 ﻿namespace CharacterEngineDiscord.Models.Abstractions;
 
-public interface IIntegration
+public interface IGuildIntegration
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; }
 
     public string GlobalMessagesFormat { get; set; }
 

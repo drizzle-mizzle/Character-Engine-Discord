@@ -1,8 +1,8 @@
 ﻿using System.Text.RegularExpressions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.IntegraionModules;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Helpers.Integrations;
+using CharacterEngineDiscord.IntegrationModules;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -23,13 +23,6 @@ public static class InteractionsHelper
 
 
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
-
-
-    public static SlashCommandProperties BuildStartCommand()
-        => new SlashCommandBuilder().WithName("start").WithDescription("Register bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
-
-    public static SlashCommandProperties BuildDisableCommand()
-        => new SlashCommandBuilder().WithName("disable").WithDescription("Unregister all bot commands").WithDefaultMemberPermissions(GuildPermission.Administrator | GuildPermission.ManageGuild).Build();
 
 
     public static string NewCustomId(ModalActionType action, string data)
@@ -90,7 +83,6 @@ public static class InteractionsHelper
             throw new Exception($"Failed to get channel {channelId}");
         }
 
-        await channel.EnsureExistInDbAsync();
         var webhook = await discordClient.CreateDiscordWebhookAsync(channel, commonCharacter);
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
 
@@ -129,14 +121,19 @@ public static class InteractionsHelper
     }
 
 
-    public static async Task SendGreetingAsync(this ICharacter character, string username)
+    public static Task SendGreetingAsync(this ICharacter character, string username)
     {
         var characterMessage = character.CharacterFirstMessage
                                         .Replace("{{char}}", character.CharacterName)
                                         .Replace("{{user}}", $"**{username}**");
 
-        var spawnedCharacter = (ISpawnedCharacter)character;
-        var webhookClient = StaticStorage.CachedWebhookClients.GetById(spawnedCharacter.WebhookId)!;
+        return SendMessageAsync((ISpawnedCharacter)character, characterMessage);
+    }
+
+
+    public static async Task SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
+    {
+        var webhookClient = StaticStorage.CachedWebhookClients.GetOrCreate(spawnedCharacter);
 
         if (characterMessage.Length <= 2000)
         {
@@ -158,7 +155,8 @@ public static class InteractionsHelper
             await webhookClient.SendMessageAsync(chunks[i], threadId: thread.Id);
         }
 
-        await thread.ModifyAsync(t => { t.Archived = t.Locked = true; });
+        // await thread.ModifyAsync(t => { t.Archived = t.Locked = true; });
+        await thread.ModifyAsync(t => { t.Archived = true; });
     }
 
 

@@ -7,5 +7,5 @@ public interface ISakuraCharacter
     public string SakuraPersona { get; set; }
     public string SakuraScenario { get; set; }
     public int SakuraMessagesCount { get; set; }
-    public string SakuraChatId { get; set; }
+    public string? SakuraChatId { get; set; }
 }

@@ -6,7 +6,7 @@
 /// </summary>
 public interface ISpawnedCharacter
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; }
 
     public ulong DiscordChannelId { get; set; }
 
@@ -30,6 +30,10 @@ public interface ISpawnedCharacter
     public uint ResponseDelay { get; set; }
 
     public float ResponseChance { get; set; }
+
+    public bool EnableSwipes { get; set; }
+
+    public bool EnableBuffering { get; set; }
 
     public bool EnableQuotes { get; set; }
 

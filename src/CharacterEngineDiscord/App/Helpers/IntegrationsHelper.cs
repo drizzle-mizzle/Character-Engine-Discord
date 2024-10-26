@@ -1,5 +1,5 @@
-using CharacterEngine.App.Abstractions;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.IntegrationModules.Abstractions;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
@@ -19,6 +19,11 @@ public static class IntegrationsHelper
 
     public static IntegrationType GetIntegrationType(this ICharacter character)
     {
+        if (character is CommonCharacter commonCharacter)
+        {
+            return commonCharacter.IntegrationType;
+        }
+
         return character switch
         {
             ISakuraCharacter => IntegrationType.SakuraAI,
@@ -30,7 +35,7 @@ public static class IntegrationsHelper
 
     #region TypeBased
 
-    public static IInterationModule GetIntegrationModule(this IntegrationType type)
+    public static IIntegrationModule GetIntegrationModule(this IntegrationType type)
     {
         return type switch
         {
@@ -44,7 +49,7 @@ public static class IntegrationsHelper
     {
         return type switch
         {
-            IntegrationType.SakuraAI => "Messages"
+            IntegrationType.SakuraAI => "Messages count"
         };
     }
 
@@ -84,9 +89,9 @@ public static class IntegrationsHelper
 
     public static string GetCharacterLink(this ICharacter character)
     {
-        return character switch
+        return character.GetIntegrationType() switch
         {
-            ISakuraCharacter => $"https://www.sakura.fm/chat/{character.CharacterId}",
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
 
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
@@ -95,9 +100,9 @@ public static class IntegrationsHelper
 
     public static string GetAuthorLink(this ICharacter character)
     {
-        return character switch
+        return character.GetIntegrationType() switch
         {
-            ISakuraCharacter => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
 
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };

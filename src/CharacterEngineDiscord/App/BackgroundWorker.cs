@@ -151,8 +151,8 @@ public class BackgroundWorker
 
         await using var db = DatabaseHelper.GetDbContext();
         var storedActions = await db.StoredActions
-                                    .Where(sa => sa.Status == StoredActionStatus.Pending &&
-                                                 actionTypes.Contains(sa.StoredActionType))
+                                    .Where(sa => sa.Status == StoredActionStatus.Pending
+                                              && actionTypes.Contains(sa.StoredActionType))
                                     .ToArrayAsync();
 
         foreach (var action in storedActions)
@@ -202,7 +202,7 @@ public class BackgroundWorker
         }
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
-        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(sourceInfo.ChannelId)!;
+        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(sourceInfo.ChannelId);
 
         var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (integration is not null)
@@ -214,9 +214,8 @@ public class BackgroundWorker
         }
         else
         {
-            var newSakuraIntegration = new SakuraAiIntegration
+            var newSakuraIntegration = new SakuraAiGuildIntegration
             {
-                Id = Guid.NewGuid(),
                 DiscordGuildId = channel.GuildId,
                 SakuraEmail = signInAttempt.Email,
                 SakuraSessionId = result.SessionId,

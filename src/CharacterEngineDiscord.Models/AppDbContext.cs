@@ -16,10 +16,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<SakuraAiSpawnedCharacter> SakuraAiSpawnedCharacters { get; init; }
 
     // public DbSet<DiscordGuildIntegration> DiscordGuildIntegrations { get; init; }
-    public DbSet<SakuraAiIntegration> SakuraAiIntegrations { get; init; }
+    public DbSet<SakuraAiGuildIntegration> SakuraAiIntegrations { get; init; }
 
 
-    public DbSet<Manager> Managers { get; init; }
+    public DbSet<GuildBotManager> Managers { get; init; }
     public DbSet<StoredAction> StoredActions { get; init; }
 
     // Discord

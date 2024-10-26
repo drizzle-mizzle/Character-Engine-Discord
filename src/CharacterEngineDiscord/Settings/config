@@ -13,7 +13,7 @@ OWNER_USERS_IDS: 0
 LOGS_CHANNEL_ID:
 ERRORS_CHANNEL_ID:
 
-DEFAULT_MESSAGES_FORMAT: {{ref_msg_begin}}((In response to '{{ref_msg_text}}' from '{{ref_msg_user}}')){{ref_msg_end}}\n{{user}} says:\n{{msg}}
+DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_mention:{{mention_hint}}]\n{{user}} says:\n{{msg}}
 
 # Max messages per minute for a single user
 USER_RATE_LIMIT: 20

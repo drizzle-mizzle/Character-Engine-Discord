@@ -14,5 +14,7 @@ public class DiscordChannel
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }
 
+    public required bool NoWarn { get; set; }
+
     public virtual DiscordGuild? DiscordGuild { get; set; }
 }

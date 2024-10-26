@@ -1,4 +1,5 @@
 using CharacterEngine.App.Handlers;
+using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -20,6 +21,7 @@ public static class DependencyInjectionHelper
     public static ButtonsHandler GetButtonsHandler => _serviceProvider.GetRequiredService<ButtonsHandler>();
     public static MessagesHandler GetMessagesHandler => _serviceProvider.GetRequiredService<MessagesHandler>();
     public static DiscordSocketClient GetDiscordSocketClient => _serviceProvider.GetRequiredService<DiscordSocketClient>();
+    public static InteractionService GetInteractionService => _serviceProvider.GetRequiredService<InteractionService>();
     public static ILogger GetLogger => _serviceProvider.GetRequiredService<ILogger>();
 
 
@@ -47,6 +49,7 @@ public static class DependencyInjectionHelper
             services.AddScoped<ModalsHandler>();
             services.AddScoped<ButtonsHandler>();
             services.AddScoped<MessagesHandler>();
+            services.AddScoped<SpecialCommandsHandler>();
         }
 
         _serviceProvider = services.BuildServiceProvider();

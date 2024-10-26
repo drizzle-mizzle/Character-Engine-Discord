@@ -1,5 +1,7 @@
-﻿using CharacterEngine.App.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
+using Discord;
 using Discord.WebSocket;
 using NLog;
 
@@ -26,7 +28,8 @@ public class ModalsHandler
 
 
     public Task HandleModal(SocketModal modal)
-        => Task.Run(async () =>
+    {
+        Task.Run(async () =>
         {
             try
             {
@@ -37,12 +40,22 @@ public class ModalsHandler
                 await _discordClient.ReportErrorAsync(e);
             }
         });
-    
+
+        return Task.CompletedTask;
+    }
+
 
     private async Task HandleModalAsync(SocketModal modal)
     {
         await modal.DeferAsync();
         var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
+
+        if (modal.Channel is not ITextChannel channel)
+        {
+            return;
+        }
+
+        await channel.EnsureExistInDbAsync();
 
         await (parsedModal.ActionType switch
         {

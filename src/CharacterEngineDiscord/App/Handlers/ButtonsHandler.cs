@@ -1,4 +1,5 @@
-﻿using CharacterEngine.App.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
@@ -6,7 +7,6 @@ using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
 using Discord.Webhook;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore;
 using NLog;
 
 namespace CharacterEngine.App.Handlers;
@@ -30,7 +30,8 @@ public class ButtonsHandler
 
 
     public Task HandleButton(SocketMessageComponent component)
-        => Task.Run(async () =>
+    {
+        Task.Run(async () =>
         {
             try
             {
@@ -42,10 +43,20 @@ public class ButtonsHandler
             }
         });
 
+        return Task.CompletedTask;
+    }
+
 
     private async Task HandleButtonAsync(SocketMessageComponent component)
     {
         await component.DeferAsync();
+
+        if (component.Channel is not ITextChannel channel)
+        {
+            return;
+        }
+
+        await channel.EnsureExistInDbAsync();
 
         var actionType = GetActionType(component.Data.CustomId);
         await (actionType switch
@@ -85,13 +96,10 @@ public class ButtonsHandler
             return;
         }
 
-        if (sq.UserId != component.User.Id)
+        var canUpdate = sq.UserId == component.User.Id || sq.UserId == _discordClient.Guilds.First(g => g.Id == component.GuildId).OwnerId;
+        if (!canUpdate)
         {
-            var isManager = await _db.Managers.AnyAsync(m => m.UserId == component.User.Id && m.GuildId == component.GuildId);
-            if (!isManager)
-            {
-                return;
-            }
+            return;
         }
 
         var action = component.Data.CustomId.Replace($"sq{CommonHelper.COMMAND_SEPARATOR}", string.Empty);

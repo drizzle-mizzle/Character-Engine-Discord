@@ -10,7 +10,7 @@ namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCharacter
 {
     [Key]
-    public required Guid Id { get; set; }
+    public Guid Id { get; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
     public required ulong DiscordChannelId { get; set; }
@@ -21,10 +21,12 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCh
     public required string MessagesFormat { get; set; }
     public required uint ResponseDelay { get; set; }
     public required float ResponseChance { get; set; }
+    public required bool EnableSwipes { get; set; }
+    public required bool EnableBuffering { get; set; }
     public required bool EnableQuotes { get; set; }
     public required bool EnableStopButton { get; set; }
     public required bool SkipNextBotMessage { get; set; }
-    public bool ResetWithNextMessage { get; set; } = true;
+    public required bool ResetWithNextMessage { get; set; }
     public required ulong LastCallerId { get; set; }
     public required ulong LastMessageId { get; set; }
     public required uint MessagesSent { get; set; }
@@ -37,9 +39,9 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCh
     public string CharacterAuthor { get; set; } = null!;
     public string CharacterStat => SakuraMessagesCount.ToString();
 
-    public string? SakuraDescription { get; set; }
-    public string? SakuraPersona { get; set; }
-    public string? SakuraScenario { get; set; }
+    public string SakuraDescription { get; set; } = string.Empty;
+    public string SakuraPersona { get; set; } = string.Empty;
+    public string SakuraScenario { get; set; } = string.Empty;
     public int SakuraMessagesCount { get; set; }
     public string? SakuraChatId { get; set; }
 

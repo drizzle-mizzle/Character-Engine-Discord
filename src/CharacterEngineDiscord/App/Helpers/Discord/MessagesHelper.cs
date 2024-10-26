@@ -1,4 +1,5 @@
-﻿using CharacterEngine.App.Helpers.Infrastructure;
+﻿using System.Text.RegularExpressions;
+using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
@@ -11,6 +12,23 @@ public static class MessagesHelper
 {
     private static readonly ILogger _log = LogManager.GetCurrentClassLogger();
 
+    private const int DESC_LIMIT = 4000;
+
+
+    public const string TP_MSG = "{{msg}}";
+    public const string TP_DATETIME = "{{date}}";
+    public const string TP_USER = "{{user}}";
+    public const string TP_USER_MENTION_HINT = "{{mention_hint}}";
+
+    public const string TP_REF_MSG = "{{ref_msg}}";
+    public const string TP_REF_BEGIN = "{{ref_begin}}";
+    public const string TP_REF_END = "{{ref_end}}";
+    public const string TP_REF_USER = "{{ref_user}}";
+
+    public static readonly Regex USER_MENTION_REGEX = new(@"\<@\d*?\>", RegexOptions.Compiled);
+    public static readonly Regex ROLE_MENTION_REGEX = new(@"\<@\&\d*?\>", RegexOptions.Compiled);
+
+
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e)
         => discordClient.ReportErrorAsync("Unknown exception", $"{e}");
@@ -19,24 +37,24 @@ public static class MessagesHelper
         => discordClient.ReportErrorAsync(title, $"{e}");
 
 
-    private const int LIMIT = 1990;
+    private const int MSG_LIMIT = 1990;
     public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content)
     {
-        _log.Error($"Error report: [ {title} ]\n{content}");
+        _log.Error($"Error report:\n[ {title} ]\n{content}");
 
         var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
         var thread = await channel.CreateThreadAsync($"💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
 
         while (content.Length > 0)
         {
-            if (content.Length <= LIMIT)
+            if (content.Length <= MSG_LIMIT)
             {
                 await thread.SendMessageAsync($"```js\n{content}```");
                 break;
             }
 
-            await thread.SendMessageAsync(text: $"```js\n{content[..(LIMIT-1)]}```");
-            content = content[LIMIT..];
+            await thread.SendMessageAsync(text: $"```js\n{content[..(MSG_LIMIT-1)]}```");
+            content = content[MSG_LIMIT..];
         }
     }
 
@@ -55,14 +73,14 @@ public static class MessagesHelper
         var thread = await channel.CreateThreadAsync("Info", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
         while (content.Length > 0)
         {
-            if (content.Length <= LIMIT)
+            if (content.Length <= MSG_LIMIT)
             {
                 await thread.SendMessageAsync(content);
                 break;
             }
 
-            await thread.SendMessageAsync(content[..(LIMIT-1)]);
-            content = content[LIMIT..];
+            await thread.SendMessageAsync(content[..(MSG_LIMIT-1)]);
+            content = content[MSG_LIMIT..];
         }
     }
 
@@ -72,16 +90,19 @@ public static class MessagesHelper
         var desc = bold ? $"**{text}**" : text;
 
         var embed = new EmbedBuilder().WithDescription(desc).WithColor(color);
-        if (!string.IsNullOrWhiteSpace(imageUrl))
+
+        if (string.IsNullOrWhiteSpace(imageUrl))
         {
-            if (imageAsThumb)
-            {
-                embed.WithThumbnailUrl(imageUrl);
-            }
-            else
-            {
-                embed.WithImageUrl(imageUrl);
-            }
+            return embed.Build();
+        }
+
+        if (imageAsThumb)
+        {
+            embed.WithThumbnailUrl(imageUrl);
+        }
+        else
+        {
+            embed.WithImageUrl(imageUrl);
         }
 
         return embed.Build();
@@ -99,25 +120,27 @@ public static class MessagesHelper
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
 
-        var spawnedCharacter = (ISpawnedCharacter)character;
-
-        if (desc.Length >= 4000)
+        if (desc.Length > DESC_LIMIT)
         {
-            desc = $"{desc}[...]";
+            desc = desc[..DESC_LIMIT] + " [...]";
         }
 
-        embed.WithColor(type.GetColor());
-        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
-        embed.WithDescription(desc);
+        desc += "\n\n";
 
-        var conf = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\nUse it or character's call prefix to modify this integration with *`/conf `* commands.";
-        embed.AddField("Configuration", conf);
-
+        var spawnedCharacter = (ISpawnedCharacter)character;
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
                       $"*Original link: [__{type.GetLinkPrefix()} {character.CharacterName}__]({character.GetCharacterLink()})*\n" +
                       $"*{type.GetStatLabel()}: `{character.GetStat()}`*\n" +
-                      "*Can generate images: `No`*";
+                      "*Can generate images: `No`*\n\n";
+
+        var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\n" +
+                            $"Use it or character's call prefix to modify this integration with *`/conf `* commands.";
+
+        embed.WithColor(type.GetColor());
+        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
+        embed.WithDescription($"{desc}");
         embed.AddField("Details", details);
+        embed.AddField("Configuration", configuration);
 
         if (!string.IsNullOrEmpty(character.CharacterImageLink))
         {
@@ -130,7 +153,6 @@ public static class MessagesHelper
     }
 
 
-    private const int DESC_LIMIT = 4000;
     private static string GetSakuraDesc(this ISakuraCharacter sakuraCharacter)
     {
         var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
@@ -145,22 +167,8 @@ public static class MessagesHelper
             scenario = "*No scenario*";
         }
 
-        // var persona = sakuraCharacter.SakuraPersona.Trim(' ', '\n');
-        // if (persona.Length < 2)
-        // {
-        //     persona = "*No persona*";
-        // }
-
         var result = $"**{((ICharacter)sakuraCharacter).CharacterName}**\n{desc}\n\n" +
-                     $"**Scenario**\n{scenario}"
-                     // + $"\n\n" +
-                     // $"**Persona**\n{persona}"
-                     ;
-
-        if (result.Length > DESC_LIMIT)
-        {
-            result = result[..DESC_LIMIT] + " [...]";
-        }
+                     $"**Scenario**\n{scenario}";
 
         return result;
     }

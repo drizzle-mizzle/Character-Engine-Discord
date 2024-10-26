@@ -8,5 +8,5 @@ public interface ICharacter
     public string CharacterFirstMessage { get; set; }
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; }
-    public string CharacterStat { get; }
+    public string? CharacterStat { get; }
 }

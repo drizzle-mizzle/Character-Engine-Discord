@@ -7,10 +7,10 @@ using CharacterEngineDiscord.Models.Db.Discord;
 namespace CharacterEngineDiscord.Models.Db.Integrations;
 
 
-public class SakuraAiIntegration : IIntegration, ISakuraIntegration
+public class SakuraAiGuildIntegration : IGuildIntegration, ISakuraIntegration
 {
     [Key]
-    public required Guid Id { get; set; }
+    public Guid Id { get; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }

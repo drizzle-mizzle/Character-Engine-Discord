@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
@@ -34,7 +35,7 @@ public class CharacterEngineBot
         await _interactions.AddModulesAsync(Assembly.GetEntryAssembly(), serviceProvider);
 
         // Cache all characters from db
-        await Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
             var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
             StaticStorage.CachedCharacters.AddRange(allCharacters);
@@ -81,16 +82,20 @@ public class CharacterEngineBot
             return Task.CompletedTask;
         };
 
-        _discordClient.JoinedGuild += async guild =>
+        _discordClient.JoinedGuild += guild =>
         {
             _log.Info($"Joined guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            await Task.Run(guild.EnsureExistInDbAsync);
+            _ = guild.EnsureExistInDbAsync();
+
+            return Task.CompletedTask;
         };
 
-        _discordClient.LeftGuild += async guild =>
+        _discordClient.LeftGuild += guild =>
         {
             _log.Info($"Left guild {guild.Name} ({guild.Id}) | Members: {guild.MemberCount} | Description: {guild.Description ?? "none"}");
-            await Task.Run(guild.MarkAsLeftAsync);
+            _ = guild.MarkAsLeftAsync();
+
+            return Task.CompletedTask;
         };
 
         _interactions.InteractionExecuted += DI.GetInteractionsHandler.HandleInteraction;
@@ -111,31 +116,45 @@ public class CharacterEngineBot
         }
 
         var failedGuilds = new ConcurrentBag<(IGuild guild, string err)>();
-        await Parallel.ForEachAsync(_discordClient.Guilds, async (guild, _) =>
+        var guildChunks = _discordClient.Guilds.Chunk(20); // to not hit rate limit
+
+        var sw = Stopwatch.StartNew();
+
+        foreach (var guilds in guildChunks)
         {
-            try
+            while (sw.Elapsed.Seconds < 1)
             {
-                var commands = await guild.GetApplicationCommandsAsync();
-                if (commands.Count == 0)
-                {
-                    var startCommand = InteractionsHelper.BuildStartCommand();
-                    await guild.CreateApplicationCommandAsync(startCommand);
-                    return;
-                }
-
-                if (commands.Select(c => c.Name).Contains("start"))
-                {
-                    return;
-                }
-
-                await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
+                // wait
             }
-            catch (Exception e)
+            sw.Restart();
+
+            await Parallel.ForEachAsync(guilds, async (guild, _) =>
             {
-                failedGuilds.Add((guild, e.Message));
-                _log.Error(e.ToString());
-            }
-        });
+                try
+                {
+                    var commands = await guild.GetApplicationCommandsAsync();
+                    if (commands.Count == 0)
+                    {
+                        var startCommand = ExplicitCommandBuilders.BuildStartCommand();
+                        await guild.CreateApplicationCommandAsync(startCommand);
+                        return;
+                    }
+
+                    var hasStartCommand = commands.Select(c => c.Name).Contains($"{ExplicitCommands.start:G}");
+                    if (!hasStartCommand)
+                    {
+                        await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
+                    }
+                }
+                catch (Exception e)
+                {
+                    failedGuilds.Add((guild, e.Message));
+                    _log.Error(e.ToString());
+                }
+            });
+        }
+
+        sw.Stop();
 
         if (!failedGuilds.IsEmpty)
         {

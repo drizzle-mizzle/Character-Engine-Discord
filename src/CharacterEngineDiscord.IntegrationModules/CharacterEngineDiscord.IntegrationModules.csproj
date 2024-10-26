@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
+      <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
+      <ProjectReference Include="..\CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj" />
+    </ItemGroup>
+
+</Project>

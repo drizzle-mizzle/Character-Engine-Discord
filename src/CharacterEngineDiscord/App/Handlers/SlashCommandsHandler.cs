@@ -1,8 +1,12 @@
-﻿using CharacterEngine.App.Helpers.Discord;
+﻿using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NLog;
 
 namespace CharacterEngine.App.Handlers;
@@ -12,28 +16,26 @@ public class SlashCommandsHandler
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _log;
-    private readonly AppDbContext _db;
 
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactions;
+    private readonly AppDbContext _db;
 
 
-    public SlashCommandsHandler(IServiceProvider serviceProvider, AppDbContext db, ILogger log,
-                                DiscordSocketClient discordClient, InteractionService interactions)
+    public SlashCommandsHandler(IServiceProvider serviceProvider, ILogger log, DiscordSocketClient discordClient, InteractionService interactions, AppDbContext db)
     {
         _serviceProvider = serviceProvider;
         _log = log;
-        _db = db;
 
         _discordClient = discordClient;
         _interactions = interactions;
+        _db = db;
     }
-
-    private static readonly ChannelPermission[] REQUIRED_PERMS = [ ChannelPermission.ViewChannel, ChannelPermission.SendMessages, ChannelPermission.AddReactions, ChannelPermission.EmbedLinks, ChannelPermission.AttachFiles, ChannelPermission.ManageWebhooks ];
 
 
     public Task HandleSlashCommand(SocketSlashCommand command)
-        => Task.Run(async () =>
+    {
+        Task.Run(async () =>
         {
             try
             {
@@ -44,89 +46,25 @@ public class SlashCommandsHandler
                 await _discordClient.ReportErrorAsync(e);
             }
         });
-    
 
-    private static readonly Embed _errMsgEmbed1 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot can opearte only in text channels".ToInlineEmbed(Color.Red);
-    private static readonly Embed _errMsgEmbed2 = $"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel".ToInlineEmbed(Color.Red);
+        return Task.CompletedTask;
+    }
+
+
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        if (command.Channel is not ITextChannel channel)
+        if (Enum.TryParse<ExplicitCommands>(command.CommandName, ignoreCase: false, out var adminCommand))
         {
-            await command.RespondAsync(embed: _errMsgEmbed1);
-            return;
-        }
-
-        var getUserTask = channel.GetUserAsync(_discordClient.CurrentUser.Id);
-        if (await getUserTask is not IGuildUser botGuildUser)
-        {
-            await command.RespondAsync(embed: _errMsgEmbed2);
-            return;
-        }
-
-        var botRoles = channel.Guild.Roles.Where(role => botGuildUser.RoleIds.Contains(role.Id)).ToArray();
-        var guildPermissions = botRoles.SelectMany(role => role.Permissions.ToList()).ToArray();
-
-        if (!guildPermissions.Contains(GuildPermission.Administrator))
-        {
-            var channelRoleOws = botRoles
-                                .Select(role => channel.GetPermissionOverwrite(role))
-                                .Where(ow => ow.HasValue)
-                                .ToList()
-                                .ConvertAll(ow => (OverwritePermissions)ow!);
-
-            var channelAllowedPerms = channelRoleOws.SelectMany(ow => ow.ToAllowList()).ToList();
-            var missingPerms = string.Join("\n", REQUIRED_PERMS.Where(channelPermission => !channelAllowedPerms.Contains(channelPermission) && !guildPermissions.Contains((GuildPermission)channelPermission))
-                                                               .Select(p => $"> {p:G}"));
-
-            if (missingPerms.Length != 0)
+            var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
+            await (adminCommand switch
             {
-                var msg = $"{MessagesTemplates.WARN_SIGN_DISCORD} **Permissions required for the bot to operate in this channel:**\n```{missingPerms}```\n";
-                await command.RespondAsync(embed: msg.ToInlineEmbed(Color.Red, bold: false));
-                return;
-            }
+                ExplicitCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
+                ExplicitCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
+            });
         }
-
-        await (command.CommandName switch
+        else
         {
-            "start" => HandleStartCommandAsync(command),
-            "disable" => HandleDisableCommandAsync(command),
-            _ => _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider)
-        });
-    }
-
-
-    private async Task HandleStartCommandAsync(SocketSlashCommand command)
-    {
-        await command.DeferAsync();
-
-        var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
-        var disableCommand = InteractionsHelper.BuildDisableCommand();
-
-        var commands = await guild.GetApplicationCommandsAsync();
-
-        foreach (var installedCommand in commands)
-        {
-            await installedCommand.DeleteAsync();
+            await _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider);
         }
-
-        await guild.CreateApplicationCommandAsync(disableCommand);
-        await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
-
-        await command.FollowupAsync("OK");
     }
-
-
-    private async Task HandleDisableCommandAsync(SocketSlashCommand command)
-    {
-        await command.DeferAsync();
-
-        var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
-        var startCommand = InteractionsHelper.BuildStartCommand();
-
-        await guild.DeleteApplicationCommandsAsync();
-        await guild.CreateApplicationCommandAsync(startCommand);
-
-        await command.FollowupAsync("OK");
-    }
-    
 }

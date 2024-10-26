@@ -1,3 +1,4 @@
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Helpers.Mappings;
@@ -9,20 +10,25 @@ using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using IIntegration = CharacterEngineDiscord.Models.Abstractions.IIntegration;
 
 namespace CharacterEngine.App.Helpers;
 
 
+/// <summary>
+/// Kind of a repository, but only for tricky db operations
+/// </summary>
 public static class DatabaseHelper
 {
     public static AppDbContext GetDbContext() => new(BotConfig.DATABASE_CONNECTION_STRING);
 
 
-    public static Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
-        using var db = GetDbContext();
-        return db.SakuraAiSpawnedCharacters.ToListAsync<ISpawnedCharacter>();
+        await using var db = GetDbContext();
+        var characters = await db.SakuraAiSpawnedCharacters.ToListAsync()
+                      ?? [];
+
+        return characters.ToList<ISpawnedCharacter>();
     }
 
 
@@ -35,18 +41,35 @@ public static class DatabaseHelper
     }
 
 
-    public static async Task<IIntegration> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
+    public static async Task UpdateSpawnedCharacterAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = GetDbContext();
-        var channel = await db.DiscordChannels.SingleAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
 
-        var type = spawnedCharacter.GetIntegrationType();
-        var integration = await (type switch
+        switch (spawnedCharacter)
         {
-            IntegrationType.SakuraAI => db.SakuraAiIntegrations.SingleAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
-        });
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
+            {
+                db.SakuraAiSpawnedCharacters.Update(sakuraAiSpawnedCharacter);
+                await db.SaveChangesAsync();
+                break;
+            }
+        }
+    }
 
-        return integration;
+
+    public static async Task DeleteSpawnedCharacterAsync(ISpawnedCharacter spawnedCharacter)
+    {
+        await using var db = GetDbContext();
+
+        switch (spawnedCharacter)
+        {
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
+            {
+                db.SakuraAiSpawnedCharacters.Remove(sakuraAiSpawnedCharacter);
+                await db.SaveChangesAsync();
+                break;
+            }
+        }
     }
 
 
@@ -55,7 +78,7 @@ public static class DatabaseHelper
         var characterName = commonCharacter.CharacterName.Trim();
         if (characterName.Length == 0)
         {
-            throw new Exception("Invalid character name");
+            throw new UserFriendlyException("Invalid character name");
         }
 
         string callPrefix;
@@ -77,7 +100,6 @@ public static class DatabaseHelper
         {
             IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter
             {
-                Id = Guid.NewGuid(),
                 DiscordChannelId = (ulong)webhook.ChannelId!,
                 WebhookId = webhook.Id,
                 WebhookToken = webhook.Token,
@@ -85,6 +107,8 @@ public static class DatabaseHelper
                 MessagesFormat = BotConfig.DEFAULT_MESSAGES_FORMAT,
                 ResponseDelay = 0,
                 ResponseChance = 0,
+                EnableSwipes = true,
+                EnableBuffering = true,
                 EnableQuotes = false,
                 EnableStopButton = true,
                 SkipNextBotMessage = false,
@@ -92,9 +116,9 @@ public static class DatabaseHelper
                 LastMessageId = 0,
                 MessagesSent = 0,
                 LastCallTime = default,
+                ResetWithNextMessage = true
             }
         }).FillWith(commonCharacter);
-
 
         await using var db = GetDbContext();
         await (newSpawnedCharacter switch
@@ -107,6 +131,21 @@ public static class DatabaseHelper
 
 
         return newSpawnedCharacter;
+    }
+
+
+    public static async Task<IGuildIntegration> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
+    {
+        await using var db = GetDbContext();
+        var channel = await db.DiscordChannels.FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
+
+        var type = spawnedCharacter.GetIntegrationType();
+        var integration = await (type switch
+        {
+            IntegrationType.SakuraAI => db.SakuraAiIntegrations.FirstAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
+        });
+
+        return integration;
     }
 
 
@@ -123,7 +162,8 @@ public static class DatabaseHelper
             {
                 Id = channel.Id,
                 ChannelName = channel.Name,
-                DiscordGuildId = channel.GuildId
+                DiscordGuildId = channel.GuildId,
+                NoWarn = false
             };
 
             await db.DiscordChannels.AddAsync(newChannel);

@@ -1,4 +1,5 @@
-﻿using CharacterEngine.App.Helpers.Discord;
+﻿using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -7,6 +8,7 @@ using Discord.WebSocket;
 namespace CharacterEngine.App.SlashCommands;
 
 
+[ValidateAccessLevel(AccessLevels.Manager)]
 [Group("integration", "Integrations Management")]
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
-using CharacterEngine.App.IntegraionModules;
+using System.Diagnostics;
+using CharacterEngineDiscord.IntegrationModules;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord.Webhook;
@@ -14,6 +15,7 @@ public static class StaticStorage
     public static SearchQueryCollection SearchQueries { get; } = new();
 
     public static CachedCharacerInfoCollection CachedCharacters { get; } = new();
+
     public static CachedWebhookClientCollection CachedWebhookClients { get; } = new();
     public static IntegrationModulesCollection IntegrationModules { get; } = new();
 }
@@ -74,6 +76,20 @@ public class CachedWebhookClientCollection
         _webhookClients.TryGetValue(webhookId, out var webhookClient);
         return webhookClient;
     }
+
+
+    public DiscordWebhookClient GetOrCreate(ISpawnedCharacter spawnedCharacter)
+    {
+        var webhookClient = GetById(spawnedCharacter.WebhookId);
+
+        if (webhookClient is null)
+        {
+            webhookClient = new DiscordWebhookClient(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
+            Add(spawnedCharacter.WebhookId, webhookClient);
+        }
+
+        return webhookClient;
+    }
 }
 
 
@@ -96,13 +112,14 @@ public class CachedCharacerInfoCollection
             Id = spawnedCharacter.Id,
             CallPrefix = spawnedCharacter.CallPrefix,
             ChannelId = spawnedCharacter.DiscordChannelId,
-            WebhookId = spawnedCharacter.WebhookId
+            WebhookId = spawnedCharacter.WebhookId,
+            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableBuffering)
         };
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
     }
 
-    private void Remove(Guid spawnedCharacterId)
+    public void Remove(Guid spawnedCharacterId)
     {
         if (_cachedCharacters.ContainsKey(spawnedCharacterId))
         {
@@ -110,11 +127,26 @@ public class CachedCharacerInfoCollection
         }
     }
 
-    public CachedCharacterInfo? GetByPrefix(string callPrefix)
-    {
-        var cachedCaracter = _cachedCharacters.FirstOrDefault(c => c.Value.CallPrefix == callPrefix);
 
-        return cachedCaracter.Key == default ? null : cachedCaracter.Value;
+    public CachedCharacterInfo? GetByWebhookId(ulong webhookId)
+        => _cachedCharacters.FirstOrDefault(c => c.Value.WebhookId == webhookId).Value;
+
+
+    public CachedCharacterInfo? Find(string callPrefixOrIdOrWebhookId, ulong channelId)
+    {
+        var cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.CallPrefix == callPrefixOrIdOrWebhookId && c.Value.ChannelId == channelId);
+
+        if (cachedCharacter.Key == default && Guid.TryParse(callPrefixOrIdOrWebhookId, out var characterId))
+        {
+            cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.Id == characterId && c.Value.ChannelId == channelId);
+        }
+
+        if (cachedCharacter.Key == default && ulong.TryParse(callPrefixOrIdOrWebhookId, out var webhookId))
+        {
+            cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.WebhookId == webhookId && c.Value.ChannelId == channelId);
+        }
+
+        return cachedCharacter.Key == default ? null : cachedCharacter.Value;
     }
 
     public List<CachedCharacterInfo> ToList()
@@ -129,4 +161,50 @@ public record CachedCharacterInfo
     public required string CallPrefix { get; init; }
 
     public required ulong WebhookId { get; init; }
+
+    public required ActiveConversation Conversations { get; init; }
+}
+
+
+public record ActiveConversation
+{
+    public ActiveConversation(bool swipable, bool useBuffer)
+    {
+        if (swipable)
+        {
+            SwipableCharacterMessages = [];
+        }
+
+        if (useBuffer)
+        {
+            BufferTimer = new Stopwatch();
+            BufferedUserMessages = [];
+        }
+    }
+
+    public ulong LastCharacterDiscordMessageId { get; set; } = 0;
+    public bool WritingResponse { get; set; } = false;
+    public DateTime LastActive { get; set; } = DateTime.Now;
+
+    public int SelectedSwipableMessageIndex { get; set; } = 0;
+    public List<CharacterMessage>? SwipableCharacterMessages { get; }
+
+    public Stopwatch? BufferTimer { get; }
+    public List<UserMessage>? BufferedUserMessages { get; }
+}
+
+
+public record UserMessage
+{
+    public required ulong MessageId { get; init; }
+
+    public required string Content { get; init; }
+}
+
+
+public record CharacterMessage
+{
+    public required string MessageId { get; init; }
+    public required string Content { get; init; }
+    public string? ImageUrl { get; set; }
 }

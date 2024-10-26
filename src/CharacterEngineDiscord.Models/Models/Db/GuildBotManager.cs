@@ -5,16 +5,20 @@ using CharacterEngineDiscord.Models.Db.Discord;
 namespace CharacterEngineDiscord.Models.Db;
 
 
-public class Manager
+public class GuildBotManager
 {
     [Key]
-    public Guid Id { get; set; }
+    public Guid Id { get; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
-    public ulong GuildId { get; set; }
+    public required ulong DiscordGuildId { get; set; }
 
-    public ulong UserId { get; set; }
+    public required ulong UserId { get; set; }
 
+    /// <summary>
+    /// Admin UserId
+    /// </summary>
+    public required ulong AddedBy { get; set; }
 
 
     public virtual DiscordGuild DiscordGuild { get; set; } = null!;

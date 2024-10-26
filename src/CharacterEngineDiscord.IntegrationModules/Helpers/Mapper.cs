@@ -1,10 +1,11 @@
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Common;
 using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngineDiscord.Helpers.Mappings;
+namespace CharacterEngineDiscord.IntegrationModules.Helpers;
 
 
-public static class CommonCharacterMapper
+public static class Mapper
 {
     public static CommonCharacter ToCommonCharacter(this SakuraCharacter character)
     {
@@ -17,6 +18,7 @@ public static class CommonCharacterMapper
             CharacterImageLink = character.imageUri,
             CharacterStat = character.messageCount.ToString(),
             OriginalCharacterObject = character,
+            IntegrationType = IntegrationType.SakuraAI
         };
 
         return spawnedCharacter;
