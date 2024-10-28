@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -12,33 +13,28 @@ namespace CharacterEngine.App.Handlers;
 
 public class InteractionsHandler
 {
-    private readonly ILogger _log;
-    private AppDbContext _db { get; set; }
-
     private readonly DiscordSocketClient _discordClient;
 
 
-    public InteractionsHandler(ILogger log, AppDbContext db, DiscordSocketClient discordClient)
+    public InteractionsHandler(DiscordSocketClient discordClient)
     {
-        _log = log;
-        _db = db;
-
         _discordClient = discordClient;
     }
 
 
     public Task HandleInteraction(ICommandInfo _, IInteractionContext interactionContext, IResult result)
     {
+        var traceId = CommonHelper.NewTraceId();
         Task.Run(async () =>
         {
             try
             {
-                await HandleInteractionAsync(interactionContext, result);
+                await HandleInteractionAsync(interactionContext, result, traceId);
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e);
-                await RespondWithErrorAsync(interactionContext, e);
+                await _discordClient.ReportErrorAsync(e, traceId);
+                await RespondWithErrorAsync(interactionContext, e, traceId);
             }
         });
 
@@ -46,9 +42,14 @@ public class InteractionsHandler
     }
 
 
-    private async Task HandleInteractionAsync(IInteractionContext interactionContext, IResult result)
+    private async Task HandleInteractionAsync(IInteractionContext interactionContext, IResult result, string traceId)
     {
         if (result.IsSuccess)
+        {
+            return;
+        }
+
+        if (result.Error == InteractionCommandError.UnmetPrecondition)
         {
             return;
         }
@@ -65,37 +66,50 @@ public class InteractionsHandler
                           $"Guild: {interactionContext.Guild.Name} ({interactionContext.Guild.Id})\n\n" +
                           $"Exception:\n{exception}";
 
-            await _discordClient.ReportErrorAsync("Interaction exception", content);
+            await _discordClient.ReportErrorAsync("Interaction exception", content, traceId);
         }
 
-        await RespondWithErrorAsync(interactionContext, exception);
+        await RespondWithErrorAsync(interactionContext, exception, traceId);
     }
 
 
-    private static async Task RespondWithErrorAsync(IInteractionContext interactionContext, Exception e)
+    private static async Task RespondWithErrorAsync(IInteractionContext interactionContext, Exception e, string traceId)
     {
         var isBold = (e as UserFriendlyException)?.Bold ?? true;
         var exception = e.InnerException ?? e;
 
         var message = exception is UserFriendlyException or SakuraException // controlled exceptions
-                ? exception.Message.ToInlineEmbed(Color.Red, bold: isBold)
-                : MessagesTemplates.SOMETHING_WENT_WRONG;
+                ? exception.Message : $"{MessagesTemplates.X_SIGN_DISCORD} Something went wrong!";
 
+        if (!message.StartsWith(MessagesTemplates.X_SIGN_DISCORD) && !message.StartsWith(MessagesTemplates.WARN_SIGN_DISCORD))
+        {
+            message = $"{MessagesTemplates.X_SIGN_DISCORD} {message}";
+        }
+
+        if (isBold)
+        {
+            message = $"**{message}**";
+        }
+
+        var embed = new EmbedBuilder().WithColor(Color.Red)
+                                      .WithDescription(message)
+                                      .WithFooter($"*Error trace ID: {traceId}*")
+                                      .Build();
         try
         {
-            await interactionContext.Interaction.RespondAsync(embed: message);
+            await interactionContext.Interaction.RespondAsync(embed: embed);
         }
         catch
         {
             try
             {
-                await interactionContext.Interaction.FollowupAsync(embed: message);
+                await interactionContext.Interaction.FollowupAsync(embed: embed);
             }
             catch
             {
                 try
                 {
-                    await interactionContext.Interaction.ModifyOriginalResponseAsync(msg => { msg.Embed = message; });
+                    await interactionContext.Interaction.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
                 }
                 catch
                 {

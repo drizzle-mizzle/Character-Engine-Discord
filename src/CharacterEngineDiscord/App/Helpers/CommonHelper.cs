@@ -2,7 +2,5 @@
 
 public static class CommonHelper
 {
-    public static string NewTraceId() => Guid.NewGuid().ToString().ToLower()[..4];
-
-    public const string COMMAND_SEPARATOR = "~sep~";
+    public static string NewTraceId() => Guid.NewGuid().ToString().ToLower()[..6];
 }

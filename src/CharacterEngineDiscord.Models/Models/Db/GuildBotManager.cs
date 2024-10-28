@@ -8,7 +8,7 @@ namespace CharacterEngineDiscord.Models.Db;
 public class GuildBotManager
 {
     [Key]
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }

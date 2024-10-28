@@ -10,10 +10,11 @@ PLAYING_STATUS: Still in beta, stuff may break!
 # Users with absolute access to all bot commands, separated with ','
 OWNER_USERS_IDS: 0
 
+ADMIN_GUILD_ID:
 LOGS_CHANNEL_ID:
 ERRORS_CHANNEL_ID:
 
-DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_mention:{{mention_hint}}]\n{{user}} says:\n{{msg}}
+DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}]\n{{user}} (id:{{mention_hint}}) says:\n{{msg}}
 
 # Max messages per minute for a single user
 USER_RATE_LIMIT: 20

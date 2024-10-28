@@ -25,7 +25,7 @@ public interface ISpawnedCharacter
     /// </summary>
     public string CallPrefix { get; set; }
 
-    public string MessagesFormat { get; set; } // HAS INTEGRATION DEFAULT VALUE
+    public string? MessagesFormat { get; set; } // HAS INTEGRATION DEFAULT VALUE
 
     public uint ResponseDelay { get; set; }
 

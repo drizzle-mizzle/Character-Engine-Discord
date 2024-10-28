@@ -1,107 +1,20 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
-using CharacterEngineDiscord.IntegrationModules;
-using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using Discord.Webhook;
 
-namespace CharacterEngine.App.Helpers.Infrastructure;
+namespace CharacterEngine.App.Static.Entities;
 
 
-public static class StaticStorage
+public sealed class CachedCharacerInfoCollection
 {
-    public static HttpClient CommonHttpClient { get; } = new();
-
-    public static SearchQueryCollection SearchQueries { get; } = new();
-
-    public static CachedCharacerInfoCollection CachedCharacters { get; } = new();
-
-    public static CachedWebhookClientCollection CachedWebhookClients { get; } = new();
-    public static IntegrationModulesCollection IntegrationModules { get; } = new();
-}
-
-
-public class IntegrationModulesCollection
-{
-    public SakuraAiModule SakuraAiModule { get; } = new();
-}
-
-
-public class SearchQueryCollection
-{
-    private readonly ConcurrentDictionary<ulong, SearchQuery> _searchQueries = [];
-
-    public void Add(SearchQuery searchQuery)
-    {
-        Remove(searchQuery.ChannelId);
-        _searchQueries.TryAdd(searchQuery.ChannelId, searchQuery);
-    }
-
-    public void Remove(ulong channelId)
-    {
-        if (_searchQueries.ContainsKey(channelId))
-        {
-            _searchQueries.TryRemove(channelId, out _);
-        }
-    }
-
-    public SearchQuery? GetByChannelId(ulong channelId)
-    {
-        _searchQueries.TryGetValue(channelId, out var searchQuery);
-        return searchQuery;
-    }
-}
-
-
-public class CachedWebhookClientCollection
-{
-    private readonly ConcurrentDictionary<ulong, DiscordWebhookClient> _webhookClients = [];
-
-    public void Add(ulong webhookId, DiscordWebhookClient webhookClient)
-    {
-        Remove(webhookId);
-        _webhookClients.TryAdd(webhookId, webhookClient);
-    }
-
-    public void Remove(ulong webhookId)
-    {
-        if (_webhookClients.ContainsKey(webhookId))
-        {
-            _webhookClients.TryRemove(webhookId, out _);
-        }
-    }
-
-    public DiscordWebhookClient? GetById(ulong webhookId)
-    {
-        _webhookClients.TryGetValue(webhookId, out var webhookClient);
-        return webhookClient;
-    }
-
-
-    public DiscordWebhookClient GetOrCreate(ISpawnedCharacter spawnedCharacter)
-    {
-        var webhookClient = GetById(spawnedCharacter.WebhookId);
-
-        if (webhookClient is null)
-        {
-            webhookClient = new DiscordWebhookClient(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
-            Add(spawnedCharacter.WebhookId, webhookClient);
-        }
-
-        return webhookClient;
-    }
-}
-
-
-public class CachedCharacerInfoCollection
-{
-    private readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
+    private static readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
 
 
     public void AddRange(ICollection<ISpawnedCharacter> spawnedCharacters)
     {
         Parallel.ForEach(spawnedCharacters, Add);
     }
+
 
     public void Add(ISpawnedCharacter spawnedCharacter)
     {
@@ -118,6 +31,7 @@ public class CachedCharacerInfoCollection
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
     }
+
 
     public void Remove(Guid spawnedCharacterId)
     {
@@ -148,6 +62,7 @@ public class CachedCharacerInfoCollection
 
         return cachedCharacter.Key == default ? null : cachedCharacter.Value;
     }
+
 
     public List<CachedCharacterInfo> ToList()
         => _cachedCharacters.Values.ToList();

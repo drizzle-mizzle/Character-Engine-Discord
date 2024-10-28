@@ -15,7 +15,11 @@ public class DiscordGuild
 
     public required string? OwnerUsername { get; set; }
 
+
+
+    public string? MessagesFormat { get; set; }
     public required uint MessagesSent { get; set; }
+
 
     public required bool Joined { get; set; }
     public required DateTime FirstJoinDate { get; set; }

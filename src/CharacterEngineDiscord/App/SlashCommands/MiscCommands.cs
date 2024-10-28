@@ -8,6 +8,7 @@ namespace CharacterEngine.App.SlashCommands;
 
 
 [DeferAndValidatePermissions]
+[Group("misc", "MISC")]
 public class MiscCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly DiscordSocketClient _discordClient;

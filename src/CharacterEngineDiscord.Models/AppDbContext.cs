@@ -19,7 +19,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<SakuraAiGuildIntegration> SakuraAiIntegrations { get; init; }
 
 
-    public DbSet<GuildBotManager> Managers { get; init; }
+    public DbSet<BlockedGuildUser> BlockedGuildUsers { get; init; }
+    public DbSet<BlockedUser> BlockedUsers { get; init; }
+
+    public DbSet<GuildBotManager> GuildBotManagers { get; init; }
     public DbSet<StoredAction> StoredActions { get; init; }
 
     // Discord

@@ -15,17 +15,16 @@ using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.SlashCommands;
 
-
-[Group("guild", "Guild-wide settings configuration")]
+[Group("conf", "Characters configuration")]
 [DeferAndValidatePermissions]
 [ValidateAccessLevel(AccessLevels.Manager)]
-public class GuildCommands : InteractionModuleBase<InteractionContext>
+public class ConfigureCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly DiscordSocketClient _discordClient;
     private readonly AppDbContext _db;
+    private const string ANY_IDENTIFIER_DESC = "Character call prefix or User ID or Character ID";
 
-
-    public GuildCommands(DiscordSocketClient discordClient, AppDbContext db)
+    public ConfigureCommands(DiscordSocketClient discordClient, AppDbContext db)
     {
         _discordClient = discordClient;
         _db = db;
@@ -35,19 +34,48 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     public enum MessagesFormatAction { show, update, resetDefalt }
 
     [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null)
+    public async Task MessagesFormat([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null)
     {
-        var guild = await _db.DiscordGuilds.FirstAsync(g => g.Id == Context.Guild.Id);
+        await FollowupAsync(embed: MessagesTemplates.WAIT_MESSAGE);
+
+        var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, Context.Channel.Id);
+
+        if (cachedCharacter is null)
+        {
+            throw new UserFriendlyException("Character not found");
+        }
+
+        var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+        if (spawnedCharacter is null)
+        {
+            throw new UserFriendlyException("Character not found");
+        }
 
         var message = string.Empty;
         switch (action)
         {
             case MessagesFormatAction.show:
             {
-                var format = (guild.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT).Replace("\\n", "\\n\n");
+                var inherit = string.Empty;
+                var format = spawnedCharacter.MessagesFormat;
+                if (format is null)
+                {
+                    var channel = await _db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == Context.Channel.Id);
+                    if (channel.MessagesFormat is not null)
+                    {
+                        format = channel.MessagesFormat;
+                        inherit = " (inherited from channel-wide messages format setting)";
+                    }
+                    else
+                    {
+                        format = channel.DiscordGuild?.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                        inherit = " (inherited from guild-wide messages format setting)";
+                    }
+                }
+
                 var preview = MH.BuildMessageFormatPreview(format);
-                message = $"**Current guild messages format{(guild.MessagesFormat is null ? " (default)" : "")}**:\n" +
-                          $"```{format}```\n" +
+                message = $"Current messages format for character **{((ICharacter)spawnedCharacter).CharacterName}**{inherit}:\n" +
+                          $"```{format.Replace("\\n", "\\n\n")}```\n" +
                           $"**Preview:**\n{preview}";
 
                 break;
@@ -76,8 +104,8 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
                     }
                 }
 
-                guild.MessagesFormat = newFormat;
-                await _db.SaveChangesAsync();
+                spawnedCharacter.MessagesFormat = newFormat;
+                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
                 var preview = MH.BuildMessageFormatPreview(newFormat);
                 message = $"{MessagesTemplates.OK_SIGN_DISCORD} Messages format was changed successfully.\n" +
@@ -87,8 +115,8 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
             }
             case MessagesFormatAction.resetDefalt:
             {
-                guild.MessagesFormat = null;
-                await _db.SaveChangesAsync();
+                spawnedCharacter.MessagesFormat = BotConfig.DEFAULT_MESSAGES_FORMAT;
+                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
                 var preview = MH.BuildMessageFormatPreview(BotConfig.DEFAULT_MESSAGES_FORMAT);
                 message = $"{MessagesTemplates.OK_SIGN_DISCORD} Messages format was reset to default value successfully.\n" +
@@ -99,5 +127,6 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         }
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
+
     }
 }

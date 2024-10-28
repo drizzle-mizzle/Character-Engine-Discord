@@ -10,7 +10,7 @@ namespace CharacterEngineDiscord.Models.Db.Integrations;
 public class SakuraAiGuildIntegration : IGuildIntegration, ISakuraIntegration
 {
     [Key]
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }
@@ -18,9 +18,11 @@ public class SakuraAiGuildIntegration : IGuildIntegration, ISakuraIntegration
     public required string GlobalMessagesFormat { get; set; }
     public required DateTime CreatedAt { get; set; }
 
+
     public required string SakuraEmail { get; set; }
     public required string SakuraSessionId { get; set; }
     public required string SakuraRefreshToken { get; set; }
+
 
 
     public virtual DiscordGuild DiscordGuild { get; set; } = null!;

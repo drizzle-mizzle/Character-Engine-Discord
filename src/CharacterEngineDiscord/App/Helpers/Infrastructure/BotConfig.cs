@@ -11,6 +11,9 @@ public static class BotConfig
     public static ulong[] OWNER_USERS_IDS
         => GetParamByName<string>("OWNER_USERS_IDS").Split(',').Select(ulong.Parse).ToArray();
 
+    public static ulong ADMIN_GUILD_ID
+        => GetParamByName<ulong>("ADMIN_GUILD_ID");
+
     public static ulong LOGS_CHANNEL_ID
         => GetParamByName<ulong>("LOGS_CHANNEL_ID");
 

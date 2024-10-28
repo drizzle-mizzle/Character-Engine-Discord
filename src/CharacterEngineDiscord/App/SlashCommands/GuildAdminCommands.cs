@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CharacterEngine.App.SlashCommands;
 
 
-[DefaultMemberPermissions(GuildPermission.Administrator)]
+[ValidateAccessLevel(AccessLevels.GuildAdmin)]
 public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
@@ -33,11 +33,11 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
         await DeferAsync();
 
         string message = default!;
-        var managers = await _db.Managers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
+        var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
 
         if (action is ManagersActions.clearAll)
         {
-            _db.Managers.RemoveRange(managers);
+            _db.GuildBotManagers.RemoveRange(managers);
             await _db.SaveChangesAsync();
 
             message = "Managers list has been cleared.";
@@ -69,7 +69,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                 AddedBy = Context.User.Id,
             };
 
-            await _db.Managers.AddAsync(newManager);
+            await _db.GuildBotManagers.AddAsync(newManager);
             message = $"{mention} was successfully added to the managers list.";
         }
 
@@ -83,7 +83,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                 throw new UserFriendlyException($"{mention} is not a manager, thus cannot be removed from the managers list");
             }
 
-            _db.Managers.Remove(manager);
+            _db.GuildBotManagers.Remove(manager);
             message = $"{mention} was successfully removed from the managers list.";
         }
 

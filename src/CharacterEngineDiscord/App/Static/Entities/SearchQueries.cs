@@ -1,6 +1,32 @@
-﻿using CharacterEngineDiscord.Models.Common;
+using System.Collections.Concurrent;
+using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Common;
 
-namespace CharacterEngineDiscord.Models;
+namespace CharacterEngine.App.Static.Entities;
+
+
+public sealed class SearchQueryCollection
+{
+    private readonly ConcurrentDictionary<ulong, SearchQuery> _searchQueries = [];
+
+
+    public void Add(SearchQuery searchQuery)
+    {
+        Remove(searchQuery.ChannelId);
+        _searchQueries.TryAdd(searchQuery.ChannelId, searchQuery);
+    }
+
+    public void Remove(ulong channelId)
+    {
+        if (_searchQueries.ContainsKey(channelId))
+        {
+            _searchQueries.TryRemove(channelId, out _);
+        }
+    }
+
+    public SearchQuery? GetByChannelId(ulong channelId)
+        => _searchQueries.GetValueOrDefault(channelId);
+}
 
 
 public record SearchQuery
@@ -20,7 +46,6 @@ public record SearchQuery
     public ICollection<CommonCharacter> Characters { get; }
     public CommonCharacter SelectedCharacter
         => Characters.ElementAt(CurrentRow + ((CurrentPage - 1) * 10) - 1);
-
 
 
     public SearchQuery(ulong channelId, ulong userId, string query, ICollection<CommonCharacter> characters, IntegrationType type)

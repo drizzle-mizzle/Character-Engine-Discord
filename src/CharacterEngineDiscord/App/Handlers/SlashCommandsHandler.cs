@@ -1,11 +1,13 @@
-﻿using CharacterEngine.App.Helpers;
+﻿using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
+using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
 
@@ -43,7 +45,7 @@ public class SlashCommandsHandler
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e);
+                await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
             }
         });
 
@@ -53,13 +55,28 @@ public class SlashCommandsHandler
 
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        if (Enum.TryParse<ExplicitCommands>(command.CommandName, ignoreCase: false, out var adminCommand))
+        if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
         {
             var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
-            await (adminCommand switch
+            await (specialCommand switch
             {
-                ExplicitCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
-                ExplicitCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
+                SpecialCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
+                SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
+            });
+        }
+        else if (Enum.TryParse<BotAdminCommands>(command.CommandName, ignoreCase: false, out var botAdminCommand))
+        {
+            await InteractionsHelper.ValidateAccessAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
+
+            var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
+            await (botAdminCommand switch
+            {
+                BotAdminCommands.shutdown => botAdminCommandsHandler.ShutdownAsync(command),
+                BotAdminCommands.blockUser => botAdminCommandsHandler.BlockUserAsync(command),
+                BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
+                BotAdminCommands.blockGuild => throw new NotImplementedException(),
+                BotAdminCommands.unblockGuild => throw new NotImplementedException(),
+                BotAdminCommands.stats => throw new NotImplementedException()
             });
         }
         else

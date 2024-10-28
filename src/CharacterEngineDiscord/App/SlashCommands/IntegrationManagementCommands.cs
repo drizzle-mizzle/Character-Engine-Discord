@@ -1,9 +1,12 @@
 ﻿using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -38,4 +41,23 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         await RespondWithModalAsync(modal);
     }
 
+
+    [SlashCommand("remove", "Remove an integration")]
+    public async Task Remove(IntegrationType type, bool removeAssociatedCharacters)
+    {
+        IGuildIntegration? integration = await (type switch
+        {
+            IntegrationType.SakuraAI => _db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id)
+        });
+
+        if (integration is null)
+        {
+             await FollowupAsync(embed: $"No {type:G} integration found on this server".ToInlineEmbed(Color.Orange));
+             return;
+        }
+
+        await DatabaseHelper.DeleteGuildIntegrationAsync(integration, removeAssociatedCharacters);
+
+        await FollowupAsync(embed: $"{type:G} integration {(removeAssociatedCharacters ? "and all associated characters were" : "was")} successfully removed".ToInlineEmbed(Color.Green));
+    }
 }

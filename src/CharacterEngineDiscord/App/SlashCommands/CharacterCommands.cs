@@ -3,7 +3,8 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
@@ -16,6 +17,7 @@ namespace CharacterEngine.App.SlashCommands;
 
 [DeferAndValidatePermissions]
 [ValidateAccessLevel(AccessLevels.Manager)]
+[Group("character", "Basic characters commands")]
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
@@ -29,7 +31,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [SlashCommand("spawn-character", "Spawn new character!")]
+    [SlashCommand("spawn", "Spawn new character!")]
     public async Task SpawnCharacter(string query, IntegrationType integrationType)
     {
         await FollowupAsync(embed: MessagesTemplates.WAIT_MESSAGE);
@@ -44,7 +46,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters, integrationType);
-        StaticStorage.SearchQueries.Add(searchQuery);
+        MemoryStorage.SearchQueries.Add(searchQuery);
 
         await ModifyOriginalResponseAsync(msg =>
         {
@@ -54,12 +56,12 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [SlashCommand("reset-character", "Start new chat")]
+    [SlashCommand("reset", "Start new chat")]
     public async Task ResetCharacter([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
         await FollowupAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
-        var cachedCharacter = StaticStorage.CachedCharacters.Find(anyIdentifier, Context.Channel.Id);
+        var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, Context.Channel.Id);
 
         if (cachedCharacter is null)
         {
@@ -84,21 +86,21 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [SlashCommand("remove-character", "Remove character")]
+    [SlashCommand("remove", "Remove character")]
     public async Task RemoveCharacter([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
-        var cachedCharacter = StaticStorage.CachedCharacters.Find(anyIdentifier, Context.Channel.Id);
+        var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, Context.Channel.Id);
 
         if (cachedCharacter is null)
         {
             throw new UserFriendlyException("Character not found");
         }
 
-        var webhookClient = StaticStorage.CachedWebhookClients.GetById(cachedCharacter.WebhookId)!;
+        var webhookClient = MemoryStorage.CachedWebhookClients.GetById(cachedCharacter.WebhookId)!;
         await webhookClient.DeleteWebhookAsync();
 
-        StaticStorage.CachedCharacters.Remove(cachedCharacter.Id);
-        StaticStorage.CachedWebhookClients.Remove(cachedCharacter.WebhookId);
+        MemoryStorage.CachedCharacters.Remove(cachedCharacter.Id);
+        MemoryStorage.CachedWebhookClients.Remove(cachedCharacter.WebhookId);
 
         var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
@@ -108,7 +110,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         await DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
 
-        var message = $"{MessagesTemplates.OK_SIGN_DISCORD} Character **{((ICharacter)spawnedCharacter).CharacterName}** deleted successfully";
+        var message = $"{MessagesTemplates.OK_SIGN_DISCORD} Character **{((ICharacter)spawnedCharacter).CharacterName}** removed successfully";
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
     }
 }

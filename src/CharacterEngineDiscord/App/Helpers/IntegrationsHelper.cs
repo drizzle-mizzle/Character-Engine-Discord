@@ -1,4 +1,5 @@
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.IntegrationModules.Abstractions;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
@@ -39,7 +40,7 @@ public static class IntegrationsHelper
     {
         return type switch
         {
-            IntegrationType.SakuraAI => StaticStorage.IntegrationModules.SakuraAiModule
+            IntegrationType.SakuraAI => MemoryStorage.IntegrationModules.SakuraAiModule
 
         };
     }

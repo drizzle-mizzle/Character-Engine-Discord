@@ -10,7 +10,7 @@ namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCharacter
 {
     [Key]
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
     public required ulong DiscordChannelId { get; set; }
@@ -18,7 +18,7 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCh
     public required ulong WebhookId { get; set; }
     public required string WebhookToken { get; set; }
     public required string CallPrefix { get; set; }
-    public required string MessagesFormat { get; set; }
+    public string? MessagesFormat { get; set; }
     public required uint ResponseDelay { get; set; }
     public required float ResponseChance { get; set; }
     public required bool EnableSwipes { get; set; }

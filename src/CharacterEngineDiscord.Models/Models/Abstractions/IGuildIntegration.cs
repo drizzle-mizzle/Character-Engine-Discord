@@ -4,6 +4,9 @@ public interface IGuildIntegration
 {
     public Guid Id { get; }
 
+    public ulong DiscordGuildId { get; set; }
+
+
     public string GlobalMessagesFormat { get; set; }
 
     public DateTime CreatedAt { get; set; }

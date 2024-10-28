@@ -1,5 +1,9 @@
 ﻿using System.Text.RegularExpressions;
+using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.IntegrationModules;
@@ -9,6 +13,7 @@ using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using NLog;
 using SakuraAi.Client.Exceptions;
 using SakuraAi.Client.Models.Common;
@@ -19,11 +24,13 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public static class InteractionsHelper
 {
+    public const string COMMAND_SEPARATOR = "~sep~";
+
     private static ILogger _log = DI.GetLogger;
-
-
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
+
+    #region CustomId
 
     public static string NewCustomId(ModalActionType action, string data)
         => NewCustomId(Guid.NewGuid(), action, data);
@@ -32,15 +39,19 @@ public static class InteractionsHelper
         => NewCustomId(modalData.Id, modalData.ActionType, modalData.Data);
 
     public static string NewCustomId(Guid id, ModalActionType action, string data)
-        => $"{id}{CommonHelper.COMMAND_SEPARATOR}{action}{CommonHelper.COMMAND_SEPARATOR}{data}";
+        => $"{id}{COMMAND_SEPARATOR}{action}{COMMAND_SEPARATOR}{data}";
 
 
     public static ModalData ParseCustomId(string customId)
     {
-        var parts = customId.Split(CommonHelper.COMMAND_SEPARATOR);
+        var parts = customId.Split(COMMAND_SEPARATOR);
         return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
     }
 
+    #endregion
+
+
+    #region Characters
 
     public static Embed BuildSearchResultList(SearchQuery searchQuery)
     {
@@ -105,11 +116,11 @@ public static class InteractionsHelper
         {
             try
             {
-                avatar = await StaticStorage.CommonHttpClient.GetStreamAsync(character.CharacterImageLink);
+                avatar = await MemoryStorage.CommonHttpClient.GetStreamAsync(character.CharacterImageLink);
             }
             catch (Exception e)
             {
-                await discordClient.ReportErrorAsync(e);
+                await discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
             }
         }
 
@@ -133,7 +144,7 @@ public static class InteractionsHelper
 
     public static async Task SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
     {
-        var webhookClient = StaticStorage.CachedWebhookClients.GetOrCreate(spawnedCharacter);
+        var webhookClient = MemoryStorage.CachedWebhookClients.GetOrCreate(spawnedCharacter);
 
         if (characterMessage.Length <= 2000)
         {
@@ -158,6 +169,8 @@ public static class InteractionsHelper
         // await thread.ModifyAsync(t => { t.Archived = t.Locked = true; });
         await thread.ModifyAsync(t => { t.Archived = true; });
     }
+
+    #endregion
 
 
     #region CreateIntegration
@@ -198,4 +211,161 @@ public static class InteractionsHelper
 
     #endregion
 
+
+    #region Validations
+
+    public static async Task ValidateAccessAsync(AccessLevels requiredAccessLevel, SocketGuildUser user)
+    {
+        if (BotConfig.OWNER_USERS_IDS.Contains(user.Id))
+        {
+            return;
+        }
+
+        var userIsGuildOwner = user.Id == user.Guild.OwnerId || user.Roles.Any(role => role.Permissions.Administrator);
+
+        switch (requiredAccessLevel)
+        {
+            case AccessLevels.BotAdmin:
+            {
+                throw new UnauthorizedAccessException();
+            }
+            case AccessLevels.GuildAdmin:
+            {
+                if (userIsGuildOwner)
+                {
+                    return;
+                }
+
+                throw new UserFriendlyException("Only server administrators are allowed to access this command.");
+            }
+            case AccessLevels.Manager:
+            {
+                if (userIsGuildOwner || await UserIsManagerAsync(user))
+                {
+                    return;
+                }
+
+                throw new UserFriendlyException("Only managers are allowed to access this command. Managers can be added by server administrators with `/managers` command.");
+            }
+            default:
+            {
+                throw new UnauthorizedAccessException();
+            }
+        }
+    }
+
+
+    private static Task<bool> UserIsManagerAsync(SocketGuildUser user)
+    {
+        using var db = DatabaseHelper.GetDbContext();
+        return db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
+                                                    && manager.UserId == user.Id);
+    }
+
+
+    private const string DISABLE_WARN_PROMPT = "If these restrictions were imposed intentionally, and you understand how this may affect the bot's operation, then you can disable this warning with `/channel no-warn` command.";
+
+    private static readonly ChannelPermission[] REQUIRED_PERMS = [
+        ChannelPermission.ViewChannel, ChannelPermission.SendMessages, ChannelPermission.AddReactions, ChannelPermission.EmbedLinks, ChannelPermission.AttachFiles, ChannelPermission.ManageWebhooks,
+        ChannelPermission.CreatePublicThreads, ChannelPermission.CreatePrivateThreads, ChannelPermission.SendMessagesInThreads, ChannelPermission.ManageThreads, ChannelPermission.UseExternalEmojis
+    ];
+
+    public static async Task ValidatePermissionsAsync(IGuildChannel channel)
+    {
+        var botGuildUser = (SocketGuildUser)await channel.GetUserAsync(DI.GetDiscordSocketClient.CurrentUser.Id);
+        if (botGuildUser is null)
+        {
+            throw new UserFriendlyException($"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel");
+        }
+
+        var botRoles = botGuildUser.Roles;
+        if (botRoles.Select(br => br.Permissions).Any(perm => perm.Administrator))
+        {
+            return;
+        }
+
+        await using var db = DatabaseHelper.GetDbContext();
+        var noWarn = await db.DiscordChannels.Where(c => c.Id == channel.Id).Select(c => c.NoWarn).FirstAsync();
+        if (noWarn)
+        {
+            return;
+        }
+
+        var everyoneRoleId = channel.Guild.EveryoneRole.Id;
+        var botChannelPermOws = channel.PermissionOverwrites.Where(BotAffectedByOw).ToList();
+
+        var botAllowedPerms = botRoles.SelectMany(ChannelPerms).Concat(botChannelPermOws.SelectMany(AllowedPerms)).ToList();
+        var channelDeniedPermOws = botChannelPermOws.Where(ow => ow.TargetId != everyoneRoleId).SelectMany(DeniedPerms).ToList();
+
+        var missingPerms = new List<ChannelPermission>();
+        var prohibitiveOws = new List<(ChannelPermission perm, string target)>();
+
+        foreach (var requiredPerm in REQUIRED_PERMS)
+        {
+            if (botAllowedPerms.Contains(requiredPerm))
+            {
+                var allowedAndProhibitedPerm = channelDeniedPermOws.Where(ow => ow.perm == requiredPerm);
+                prohibitiveOws.AddRange(allowedAndProhibitedPerm);
+            }
+            else
+            {
+                missingPerms.Add(requiredPerm);
+            }
+        }
+
+        if (missingPerms.Count != 0)
+        {
+            var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} There are permissions required for the bot to operate in this channel that are missing:**\n" +
+                      $"```{string.Join("\n", missingPerms.Select(perm => $"> {perm:G}"))}```\n{DISABLE_WARN_PROMPT}";
+
+            throw new UserFriendlyException(msg, false);
+        }
+
+        if (prohibitiveOws.Count != 0)
+        {
+            var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} This channel has some prohibitive permission overwrites applied to the bot, which may affect its work:**\n" +
+                      $"```{string.Join("\n", prohibitiveOws.Select(ow => $"> {ow.perm:G} | Applied to {ow.target}"))}```\n{DISABLE_WARN_PROMPT}";
+
+            throw new UserFriendlyException(msg, false);
+        }
+
+        return;
+
+        #region Shortcuts
+
+        IEnumerable<ChannelPermission> ChannelPerms(SocketRole role)
+            => role.Permissions.ToList().Cast<ChannelPermission>();
+
+        IEnumerable<ChannelPermission> AllowedPerms(Overwrite ow)
+            => ow.Permissions.ToAllowList();
+
+        IEnumerable<(ChannelPermission perm, string target)> DeniedPerms(Overwrite ow)
+            => ow.Permissions.ToDenyList().Select(perm => (perm, target: GetFullTargetAsync(ow)));
+
+        string GetFullTargetAsync(Overwrite ow)
+        {
+            try
+            {
+                if (ow.TargetType is PermissionTarget.Role)
+                {
+                    var role = channel.Guild.Roles.First(g => g.Id == ow.TargetId);
+                    return $"role @{role.Name}";
+                }
+
+                var user = channel.GetUserAsync(ow.TargetId).GetAwaiter().GetResult();
+                return $"user @{user.DisplayName}";
+            }
+            catch
+            {
+                return $"{ow.TargetType:G} {ow.TargetId}".ToLower();
+            }
+        }
+
+        bool BotAffectedByOw(Overwrite ow)
+            => ow.TargetId == botGuildUser.Id || botGuildUser.Roles.Any(role => role.Id == ow.TargetId);
+
+        #endregion
+    }
+
+    #endregion
 }

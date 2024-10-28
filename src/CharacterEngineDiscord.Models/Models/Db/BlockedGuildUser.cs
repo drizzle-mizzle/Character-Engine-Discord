@@ -5,10 +5,10 @@ using CharacterEngineDiscord.Models.Db.Discord;
 namespace CharacterEngineDiscord.Models.Db;
 
 
-public class GuildBlockedUser
+public class BlockedGuildUser
 {
     [Key]
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }
@@ -19,6 +19,8 @@ public class GuildBlockedUser
     /// Admin UserId
     /// </summary>
     public required ulong BlockedBy { get; set; }
+
+    public required DateTime BlockedAt { get; set; }
 
 
     public virtual DiscordGuild DiscordGuild { get; set; } = null!;

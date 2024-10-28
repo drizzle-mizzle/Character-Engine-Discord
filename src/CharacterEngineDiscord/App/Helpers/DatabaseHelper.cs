@@ -6,6 +6,7 @@ using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Models.Db.Integrations;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using Discord.WebSocket;
@@ -21,6 +22,8 @@ public static class DatabaseHelper
 {
     public static AppDbContext GetDbContext() => new(BotConfig.DATABASE_CONNECTION_STRING);
 
+
+    #region SpawnedCharacters
 
     public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
@@ -96,15 +99,20 @@ public static class DatabaseHelper
             callPrefix = $"@{characterName[..2]}";
         }
 
+        await using var db = GetDbContext();
+        var channel = await db.DiscordChannels
+                              .Include(c => c.DiscordGuild)
+                              .FirstAsync(c => c.Id == (ulong)webhook.ChannelId!);
+
         var newSpawnedCharacter = (commonCharacter.GetIntegrationType() switch
         {
             IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter
             {
-                DiscordChannelId = (ulong)webhook.ChannelId!,
+                DiscordChannelId = channel.Id,
                 WebhookId = webhook.Id,
                 WebhookToken = webhook.Token,
                 CallPrefix = callPrefix,
-                MessagesFormat = BotConfig.DEFAULT_MESSAGES_FORMAT,
+                MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat,
                 ResponseDelay = 0,
                 ResponseChance = 0,
                 EnableSwipes = true,
@@ -120,7 +128,6 @@ public static class DatabaseHelper
             }
         }).FillWith(commonCharacter);
 
-        await using var db = GetDbContext();
         await (newSpawnedCharacter switch
         {
             SakuraAiSpawnedCharacter castedCharacter => db.SakuraAiSpawnedCharacters.AddAsync(castedCharacter),
@@ -133,6 +140,10 @@ public static class DatabaseHelper
         return newSpawnedCharacter;
     }
 
+    #endregion
+
+
+    #region Integrations
 
     public static async Task<IGuildIntegration> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
     {
@@ -140,7 +151,7 @@ public static class DatabaseHelper
         var channel = await db.DiscordChannels.FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
 
         var type = spawnedCharacter.GetIntegrationType();
-        var integration = await (type switch
+        IGuildIntegration integration = await (type switch
         {
             IntegrationType.SakuraAI => db.SakuraAiIntegrations.FirstAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
         });
@@ -148,6 +159,40 @@ public static class DatabaseHelper
         return integration;
     }
 
+
+    public static async Task DeleteGuildIntegrationAsync(IGuildIntegration guildIntegration, bool removeCharacters)
+    {
+        await using var db = GetDbContext();
+
+        switch (guildIntegration)
+        {
+            case SakuraAiGuildIntegration sakuraAiGuildIntegration:
+            {
+                if (removeCharacters)
+                {
+                    var characters = await db.SakuraAiSpawnedCharacters
+                                             .Include(character => character.DiscordChannel)
+                                             .Where(character => character.DiscordChannel.DiscordGuildId == guildIntegration.DiscordGuildId)
+                                             .ToListAsync();
+
+                    db.SakuraAiSpawnedCharacters.RemoveRange(characters);
+                }
+
+                db.SakuraAiIntegrations.Remove(sakuraAiGuildIntegration);
+
+                break;
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+
+
+    #endregion
+
+
+    #region Guilds and channels
 
     public static async Task EnsureExistInDbAsync(this ITextChannel channel)
     {
@@ -220,5 +265,7 @@ public static class DatabaseHelper
 
         await db.SaveChangesAsync();
     }
+
+    #endregion
 
 }

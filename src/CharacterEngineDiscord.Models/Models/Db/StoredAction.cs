@@ -17,7 +17,7 @@ public class StoredAction
     }
 
     [Key]
-    public Guid Id { get; }
+    public Guid Id { get; init; }
 
     public StoredActionType StoredActionType { get; init; }
     public string Data { get; set; }

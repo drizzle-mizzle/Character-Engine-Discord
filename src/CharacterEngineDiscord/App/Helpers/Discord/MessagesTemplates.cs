@@ -18,6 +18,6 @@ public static class MessagesTemplates
     public static readonly Emoji CRUTCH_BTN = new("\ud83e\ude7c");
 
     public static readonly Embed WAIT_MESSAGE = "🕓 Wait...".ToInlineEmbed(new Color(154, 171, 182));
-    public static readonly Embed CHARACTER_NOT_FOUND_MESSAGE = $"{WARN_SIGN_DISCORD} No character with given call prefix or webhook ID was found in the current channel".ToInlineEmbed(Color.Red);
-    public static readonly Embed SOMETHING_WENT_WRONG = $"{WARN_SIGN_DISCORD} Something went wrong!".ToInlineEmbed(Color.Red);
+    public static readonly Embed CHARACTER_NOT_FOUND_MESSAGE = $"{X_SIGN_DISCORD} No character with given call prefix or webhook ID was found in the current channel".ToInlineEmbed(Color.Red);
+    public static readonly Embed RATE_LIMIT_WARNING = $"{WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down".ToInlineEmbed(Color.Orange);
 }

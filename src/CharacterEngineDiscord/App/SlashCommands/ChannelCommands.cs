@@ -1,4 +1,5 @@
 using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -30,6 +31,6 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
         channel.NoWarn = toggle;
         await _db.SaveChangesAsync();
 
-
+        await FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} {(toggle ? "Disabled" : "Enabled")} permissions checks for this channel");
     }
 }

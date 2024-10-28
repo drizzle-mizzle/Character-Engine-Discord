@@ -34,7 +34,7 @@ namespace CharacterEngine
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
             using var db = DatabaseHelper.GetDbContext();
-            // db.Database.EnsureDeleted();
+            db.Database.EnsureDeleted();
             db.Database.EnsureCreated();
             // await db.Database.MigrateAsync();
 

@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
@@ -19,19 +19,26 @@ namespace CharacterEngine.App;
 public class BackgroundWorker
 {
     private readonly ILogger _log = DI.GetLogger;
+    private static bool _running = false;
 
 
     public static void Run()
     {
+        if (_running)
+        {
+            return;
+        }
+
+        _running = true;
         var worker = new BackgroundWorker();
-        var jobs = new List<Func<Task>> { worker.QuickJobs };
+        var jobs = new List<Func<string, Task>> { worker.QuickJobs };
 
         Parallel.ForEach(jobs, job => worker.RunInLoop(job, cooldownSeconds: 5));
     }
 
 
 
-    private void RunInLoop(Func<Task> jobTask, int cooldownSeconds)
+    private void RunInLoop(Func<string, Task> jobTask, int cooldownSeconds)
     {
         _log.Info($"Starting loop {jobTask.Method.Name} with {cooldownSeconds}s cooldown");
 
@@ -46,20 +53,22 @@ public class BackgroundWorker
                     continue;
                 }
 
-                _log.Info($"JOB START: {jobTask.Method.Name}");
+                var traceId = CommonHelper.NewTraceId();
+
+                _log.Info($"[{traceId}] JOB START: {jobTask.Method.Name}");
 
                 sw.Restart();
 
                 try
                 {
-                    await jobTask();
+                    await jobTask(traceId);
                 }
                 catch (Exception e)
                 {
-                    await DI.GetDiscordSocketClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e);
+                    await DI.GetDiscordSocketClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId);
                 }
 
-                _log.Info($"JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+                _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
 
                 sw.Restart();
             }
@@ -67,7 +76,7 @@ public class BackgroundWorker
     }
 
 
-    private void CallGiveUpFinalizer(StoredAction action)
+    private void CallGiveUpFinalizer(StoredAction action, string traceId)
     {
         var finalizer = action.StoredActionType switch
         {
@@ -82,7 +91,7 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e);
+                await DI.GetDiscordSocketClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId);
             }
         });
     }
@@ -113,9 +122,9 @@ public class BackgroundWorker
     //////////////////
 
     private static readonly StoredActionType[] _quickJobActionTypes = [StoredActionType.SakuraAiEnsureLogin];
-    private async Task QuickJobs()
+    private async Task QuickJobs(string traceId)
     {
-        var actions = await GetPendingActionsAsync(_quickJobActionTypes);
+        var actions = await GetPendingActionsAsync(_quickJobActionTypes, traceId);
 
         foreach (var action in actions)
         {
@@ -130,11 +139,11 @@ public class BackgroundWorker
             }
             catch (SakuraException se)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraAiException", se);
+                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraAiException", se, traceId);
             }
             catch (Exception e)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync("Exception in Quick Jobs loop", e);
+                await DI.GetDiscordSocketClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
@@ -145,7 +154,7 @@ public class BackgroundWorker
     }
 
 
-    private async Task<List<StoredAction>> GetPendingActionsAsync(StoredActionType[] actionTypes)
+    private async Task<List<StoredAction>> GetPendingActionsAsync(StoredActionType[] actionTypes, string traceId)
     {
         var actionsToRun = new List<StoredAction>();
 
@@ -175,7 +184,7 @@ public class BackgroundWorker
             action.Status = StoredActionStatus.Canceled;
             await db.SaveChangesAsync();
 
-            CallGiveUpFinalizer(action);
+            CallGiveUpFinalizer(action, traceId);
         }
 
         return actionsToRun;
@@ -191,7 +200,7 @@ public class BackgroundWorker
         await using var db = DatabaseHelper.GetDbContext();
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
-        var result = await StaticStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
+        var result = await MemoryStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
         if (result is null)
         {
             action.Attempt++;
@@ -235,7 +244,7 @@ public class BackgroundWorker
 
         var msg = $"Username: **{result.Username}**\n" +
                   "From now on, this account will be used for all SakuraAI interactions on this server.\n" +
-                  "For the next step, use *`/spawn-character `* command to spawn new SakuraAI character in this channel.";
+                  "For the next step, use *`/character spawn `* command to spawn new SakuraAI character in this channel.";
 
         var embed = new EmbedBuilder()
                    .WithTitle($"{IntegrationType.SakuraAI.GetIcon()} SakuraAI user authorized")
