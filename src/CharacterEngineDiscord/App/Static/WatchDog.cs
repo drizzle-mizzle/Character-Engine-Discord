@@ -3,6 +3,7 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.Static;
@@ -44,24 +45,24 @@ public static class WatchDog
     }
 
 
-    public static async Task<WatchDogValidationResult> ValidateAsync(ulong userId, ulong guildId)
+    public static WatchDogValidationResult ValidateUser(IGuildUser user)
     {
-        if (_blockedUsers.ContainsKey(userId) || _blockedGuildUsers.ContainsKey((userId, guildId)))
+        if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.Guild.Id)))
         {
             return WatchDogValidationResult.Blocked;
         }
 
-        var user = _watchedUsers.GetOrAdd(userId, uid => new WatchedUser
+        var watchedUser = _watchedUsers.GetOrAdd(user.Id, uid => new WatchedUser
         {
             UserId = uid,
             InteractionsCount = 0,
             LastInteractionWindowStartedAt = DateTime.Now
         });
 
-        var validationResult = Validate(user);
+        var validationResult = Validate(watchedUser);
         if (validationResult is WatchDogValidationResult.Blocked)
         {
-            await BlockUserGloballyAsync(userId);
+            Task.Run(async () => await BlockUserGloballyAsync(user.Id));
         }
 
         return validationResult;

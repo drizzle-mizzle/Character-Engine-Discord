@@ -6,7 +6,7 @@ namespace CharacterEngine.App.Static;
 
 public static class MemoryStorage
 {
-    public static HttpClient CommonHttpClient { get; } = new();
+    public static HttpClient CommonHttpClient { get; } = new() { MaxResponseContentBufferSize = 5_242_880 };
 
     public static SearchQueryCollection SearchQueries { get; } = new();
 

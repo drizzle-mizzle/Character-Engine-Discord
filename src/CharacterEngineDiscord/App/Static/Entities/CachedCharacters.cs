@@ -7,7 +7,7 @@ namespace CharacterEngine.App.Static.Entities;
 
 public sealed class CachedCharacerInfoCollection
 {
-    private static readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
+    private readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
 
 
     public void AddRange(ICollection<ISpawnedCharacter> spawnedCharacters)
@@ -25,7 +25,7 @@ public sealed class CachedCharacerInfoCollection
             Id = spawnedCharacter.Id,
             CallPrefix = spawnedCharacter.CallPrefix,
             ChannelId = spawnedCharacter.DiscordChannelId,
-            WebhookId = spawnedCharacter.WebhookId,
+            WebhookId = spawnedCharacter.WebhookId.ToString(),
             Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableBuffering)
         };
 
@@ -42,30 +42,22 @@ public sealed class CachedCharacerInfoCollection
     }
 
 
-    public CachedCharacterInfo? GetByWebhookId(ulong webhookId)
-        => _cachedCharacters.FirstOrDefault(c => c.Value.WebhookId == webhookId).Value;
+    public CachedCharacterInfo? Find(string callPrefixOrWebhookId, ulong channelId)
+        => _cachedCharacters.Values.FirstOrDefault(c => c.ChannelId == channelId && (c.CallPrefix == callPrefixOrWebhookId || c.WebhookId == callPrefixOrWebhookId));
 
 
-    public CachedCharacterInfo? Find(string callPrefixOrIdOrWebhookId, ulong channelId)
+    public CachedCharacterInfo? Find(Guid Id)
     {
-        var cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.CallPrefix == callPrefixOrIdOrWebhookId && c.Value.ChannelId == channelId);
-
-        if (cachedCharacter.Key == default && Guid.TryParse(callPrefixOrIdOrWebhookId, out var characterId))
-        {
-            cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.Id == characterId && c.Value.ChannelId == channelId);
-        }
-
-        if (cachedCharacter.Key == default && ulong.TryParse(callPrefixOrIdOrWebhookId, out var webhookId))
-        {
-            cachedCharacter = _cachedCharacters.FirstOrDefault(c => c.Value.WebhookId == webhookId && c.Value.ChannelId == channelId);
-        }
-
-        return cachedCharacter.Key == default ? null : cachedCharacter.Value;
+        _cachedCharacters.TryGetValue(Id, out var cachedCharacter);
+        return cachedCharacter;
     }
 
 
     public List<CachedCharacterInfo> ToList()
         => _cachedCharacters.Values.ToList();
+
+    public List<CachedCharacterInfo> ToList(ulong channelId)
+        => _cachedCharacters.Values.Where(c => c.ChannelId == channelId).ToList();
 }
 
 
@@ -74,8 +66,7 @@ public record CachedCharacterInfo
     public required Guid Id { get; init; }
     public required ulong ChannelId { get; init; }
     public required string CallPrefix { get; init; }
-
-    public required ulong WebhookId { get; init; }
+    public required string WebhookId { get; init; }
 
     public required ActiveConversation Conversations { get; init; }
 }

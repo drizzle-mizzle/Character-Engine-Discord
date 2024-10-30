@@ -25,7 +25,7 @@ public class SpecialCommandsHandler
     {
         await command.DeferAsync();
 
-        await InteractionsHelper.ValidateAccessAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
+        await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
@@ -45,7 +45,7 @@ public class SpecialCommandsHandler
     {
         await command.DeferAsync();
 
-        await InteractionsHelper.ValidateAccessAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
+        await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var startCommand = ExplicitCommandBuilders.BuildStartCommand();

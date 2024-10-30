@@ -1,7 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using Discord;
@@ -89,7 +88,8 @@ public static class MessagesHelper
 
     #endregion
 
-    public static string ToLowerBySep(this string source, char sep)
+
+    public static string SplitWordsBySep(this string source, char sep)
     {
         var result = new List<char>();
         var chars = source.Replace(" ", "").ToCharArray();
@@ -104,8 +104,9 @@ public static class MessagesHelper
             result.Add(chars[i]);
         }
 
-        return string.Concat(result).ToLowerInvariant();
+        return string.Concat(result);
     }
+
 
     public static string BuildMessageFormatPreview(string messagesFormat)
     {
@@ -213,15 +214,15 @@ public static class MessagesHelper
 
     #region Description cards
 
-    public static Embed BuildCharacterDescriptionCard(ICharacter character)
+    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter)
     {
-        var type = character.GetIntegrationType();
+        var type = spawnedCharacter.GetIntegrationType();
         var embed = new EmbedBuilder();
 
-        var desc = character switch
+        var desc = spawnedCharacter switch
         {
             ISakuraCharacter s => s.GetSakuraDesc(),
-            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
         };
 
         if (desc.Length > DESC_LIMIT)
@@ -231,14 +232,13 @@ public static class MessagesHelper
 
         desc += "\n\n";
 
-        var spawnedCharacter = (ISpawnedCharacter)character;
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
-                      $"*Original link: [__{type.GetLinkPrefix()} {character.CharacterName}__]({character.GetCharacterLink()})*\n" +
-                      $"*{type.GetStatLabel()}: `{character.GetStat()}`*\n" +
+                      $"*Original link: [__{type.GetLinkPrefix()} {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetCharacterLink()})*\n" +
+                      $"*{type.GetStatLabel()}: `{spawnedCharacter.GetStat()}`*\n" +
                       "*Can generate images: `No`*\n\n";
 
         var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\n" +
-                            $"Use it or character's call prefix to modify this integration with *`/conf `* commands.";
+                            $"Use it or character's call prefix to modify this integration with *`/character conf`* commands.";
 
         embed.WithColor(type.GetColor());
         embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
@@ -246,12 +246,12 @@ public static class MessagesHelper
         embed.AddField("Details", details);
         embed.AddField("Configuration", configuration);
 
-        if (!string.IsNullOrEmpty(character.CharacterImageLink))
+        if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
         {
-            embed.WithImageUrl(character.CharacterImageLink);
+            embed.WithImageUrl(spawnedCharacter.CharacterImageLink);
         }
 
-        embed.WithFooter($"Created by {character.CharacterAuthor}");
+        embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
 
         return embed.Build();
     }
@@ -271,7 +271,7 @@ public static class MessagesHelper
             scenario = "*No scenario*";
         }
 
-        var result = $"**{((ICharacter)sakuraCharacter).CharacterName}**\n{desc}\n\n" +
+        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
                      $"**Scenario**\n{scenario}";
 
         return result;

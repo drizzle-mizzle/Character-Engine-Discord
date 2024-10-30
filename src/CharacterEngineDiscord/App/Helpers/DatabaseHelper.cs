@@ -1,7 +1,6 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngineDiscord.Helpers.Integrations;
-using CharacterEngineDiscord.Helpers.Mappings;
+using CharacterEngine.App.Helpers.Mappings;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -27,11 +26,25 @@ public static class DatabaseHelper
 
     public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
-        await using var db = GetDbContext();
-        var characters = await db.SakuraAiSpawnedCharacters.ToListAsync()
-                      ?? [];
+        var result = new List<ISpawnedCharacter>();
 
-        return characters.ToList<ISpawnedCharacter>();
+        await using var db = GetDbContext();
+
+        result.AddRange(await db.SakuraAiSpawnedCharacters.ToListAsync());
+
+        return result;
+    }
+
+
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInChannelAsync(ulong channelId)
+    {
+        var result = new List<ISpawnedCharacter>();
+
+        await using var db = GetDbContext();
+
+        result.AddRange(await db.SakuraAiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+
+        return result;
     }
 
 
@@ -194,7 +207,7 @@ public static class DatabaseHelper
 
     #region Guilds and channels
 
-    public static async Task EnsureExistInDbAsync(this ITextChannel channel)
+    public static async Task EnsureExistInDbAsync(this IGuildChannel channel)
     {
         channel.Guild?.EnsureExistInDbAsync().Wait();
 

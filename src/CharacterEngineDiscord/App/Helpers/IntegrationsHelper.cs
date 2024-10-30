@@ -7,17 +7,11 @@ using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Common;
 using Discord;
 
-namespace CharacterEngineDiscord.Helpers.Integrations;
+namespace CharacterEngine.App.Helpers;
 
 
 public static class IntegrationsHelper
 {
-    public static IntegrationType GetIntegrationType(this ISpawnedCharacter character)
-        => ((ICharacter)character).GetIntegrationType();
-
-    public static IntegrationType GetIntegrationType(this CommonCharacter character)
-        => ((ICharacter)character).GetIntegrationType();
-
     public static IntegrationType GetIntegrationType(this ICharacter character)
     {
         if (character is CommonCharacter commonCharacter)

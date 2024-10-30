@@ -1,7 +1,7 @@
 namespace CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 
 
-public interface ISakuraCharacter
+public interface ISakuraCharacter : ICharacter
 {
     public string SakuraDescription { get; set; }
     public string SakuraPersona { get; set; }

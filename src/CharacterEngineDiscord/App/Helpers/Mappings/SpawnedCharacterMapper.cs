@@ -3,7 +3,7 @@ using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Common;
 using SakuraAi.Client.Models.Common;
 
-namespace CharacterEngineDiscord.Helpers.Mappings;
+namespace CharacterEngine.App.Helpers.Mappings;
 
 
 public static class SpawnedCharacterMapper
@@ -24,12 +24,11 @@ public static class SpawnedCharacterMapper
             }
         }
 
-        var characterCasted = (ICharacter)spawnedCharacter;
-        characterCasted.CharacterId = commonCharacter.CharacterId;
-        characterCasted.CharacterName = commonCharacter.CharacterName;
-        characterCasted.CharacterAuthor = commonCharacter.CharacterAuthor;
-        characterCasted.CharacterImageLink = commonCharacter.CharacterImageLink;
-        characterCasted.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
+        spawnedCharacter.CharacterId = commonCharacter.CharacterId;
+        spawnedCharacter.CharacterName = commonCharacter.CharacterName;
+        spawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor;
+        spawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
+        spawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
 
         return spawnedCharacter;
     }

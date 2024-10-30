@@ -1,9 +1,9 @@
 ﻿using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -55,33 +55,48 @@ public class SlashCommandsHandler
 
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
+        if (command.Channel is not IGuildChannel guildChannel)
         {
-            var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
-            await (specialCommand switch
-            {
-                SpecialCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
-                SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
-            });
+            return;
         }
-        else if (Enum.TryParse<BotAdminCommands>(command.CommandName, ignoreCase: false, out var botAdminCommand))
-        {
-            await InteractionsHelper.ValidateAccessAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
 
-            var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
-            await (botAdminCommand switch
-            {
-                BotAdminCommands.shutdown => botAdminCommandsHandler.ShutdownAsync(command),
-                BotAdminCommands.blockUser => botAdminCommandsHandler.BlockUserAsync(command),
-                BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
-                BotAdminCommands.blockGuild => throw new NotImplementedException(),
-                BotAdminCommands.unblockGuild => throw new NotImplementedException(),
-                BotAdminCommands.stats => throw new NotImplementedException()
-            });
-        }
-        else
+        var ensureExistInDbAsync = guildChannel.EnsureExistInDbAsync();
+        await InteractionsHelper.ValidateUserAsync(command);
+
+        try
         {
-            await _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider);
+            if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
+            {
+                var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
+                await (specialCommand switch
+                {
+                    SpecialCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
+                    SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
+                });
+            }
+            else if (Enum.TryParse<BotAdminCommands>(command.CommandName, ignoreCase: false, out var botAdminCommand))
+            {
+                await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
+
+                var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
+                await (botAdminCommand switch
+                {
+                    BotAdminCommands.shutdown => botAdminCommandsHandler.ShutdownAsync(command),
+                    BotAdminCommands.blockUser => botAdminCommandsHandler.BlockUserAsync(command),
+                    BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
+                    BotAdminCommands.blockGuild => throw new NotImplementedException(),
+                    BotAdminCommands.unblockGuild => throw new NotImplementedException(),
+                    BotAdminCommands.stats => throw new NotImplementedException()
+                });
+            }
+            else
+            {
+                await _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider);
+            }
+        }
+        finally
+        {
+            await ensureExistInDbAsync;
         }
     }
 }

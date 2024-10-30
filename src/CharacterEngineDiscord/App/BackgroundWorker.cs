@@ -2,8 +2,6 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Helpers.Common;
-using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;

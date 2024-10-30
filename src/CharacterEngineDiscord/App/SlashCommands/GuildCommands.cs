@@ -17,8 +17,8 @@ namespace CharacterEngine.App.SlashCommands;
 
 
 [Group("guild", "Guild-wide settings configuration")]
-[DeferAndValidatePermissions]
 [ValidateAccessLevel(AccessLevels.Manager)]
+[ValidateChannelPermissions]
 public class GuildCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly DiscordSocketClient _discordClient;
@@ -32,11 +32,13 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    public enum MessagesFormatAction { show, update, resetDefalt }
+    public enum MessagesFormatAction { show, update, resetDefault }
 
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null)
     {
+        await DeferAsync();
+
         var guild = await _db.DiscordGuilds.FirstAsync(g => g.Id == Context.Guild.Id);
 
         var message = string.Empty;
@@ -85,7 +87,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
 
                 break;
             }
-            case MessagesFormatAction.resetDefalt:
+            case MessagesFormatAction.resetDefault:
             {
                 guild.MessagesFormat = null;
                 await _db.SaveChangesAsync();

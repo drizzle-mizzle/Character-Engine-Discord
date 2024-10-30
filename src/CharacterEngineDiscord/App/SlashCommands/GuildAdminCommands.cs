@@ -32,7 +32,6 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        string message = default!;
         var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
 
         if (action is ManagersActions.clearAll)
@@ -40,8 +39,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             _db.GuildBotManagers.RemoveRange(managers);
             await _db.SaveChangesAsync();
 
-            message = "Managers list has been cleared.";
-            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true));
+            await FollowupAsync(embed: "Managers list has been cleared".ToInlineEmbed(Color.Green, bold: true));
 
             return;
         }
@@ -55,36 +53,41 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
         var guildUser = user ?? await Context.Guild.GetUserAsync(managerUserId);
         var mention = guildUser?.Mention ?? $"User `{managerUserId}`";
 
-        if (action is ManagersActions.add)
+        string message = default!;
+
+        switch (action)
         {
-            if (managers.Any(manager => manager.UserId == managerUserId))
+            case ManagersActions.add when managers.Any(manager => manager.UserId == managerUserId):
             {
                 throw new UserFriendlyException($"{mention} is already a manager");
             }
-
-            var newManager = new GuildBotManager
+            case ManagersActions.add:
             {
-                UserId = managerUserId,
-                DiscordGuildId = Context.Guild.Id,
-                AddedBy = Context.User.Id,
-            };
+                var newManager = new GuildBotManager
+                {
+                    UserId = managerUserId,
+                    DiscordGuildId = Context.Guild.Id,
+                    AddedBy = Context.User.Id,
+                };
 
-            await _db.GuildBotManagers.AddAsync(newManager);
-            message = $"{mention} was successfully added to the managers list.";
-        }
-
-        if (action is ManagersActions.remove)
-        {
-            var manager = managers.First(manager => manager.DiscordGuildId == Context.Guild.Id
-                                                 && manager.UserId == managerUserId);
-
-            if (manager is null)
-            {
-                throw new UserFriendlyException($"{mention} is not a manager, thus cannot be removed from the managers list");
+                await _db.GuildBotManagers.AddAsync(newManager);
+                message = $"{mention} was successfully added to the managers list.";
+                break;
             }
+            case ManagersActions.remove:
+            {
+                var manager = managers.First(manager => manager.DiscordGuildId == Context.Guild.Id
+                                                     && manager.UserId == managerUserId);
 
-            _db.GuildBotManagers.Remove(manager);
-            message = $"{mention} was successfully removed from the managers list.";
+                if (manager is null)
+                {
+                    throw new UserFriendlyException($"{mention} is not a manager");
+                }
+
+                _db.GuildBotManagers.Remove(manager);
+                message = $"{mention} was successfully removed from the managers list.";
+                break;
+            }
         }
 
         await _db.SaveChangesAsync();

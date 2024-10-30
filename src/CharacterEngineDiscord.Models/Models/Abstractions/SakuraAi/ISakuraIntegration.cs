@@ -1,7 +1,7 @@
 namespace CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 
 
-public interface ISakuraIntegration
+public interface ISakuraIntegration : IGuildIntegration
 {
     public string SakuraEmail { get; set; }
 

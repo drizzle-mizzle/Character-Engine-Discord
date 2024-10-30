@@ -25,11 +25,10 @@ public class SakuraAiModule : IIntegrationModule
     {
         var sakuraIntegration = (ISakuraIntegration)guildIntegration;
 
-        var character = (ICharacter)spawnedCharacter;
         var sakuraCharacter = new SakuraCharacter
         {
-            id = character.CharacterId,
-            firstMessage = character.CharacterFirstMessage
+            id = spawnedCharacter.CharacterId,
+            firstMessage = spawnedCharacter.CharacterFirstMessage
         };
 
         var sakuraChat = await _sakuraAiClient.CreateNewChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, sakuraCharacter, firstUserMessage);

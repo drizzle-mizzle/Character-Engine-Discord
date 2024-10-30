@@ -1,7 +1,6 @@
 ﻿using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Helpers.Common;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.WebSocket;
@@ -50,23 +49,9 @@ public class ModalsHandler
     private async Task HandleModalAsync(SocketModal modal)
     {
         await modal.DeferAsync();
+
         var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
 
-        if (modal.Channel is not ITextChannel channel)
-        {
-            return;
-        }
-
-        var validationResult = await WatchDog.ValidateAsync(modal.User.Id, channel.GuildId);
-        if (validationResult is not WatchDogValidationResult.Passed)
-        {
-            _ = modal.DeferAsync();
-            return;
-        }
-
-        await InteractionsHelper.ValidatePermissionsAsync((IGuildChannel)modal.Channel);
-
-        await channel.EnsureExistInDbAsync();
         await (parsedModal.ActionType switch
         {
             ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))

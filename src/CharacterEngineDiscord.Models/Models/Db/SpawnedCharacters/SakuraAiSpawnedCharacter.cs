@@ -7,7 +7,7 @@ using CharacterEngineDiscord.Models.Db.Discord;
 namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 
-public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCharacter
+public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
 {
     [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -46,5 +46,5 @@ public class SakuraAiSpawnedCharacter : ISpawnedCharacter, ICharacter, ISakuraCh
     public string? SakuraChatId { get; set; }
 
 
-    public virtual DiscordChannel DiscordChannel { get; set; } = null!;
+    public virtual DiscordChannel DiscordChannel { get; init; } = null!;
 }

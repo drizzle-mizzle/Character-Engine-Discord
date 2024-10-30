@@ -4,8 +4,6 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
-using CharacterEngineDiscord.Helpers.Common;
-using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.IntegrationModules;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
@@ -94,14 +92,14 @@ public static class InteractionsHelper
             throw new Exception($"Failed to get channel {channelId}");
         }
 
-        var webhook = await discordClient.CreateDiscordWebhookAsync(channel, commonCharacter);
+        var webhook = await CreateDiscordWebhookAsync(channel, commonCharacter);
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
 
         return newSpawnedCharacter;
     }
 
 
-    public static async Task<IWebhook> CreateDiscordWebhookAsync(this DiscordSocketClient discordClient, IIntegrationChannel channel, ICharacter character)
+    public static async Task<IWebhook> CreateDiscordWebhookAsync(IIntegrationChannel channel, ICharacter character)
     {
         var characterName = character.CharacterName.Trim();
         var match = DISCORD_REGEX.Match(characterName);
@@ -111,18 +109,7 @@ public static class InteractionsHelper
             characterName = characterName.Replace(match.Value, discordCensored);
         }
 
-        Stream? avatar = null;
-        if (character.CharacterImageLink is not null)
-        {
-            try
-            {
-                avatar = await MemoryStorage.CommonHttpClient.GetStreamAsync(character.CharacterImageLink);
-            }
-            catch (Exception e)
-            {
-                await discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
-            }
-        }
+        var avatar = await CommonHelper.DownloadFileAsync(character.CharacterImageLink);
 
         // TODO: thread safety
         // avatar ??= File.OpenRead(BotConfig.DEFAULT_AVATAR_FILE);
@@ -132,19 +119,19 @@ public static class InteractionsHelper
     }
 
 
-    public static Task SendGreetingAsync(this ICharacter character, string username)
+    public static Task SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
     {
-        var characterMessage = character.CharacterFirstMessage
-                                        .Replace("{{char}}", character.CharacterName)
-                                        .Replace("{{user}}", $"**{username}**");
+        var characterMessage = spawnedCharacter.CharacterFirstMessage
+                                               .Replace("{{char}}", spawnedCharacter.CharacterName)
+                                               .Replace("{{user}}", $"**{username}**");
 
-        return SendMessageAsync((ISpawnedCharacter)character, characterMessage);
+        return SendMessageAsync(spawnedCharacter, characterMessage);
     }
 
 
     public static async Task SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
     {
-        var webhookClient = MemoryStorage.CachedWebhookClients.GetOrCreate(spawnedCharacter);
+        var webhookClient = MemoryStorage.CachedWebhookClients.FindOrCreate(spawnedCharacter);
 
         if (characterMessage.Length <= 2000)
         {
@@ -214,7 +201,28 @@ public static class InteractionsHelper
 
     #region Validations
 
-    public static async Task ValidateAccessAsync(AccessLevels requiredAccessLevel, SocketGuildUser user)
+    public static async Task ValidateUserAsync(SocketInteraction interaction)
+    {
+        var validationResult = WatchDog.ValidateUser((IGuildUser)interaction.User);
+
+        switch (validationResult)
+        {
+            case WatchDogValidationResult.Blocked:
+            {
+                await interaction.FollowupAsync();
+                throw new UnauthorizedAccessException();
+            }
+            case WatchDogValidationResult.Warning:
+            {
+                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: MessagesTemplates.RATE_LIMIT_WARNING);
+            }
+
+            return;
+        }
+    }
+
+
+    public static async Task ValidateAccessLevelAsync(AccessLevels requiredAccessLevel, SocketGuildUser user)
     {
         if (BotConfig.OWNER_USERS_IDS.Contains(user.Id))
         {
@@ -270,9 +278,16 @@ public static class InteractionsHelper
         ChannelPermission.CreatePublicThreads, ChannelPermission.CreatePrivateThreads, ChannelPermission.SendMessagesInThreads, ChannelPermission.ManageThreads, ChannelPermission.UseExternalEmojis
     ];
 
-    public static async Task ValidatePermissionsAsync(IGuildChannel channel)
+    public static async Task ValidateChannelPermissionsAsync(IChannel channel)
     {
-        var botGuildUser = (SocketGuildUser)await channel.GetUserAsync(DI.GetDiscordSocketClient.CurrentUser.Id);
+        if (channel is not ITextChannel textChannel)
+        {
+            throw new UserFriendlyException($"{MessagesTemplates.WARN_SIGN_DISCORD} Bot can operatein only in text channels");
+        }
+
+        var guild = (SocketGuild)textChannel.Guild;
+
+        var botGuildUser = guild.CurrentUser;
         if (botGuildUser is null)
         {
             throw new UserFriendlyException($"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel");
@@ -285,14 +300,14 @@ public static class InteractionsHelper
         }
 
         await using var db = DatabaseHelper.GetDbContext();
-        var noWarn = await db.DiscordChannels.Where(c => c.Id == channel.Id).Select(c => c.NoWarn).FirstAsync();
+        var noWarn = await db.DiscordChannels.Where(c => c.Id == textChannel.Id).Select(c => c.NoWarn).FirstAsync();
         if (noWarn)
         {
             return;
         }
 
-        var everyoneRoleId = channel.Guild.EveryoneRole.Id;
-        var botChannelPermOws = channel.PermissionOverwrites.Where(BotAffectedByOw).ToList();
+        var everyoneRoleId = textChannel.Guild.EveryoneRole.Id;
+        var botChannelPermOws = textChannel.PermissionOverwrites.Where(BotAffectedByOw).ToList();
 
         var botAllowedPerms = botRoles.SelectMany(ChannelPerms).Concat(botChannelPermOws.SelectMany(AllowedPerms)).ToList();
         var channelDeniedPermOws = botChannelPermOws.Where(ow => ow.TargetId != everyoneRoleId).SelectMany(DeniedPerms).ToList();
@@ -318,7 +333,7 @@ public static class InteractionsHelper
             var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} There are permissions required for the bot to operate in this channel that are missing:**\n" +
                       $"```{string.Join("\n", missingPerms.Select(perm => $"> {perm:G}"))}```\n{DISABLE_WARN_PROMPT}";
 
-            throw new UserFriendlyException(msg, false);
+            throw new UserFriendlyException(msg, bold: false);
         }
 
         if (prohibitiveOws.Count != 0)
@@ -326,7 +341,7 @@ public static class InteractionsHelper
             var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} This channel has some prohibitive permission overwrites applied to the bot, which may affect its work:**\n" +
                       $"```{string.Join("\n", prohibitiveOws.Select(ow => $"> {ow.perm:G} | Applied to {ow.target}"))}```\n{DISABLE_WARN_PROMPT}";
 
-            throw new UserFriendlyException(msg, false);
+            throw new UserFriendlyException(msg, bold: false);
         }
 
         return;
@@ -348,11 +363,11 @@ public static class InteractionsHelper
             {
                 if (ow.TargetType is PermissionTarget.Role)
                 {
-                    var role = channel.Guild.Roles.First(g => g.Id == ow.TargetId);
+                    var role = textChannel.Guild.Roles.First(g => g.Id == ow.TargetId);
                     return $"role @{role.Name}";
                 }
 
-                var user = channel.GetUserAsync(ow.TargetId).GetAwaiter().GetResult();
+                var user = textChannel.GetUserAsync(ow.TargetId).GetAwaiter().GetResult();
                 return $"user @{user.DisplayName}";
             }
             catch

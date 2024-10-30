@@ -12,22 +12,44 @@ public sealed class AppDbContext : DbContext
 {
     private readonly string CONNECTION_STRING;
 
-    // public DbSet<DiscordChannelSpawnedCharacter> DiscordChannelSpawnedCharacters { get; init; }
-    public DbSet<SakuraAiSpawnedCharacter> SakuraAiSpawnedCharacters { get; init; }
 
-    // public DbSet<DiscordGuildIntegration> DiscordGuildIntegrations { get; init; }
+    #region Discord
+
+    public DbSet<DiscordChannel> DiscordChannels { get; init; }
+    public DbSet<DiscordGuild> DiscordGuilds { get; init; }
+
+    #endregion
+
+
+    #region Integrations
+
     public DbSet<SakuraAiGuildIntegration> SakuraAiIntegrations { get; init; }
 
+    #endregion
+
+
+    #region SpawnedCharacters
+
+    public DbSet<SakuraAiSpawnedCharacter> SakuraAiSpawnedCharacters { get; init; }
+
+    #endregion
+
+
+    #region Bot
 
     public DbSet<BlockedGuildUser> BlockedGuildUsers { get; init; }
     public DbSet<BlockedUser> BlockedUsers { get; init; }
-
     public DbSet<GuildBotManager> GuildBotManagers { get; init; }
+
+    #endregion
+
+
+    #region Application
+
+    public DbSet<Metric> Metrics { get; init; }
     public DbSet<StoredAction> StoredActions { get; init; }
 
-    // Discord
-    public DbSet<DiscordChannel> DiscordChannels { get; init; }
-    public DbSet<DiscordGuild> DiscordGuilds { get; init; }
+    #endregion
 
 
     public AppDbContext(string connectionString)

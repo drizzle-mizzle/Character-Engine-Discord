@@ -7,7 +7,7 @@ using CharacterEngineDiscord.Models.Db.Discord;
 namespace CharacterEngineDiscord.Models.Db.Integrations;
 
 
-public class SakuraAiGuildIntegration : IGuildIntegration, ISakuraIntegration
+public class SakuraAiGuildIntegration : ISakuraIntegration
 {
     [Key]
     public Guid Id { get; init; } = Guid.NewGuid();

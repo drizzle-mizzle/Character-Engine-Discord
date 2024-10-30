@@ -12,6 +12,7 @@ namespace CharacterEngine.App.SlashCommands;
 
 
 [ValidateAccessLevel(AccessLevels.Manager)]
+[ValidateChannelPermissions]
 [Group("integration", "Integrations Management")]
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {
@@ -45,6 +46,8 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     [SlashCommand("remove", "Remove an integration")]
     public async Task Remove(IntegrationType type, bool removeAssociatedCharacters)
     {
+        await DeferAsync();
+
         IGuildIntegration? integration = await (type switch
         {
             IntegrationType.SakuraAI => _db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id)
@@ -52,11 +55,12 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         if (integration is null)
         {
-             await FollowupAsync(embed: $"No {type:G} integration found on this server".ToInlineEmbed(Color.Orange));
+             await FollowupAsync(embed: $"There's no {type:G} integration on this server".ToInlineEmbed(Color.Orange));
              return;
         }
 
         await DatabaseHelper.DeleteGuildIntegrationAsync(integration, removeAssociatedCharacters);
+        // TODO: delete webhooks
 
         await FollowupAsync(embed: $"{type:G} integration {(removeAssociatedCharacters ? "and all associated characters were" : "was")} successfully removed".ToInlineEmbed(Color.Green));
     }

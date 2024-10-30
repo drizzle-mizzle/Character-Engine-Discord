@@ -3,8 +3,6 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
-using CharacterEngineDiscord.Helpers.Common;
-using CharacterEngineDiscord.Helpers.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
@@ -17,17 +15,11 @@ namespace CharacterEngine.App.Handlers;
 
 public class MessagesHandler
 {
-    private readonly ILogger _log;
-    private AppDbContext _db { get; set; }
-
     private readonly DiscordSocketClient _discordClient;
 
 
-    public MessagesHandler(ILogger log, AppDbContext db, DiscordSocketClient discordClient)
+    public MessagesHandler(DiscordSocketClient discordClient)
     {
-        _log = log;
-        _db = db;
-
         _discordClient = discordClient;
     }
 
@@ -50,7 +42,7 @@ public class MessagesHandler
     }
 
 
-    private async Task HandleMessageAsync(SocketMessage socketMessage)
+    private static async Task HandleMessageAsync(SocketMessage socketMessage)
     {
         if (socketMessage.Channel is not ITextChannel channel)
         {
@@ -62,43 +54,45 @@ public class MessagesHandler
             return;
         }
 
+        if (socketUserMessage.Author is not IGuildUser guildUser)
+        {
+            return;
+        }
 
-        var validationResult = await WatchDog.ValidateAsync(socketUserMessage.Author.Id, channel.GuildId);
+        var validationResult = WatchDog.ValidateUser(guildUser);
         if (validationResult is not WatchDogValidationResult.Passed)
         {
             return;
         }
 
-        _ = channel.EnsureExistInDbAsync();
-        CachedCharacterInfo? cachedCharacter;
-        if (socketUserMessage.ReferencedMessage?.Author?.Id is ulong rmUserId)
-        {
-            cachedCharacter = MemoryStorage.CachedCharacters.GetByWebhookId(rmUserId);
-        }
-        else
-        {
-            var cachedCharacters = MemoryStorage.CachedCharacters.ToList().Where(c => c.ChannelId == channel.Id);
-            var content = socketUserMessage.Content.Trim(' ', '\n');
-            cachedCharacter = cachedCharacters.FirstOrDefault(c => content.StartsWith(c.CallPrefix, StringComparison.Ordinal));
-        }
+        var ensureExistInDbAsync = channel.EnsureExistInDbAsync();
 
-        if (cachedCharacter is null)
+        try
         {
-            return;
-        }
+            var cachedCharacter = FindCharacterByReply(socketUserMessage) ?? FindCharacterByPrefix(socketUserMessage);
+            if (cachedCharacter is null)
+            {
+                return;
+            }
 
-        await CallCharacterAsync(cachedCharacter, socketUserMessage);
+            var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+            if (spawnedCharacter is null)
+            {
+                return;
+            }
+
+            await CallCharacterAsync(spawnedCharacter, socketUserMessage);
+
+        }
+        finally
+        {
+            await ensureExistInDbAsync;
+        }
     }
 
 
-    private static async Task CallCharacterAsync(CachedCharacterInfo cachedCharacter, SocketUserMessage socketUserMessage)
+    private static async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage)
     {
-        var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
-        if (spawnedCharacter is null)
-        {
-            return;
-        }
-
         var module = spawnedCharacter.GetIntegrationType().GetIntegrationModule();
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(spawnedCharacter);
 
@@ -145,5 +139,29 @@ public class MessagesHandler
         var channel = (ITextChannel)socketUserMessage.Channel;
 
         return MH.BringMessageToFormat(messageFormat, channel, (author.DisplayName ?? author.Username, author.Mention, socketUserMessage.Content), refMessage);
+    }
+
+
+    private static CachedCharacterInfo? FindCharacterByReply(SocketUserMessage socketUserMessage)
+    {
+        if (socketUserMessage.ReferencedMessage?.Author?.Id is not ulong webhookId)
+        {
+            return null;
+        }
+
+        return MemoryStorage.CachedCharacters.Find(webhookId.ToString(), socketUserMessage.Channel.Id);
+    }
+
+
+    private static CachedCharacterInfo? FindCharacterByPrefix(SocketUserMessage socketUserMessage)
+    {
+        var cachedCharacters = MemoryStorage.CachedCharacters.ToList(socketUserMessage.Channel.Id);
+        if (cachedCharacters.Count == 0)
+        {
+            return null;
+        }
+
+        var content = socketUserMessage.Content.Trim(' ', '\n');
+        return cachedCharacters.FirstOrDefault(c => content.StartsWith(c.CallPrefix, StringComparison.Ordinal));
     }
 }

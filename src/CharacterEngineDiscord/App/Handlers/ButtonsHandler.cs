@@ -1,9 +1,10 @@
 ﻿using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Helpers.Common;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Webhook;
 using Discord.WebSocket;
@@ -45,25 +46,8 @@ public class ButtonsHandler
     {
         await component.DeferAsync();
 
-        if (component.Channel is not ITextChannel channel)
-        {
-            _ = component.FollowupAsync();
-            return;
-        }
+        await InteractionsHelper.ValidateUserAsync(component);
 
-        var validationResult = await WatchDog.ValidateAsync(component.User.Id, channel.GuildId);
-        if (validationResult is WatchDogValidationResult.Blocked)
-        {
-            _ = component.FollowupAsync();
-            return;
-        }
-
-        if (validationResult is WatchDogValidationResult.Warning)
-        {
-            await channel.SendMessageAsync(embed: MessagesTemplates.RATE_LIMIT_WARNING);
-        }
-
-        await channel.EnsureExistInDbAsync();
         var actionType = GetActionType(component.Data.CustomId);
 
         await (actionType switch
@@ -78,7 +62,7 @@ public class ButtonsHandler
         var i = customId.IndexOf(InteractionsHelper.COMMAND_SEPARATOR, StringComparison.Ordinal);
         if (i == -1)
         {
-            throw new ArgumentException("Unknown Button Action Type");
+            throw new ArgumentException($"Unknown Button Action Type: {customId}");
         }
 
         return customId[..i] switch
@@ -91,7 +75,6 @@ public class ButtonsHandler
 
     private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        // var sq = LocalStorage.SearchQueries.FirstOrDefault(sq => sq.Value.ChannelId == component.ChannelId && sq.Value.UserId == component.User.Id);
         var sq = MemoryStorage.SearchQueries.GetByChannelId((ulong)component.ChannelId!);
         if (sq is null)
         {
@@ -145,12 +128,15 @@ public class ButtonsHandler
                 var webhookClient = new DiscordWebhookClient(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
                 MemoryStorage.CachedWebhookClients.Add(newSpawnedCharacter.WebhookId, webhookClient);
 
-                var character = (ICharacter)newSpawnedCharacter;
-                var characterDescription = MH.BuildCharacterDescriptionCard(character);
-                await component.ModifyOriginalResponseAsync(msg => { msg.Embed = characterDescription; });
+                var characterDescription = MH.BuildCharacterDescriptionCard(newSpawnedCharacter);
+                await component.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Embed = characterDescription;
+                    msg.Components = null;
+                });
 
                 var greetedUser = ((IGuildUser)component.User).DisplayName;
-                await character.SendGreetingAsync(greetedUser);
+                await newSpawnedCharacter.SendGreetingAsync(greetedUser);
 
                 return;
             }

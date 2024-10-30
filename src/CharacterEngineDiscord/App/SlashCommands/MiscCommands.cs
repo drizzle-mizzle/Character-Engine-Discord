@@ -7,7 +7,7 @@ using Discord.WebSocket;
 namespace CharacterEngine.App.SlashCommands;
 
 
-[DeferAndValidatePermissions]
+[ValidateChannelPermissions]
 [Group("misc", "MISC")]
 public class MiscCommands : InteractionModuleBase<InteractionContext>
 {
@@ -23,7 +23,7 @@ public class MiscCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("ping", "ping")]
     public async Task Ping()
     {
-        await FollowupAsync(embed: $":ping_pong: Pong! - {_discordClient.Latency} ms".ToInlineEmbed(Color.Red));
+        await RespondAsync(embed: $":ping_pong: Pong! - {_discordClient.Latency} ms".ToInlineEmbed(Color.Red));
     }
 
 
@@ -31,6 +31,6 @@ public class MiscCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("say", "say")]
     public async Task Say(string text)
     {
-        await FollowupAsync(text);
+        await RespondAsync(text);
     }
 }

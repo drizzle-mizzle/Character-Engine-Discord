@@ -25,13 +25,9 @@ public sealed class CachedWebhookClientCollection
     }
 
 
-    public DiscordWebhookClient? GetById(ulong webhookId)
-        => _webhookClients.GetValueOrDefault(webhookId);
-
-
-    public DiscordWebhookClient GetOrCreate(ISpawnedCharacter spawnedCharacter)
+    public DiscordWebhookClient FindOrCreate(ISpawnedCharacter spawnedCharacter)
     {
-        var webhookClient = GetById(spawnedCharacter.WebhookId);
+        var webhookClient = _webhookClients.GetValueOrDefault(spawnedCharacter.WebhookId);
 
         if (webhookClient is null)
         {
@@ -41,4 +37,8 @@ public sealed class CachedWebhookClientCollection
 
         return webhookClient;
     }
+
+
+    public DiscordWebhookClient? Find(ulong webhookId)
+        => _webhookClients.GetValueOrDefault(webhookId);
 }

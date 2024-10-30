@@ -60,7 +60,7 @@ public static class ExplicitCommandBuilders
 
 
     private static SlashCommandBuilder CreateAdminCommand(BotAdminCommands command)
-        => new SlashCommandBuilder().WithName(command.ToString("G").ToLowerBySep('-'))
+        => new SlashCommandBuilder().WithName(command.ToString("G").SplitWordsBySep('-').ToLowerInvariant())
                                     .WithDescription("-")
                                     .WithDefaultMemberPermissions(GuildPermission.Administrator);
 }

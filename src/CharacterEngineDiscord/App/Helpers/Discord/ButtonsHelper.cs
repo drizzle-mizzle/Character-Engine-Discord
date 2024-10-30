@@ -1,4 +1,3 @@
-using CharacterEngineDiscord.Helpers.Common;
 using Discord;
 
 namespace CharacterEngine.App.Helpers.Discord;

@@ -4,7 +4,7 @@
 /// <summary>
 /// Character spawned in DiscordChannel
 /// </summary>
-public interface ISpawnedCharacter
+public interface ISpawnedCharacter : ICharacter
 {
     public Guid Id { get; }
 
