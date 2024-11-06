@@ -1,8 +1,6 @@
 ﻿using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
-using Discord;
 using Discord.WebSocket;
 using NLog;
 
@@ -59,11 +57,12 @@ public class ModalsHandler
     }
 
 
-    private Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
+    private static Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
     {
         return (IntegrationType)intergrationType switch
         {
-            IntegrationType.SakuraAI => InteractionsHelper.CreateSakuraAiIntegrationAsync(modal)
+            IntegrationType.SakuraAI => InteractionsHelper.SendSakuraAiMailAsync(modal),
+            IntegrationType.CharacterAI => InteractionsHelper.SendCharacterAiMailAsync(modal),
         };
     }
 

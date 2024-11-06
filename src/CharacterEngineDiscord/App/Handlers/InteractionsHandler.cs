@@ -1,11 +1,10 @@
-﻿using CharacterEngine.App.Exceptions;
+﻿using CharacterAi.Client.Exceptions;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using NLog;
 using SakuraAi.Client.Exceptions;
 
 namespace CharacterEngine.App.Handlers;
@@ -78,7 +77,7 @@ public class InteractionsHandler
         var isBold = (e as UserFriendlyException)?.Bold ?? true;
         var exception = e.InnerException ?? e;
 
-        var message = exception is UserFriendlyException or SakuraException // controlled exceptions
+        var message = exception is UserFriendlyException or SakuraException or CharacterAiException // controlled exceptions
                 ? exception.Message : $"{MessagesTemplates.X_SIGN_DISCORD} Something went wrong!";
 
         if (!message.StartsWith(MessagesTemplates.X_SIGN_DISCORD) && !message.StartsWith(MessagesTemplates.WARN_SIGN_DISCORD))
@@ -93,7 +92,7 @@ public class InteractionsHandler
 
         var embed = new EmbedBuilder().WithColor(Color.Red)
                                       .WithDescription(message)
-                                      .WithFooter($"*Error trace ID: {traceId}*")
+                                      .WithFooter($"ERROR TRACE ID: {traceId}")
                                       .Build();
         try
         {

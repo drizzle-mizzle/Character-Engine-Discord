@@ -112,20 +112,28 @@ public class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            foreach (var guild in _discordClient.Guilds)
+            try
             {
-                await guild.EnsureExistInDbAsync();
+                foreach (var guild in _discordClient.Guilds)
+                {
+                    await guild.EnsureExistInDbAsync();
+                }
+
+                await RegisterCommandsAsync();
+
+                if (BotConfig.PLAYING_STATUS.Length != 0)
+                {
+                    await _discordClient.SetGameAsync(BotConfig.PLAYING_STATUS);
+                    _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
+                }
+
+                await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
+            }
+            catch (Exception e)
+            {
+                await _discordClient.ReportErrorAsync("UnhandledException", e.ToString() ?? "", "-");
             }
 
-            await RegisterCommandsAsync();
-
-            if (BotConfig.PLAYING_STATUS.Length != 0)
-            {
-                await _discordClient.SetGameAsync(BotConfig.PLAYING_STATUS);
-                _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
-            }
-
-            await _discordClient.ReportLogAsync($"{_discordClient.CurrentUser.Username} - Online", null);
             BackgroundWorker.Run();
         });
 

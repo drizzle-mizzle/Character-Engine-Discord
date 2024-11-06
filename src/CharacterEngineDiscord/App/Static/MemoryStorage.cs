@@ -21,4 +21,6 @@ public static class MemoryStorage
 public record IntegrationModulesCollection
 {
     public SakuraAiModule SakuraAiModule { get; } = new();
+
+    public CaiModule CaiModule { get; } = new();
 }

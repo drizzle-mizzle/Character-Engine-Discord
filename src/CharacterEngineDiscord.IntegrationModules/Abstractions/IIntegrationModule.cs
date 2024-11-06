@@ -6,7 +6,7 @@ namespace CharacterEngineDiscord.IntegrationModules.Abstractions;
 
 public interface IIntegrationModule
 {
-    public Task<List<CommonCharacter>> SearchAsync(string query);
+    public Task<List<CommonCharacter>> SearchAsync(string query, IGuildIntegration guildIntegration);
 
     public Task<(string chatId, string? characterMessage)> CreateNewChatAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, string firstUserMessage);
 

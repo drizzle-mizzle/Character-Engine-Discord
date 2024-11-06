@@ -128,7 +128,7 @@ public class BackgroundWorker
         {
             var job = action.StoredActionType switch
             {
-                StoredActionType.SakuraAiEnsureLogin => EnsureSakuraAiLoginAsync(action),
+                StoredActionType.SakuraAiEnsureLogin => IntegrationsHelper.EnsureSakuraAiLoginAsync(action),
             };
 
             try
@@ -137,7 +137,7 @@ public class BackgroundWorker
             }
             catch (SakuraException se)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraAiException", se, traceId);
+                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraException", se, traceId);
             }
             catch (Exception e)
             {
@@ -186,72 +186,6 @@ public class BackgroundWorker
         }
 
         return actionsToRun;
-    }
-
-
-    ////////////
-    /// Jobs ///
-    ////////////
-
-    private async Task EnsureSakuraAiLoginAsync(StoredAction action)
-    {
-        await using var db = DatabaseHelper.GetDbContext();
-
-        var signInAttempt = action.ExtractSakuraAiLoginData();
-        var result = await MemoryStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
-        if (result is null)
-        {
-            action.Attempt++;
-            db.StoredActions.Update(action);
-            await db.SaveChangesAsync();
-
-            return;
-        }
-
-        var sourceInfo = action.ExtractDiscordSourceInfo();
-        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(sourceInfo.ChannelId);
-
-        var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
-        if (integration is not null)
-        {
-            integration.SakuraEmail = signInAttempt.Email;
-            integration.SakuraSessionId = result.SessionId;
-            integration.SakuraRefreshToken = result.RefreshToken;
-            integration.CreatedAt = DateTime.Now;
-        }
-        else
-        {
-            var newSakuraIntegration = new SakuraAiGuildIntegration
-            {
-                DiscordGuildId = channel.GuildId,
-                SakuraEmail = signInAttempt.Email,
-                SakuraSessionId = result.SessionId,
-                SakuraRefreshToken = result.RefreshToken,
-                GlobalMessagesFormat = "",
-                CreatedAt = DateTime.Now
-            };
-
-            await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
-        }
-
-        action.Attempt++;
-        action.Status = StoredActionStatus.Finished;
-        db.StoredActions.Update(action);
-
-        await db.SaveChangesAsync();
-
-        var msg = $"Username: **{result.Username}**\n" +
-                  "From now on, this account will be used for all SakuraAI interactions on this server.\n" +
-                  "For the next step, use *`/character spawn `* command to spawn new SakuraAI character in this channel.";
-
-        var embed = new EmbedBuilder()
-                   .WithTitle($"{IntegrationType.SakuraAI.GetIcon()} SakuraAI user authorized")
-                   .WithDescription(msg)
-                   .WithColor(IntegrationType.SakuraAI.GetColor())
-                   .WithThumbnailUrl(result.UserImageUrl);
-
-        var user = await channel.GetUserAsync(sourceInfo.UserId);
-        await channel.SendMessageAsync(user.Mention, embed: embed.Build());
     }
 
 }

@@ -14,7 +14,7 @@ ADMIN_GUILD_ID:
 LOGS_CHANNEL_ID:
 ERRORS_CHANNEL_ID:
 
-DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}]\n{{user}} (id:{{mention_hint}}) says:\n{{msg}}
+DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [id:{{mention_hint}}] {{user}}:\n{{msg}}
 
 # Max messages per minute for a single user
 USER_RATE_LIMIT: 20
@@ -30,4 +30,5 @@ DEFAULT_AVATAR_FILE: good_duckling.png
 DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki
 
 
-SAKURA_AI_EMOJI: <:sakura64:1294009130595520643>
+SAKURA_AI_EMOJI: <:sakura_ico:1294009130595520643>
+CHARACTER_AI_EMOJI: <:cai_ico:1303751264060047360>

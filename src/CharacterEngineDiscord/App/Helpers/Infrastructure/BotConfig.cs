@@ -44,6 +44,9 @@ public static class BotConfig
     public static string SAKURA_AI_EMOJI
         => GetParamByName<string>("SAKURA_AI_EMOJI");
 
+    public static string CHARACTER_AI_EMOJI
+        => GetParamByName<string>("CHARACTER_AI_EMOJI");
+
 
     // Private
 

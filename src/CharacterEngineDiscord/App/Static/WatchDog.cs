@@ -3,7 +3,6 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.Static;

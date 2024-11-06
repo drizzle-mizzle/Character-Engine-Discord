@@ -1,12 +1,8 @@
 ﻿using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db;
 using Discord;
-using Discord.Webhook;
 using Discord.WebSocket;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
@@ -73,21 +69,23 @@ public class ButtonsHandler
     }
 
 
-    private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
+    private static async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = MemoryStorage.SearchQueries.GetByChannelId((ulong)component.ChannelId!);
+        var sq = MemoryStorage.SearchQueries.GetByChannelId(component.ChannelId!.Value);
+
         if (sq is null)
         {
             await component.ModifyOriginalResponseAsync(msg =>
             {
-                var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request.".ToInlineEmbed(color: Color.Purple);
+                var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
                 msg.Embeds = new[] { msg.Embeds.Value.First(), newEmbed };
             });
             return;
         }
 
-        var canUpdate = sq.UserId == component.User.Id || sq.UserId == _discordClient.Guilds.First(g => g.Id == component.GuildId).OwnerId;
-        if (!canUpdate)
+        var user = (IGuildUser)component.User;
+
+        if (user.Id != sq.UserId && user.Guild.OwnerId != sq.UserId)
         {
             return;
         }
@@ -117,32 +115,27 @@ public class ButtonsHandler
             }
             case "select":
             {
-                await component.ModifyOriginalResponseAsync(msg => { msg.Embed = MessagesTemplates.WAIT_MESSAGE; });
-
-                // Create character
-                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
-                MemoryStorage.CachedCharacters.Add(newSpawnedCharacter);
-                MemoryStorage.SearchQueries.Remove(sq.ChannelId);
-
-                // Cache webhook
-                var webhookClient = new DiscordWebhookClient(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
-                MemoryStorage.CachedWebhookClients.Add(newSpawnedCharacter.WebhookId, webhookClient);
-
-                var characterDescription = MH.BuildCharacterDescriptionCard(newSpawnedCharacter);
-                await component.ModifyOriginalResponseAsync(msg =>
+                var modifyOriginalResponseAsync1 = component.ModifyOriginalResponseAsync(msg =>
                 {
-                    msg.Embed = characterDescription;
+                    msg.Embed = MessagesTemplates.WAIT_MESSAGE;
                     msg.Components = null;
                 });
 
-                var greetedUser = ((IGuildUser)component.User).DisplayName;
-                await newSpawnedCharacter.SendGreetingAsync(greetedUser);
+                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
 
+                var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
+                var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
+
+                await newSpawnedCharacter.SendGreetingAsync(user.DisplayName);
+                await modifyOriginalResponseAsync1;
+                await modifyOriginalResponseAsync2;
+
+                MemoryStorage.SearchQueries.Remove(sq.ChannelId);
                 return;
             }
         }
 
-        await component.ModifyOriginalResponseAsync(msg => { msg.Embed = InteractionsHelper.BuildSearchResultList(sq); });
+        await component.ModifyOriginalResponseAsync(msg => { msg.Embed = MH.BuildSearchResultList(sq); });
     }
 
 }

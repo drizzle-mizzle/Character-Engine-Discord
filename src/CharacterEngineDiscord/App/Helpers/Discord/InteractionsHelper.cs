@@ -1,21 +1,24 @@
 ﻿using System.Text.RegularExpressions;
+using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
-using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.IntegrationModules;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
+using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using NLog;
+using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
 using SakuraAi.Client.Models.Common;
 using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
+using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.Helpers.Discord;
 
@@ -51,49 +54,21 @@ public static class InteractionsHelper
 
     #region Characters
 
-    public static Embed BuildSearchResultList(SearchQuery searchQuery)
-    {
-        var type = searchQuery.IntegrationType;
-        var embed = new EmbedBuilder().WithColor(type.GetColor());
-
-        var title = $"{type.GetIcon()} {type:G}";
-        var listTitle = $"({searchQuery.Characters.Count}) Characters found by query **\"{searchQuery.OriginalQuery}\"**:";
-        embed.AddField(title, listTitle);
-
-        var rows = Math.Min(searchQuery.Characters.Count, 10);
-        var pageMultiplier = (searchQuery.CurrentPage - 1) * 10;
-
-        for (var row = 1; row <= rows; row++)
-        {
-            var characterNumber = row + pageMultiplier;
-            var character = searchQuery.Characters.ElementAt(characterNumber - 1);
-
-            var rowTitle = $"{characterNumber}. {character.CharacterName}";
-            var rowContent = $"{type.GetStatLabel()}: {character.CharacterStat} **|** Author: [__{character.CharacterAuthor}__]({character.GetAuthorLink()}) **|** [[__character link__]({character.GetCharacterLink()})]";
-            if (searchQuery.CurrentRow == row)
-            {
-                rowTitle += " - ✅";
-            }
-
-            embed.AddField(rowTitle, rowContent);
-        }
-
-        embed.WithFooter($"Page {searchQuery.CurrentPage}/{searchQuery.Pages}");
-
-        return embed.Build();
-    }
-
-
     public static async Task<ISpawnedCharacter> SpawnCharacterAsync(ulong channelId, CommonCharacter commonCharacter)
     {
-        var discordClient = DI.GetDiscordSocketClient;
-        if (await discordClient.GetChannelAsync(channelId) is not ITextChannel channel)
+        var channel = await DI.GetDiscordSocketClient.GetChannelAsync(channelId) as ITextChannel;
+
+        if (channel is null)
         {
             throw new Exception($"Failed to get channel {channelId}");
         }
 
         var webhook = await CreateDiscordWebhookAsync(channel, commonCharacter);
+        var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.Token);
+        MemoryStorage.CachedWebhookClients.Add(webhook.Id, webhookClient);
+
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
+        MemoryStorage.CachedCharacters.Add(newSpawnedCharacter);
 
         return newSpawnedCharacter;
     }
@@ -111,11 +86,52 @@ public static class InteractionsHelper
 
         var avatar = await CommonHelper.DownloadFileAsync(character.CharacterImageLink);
 
-        // TODO: thread safety
-        // avatar ??= File.OpenRead(BotConfig.DEFAULT_AVATAR_FILE);
+        using var avatarInput = new MemoryStream();
+        using var avatarOutput = new MemoryStream();
 
-        var webhook = await channel.CreateWebhookAsync(characterName, avatar);
-        return webhook;
+
+        if (avatar is null)
+        {
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+            await avatarOutput.WriteAsync(defaultAvatar);
+        }
+        else
+        {
+            await avatar.CopyToAsync(avatarInput);
+            avatarInput.Seek(0, SeekOrigin.Begin);
+
+            if (avatarInput.Length < 10240000)
+            {
+                await avatarInput.CopyToAsync(avatarOutput);
+            }
+            else
+            {
+                var settings = new ProcessImageSettings
+                {
+                    Interpolation = InterpolationSettings.Cubic,
+                    ResizeMode = CropScaleMode.Crop,
+                    Anchor = CropAnchor.Top,
+                    HybridMode = HybridScaleMode.Turbo,
+                    OrientationMode = OrientationMode.Normalize,
+                    ColorProfileMode = ColorProfileMode.ConvertToSrgb,
+                    EncoderOptions = new JpegEncoderOptions(0, ChromaSubsampleMode.Default),
+                    Width = 600,
+                };
+
+                MagicImageProcessor.ProcessImage(avatarInput, avatarOutput, settings);
+            }
+        }
+
+        if (avatarOutput.Length >= 10240000)
+        {
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+
+            avatarOutput.SetLength(0);
+            await avatarOutput.WriteAsync(defaultAvatar);
+        }
+
+        avatarOutput.Seek(0, SeekOrigin.Begin);
+        return await channel.CreateWebhookAsync(characterName, avatarOutput);;
     }
 
 
@@ -129,14 +145,13 @@ public static class InteractionsHelper
     }
 
 
-    public static async Task SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
+    public static async Task<ulong> SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
     {
         var webhookClient = MemoryStorage.CachedWebhookClients.FindOrCreate(spawnedCharacter);
 
         if (characterMessage.Length <= 2000)
         {
-            await webhookClient.SendMessageAsync(characterMessage);
-            return;
+            return await webhookClient.SendMessageAsync(characterMessage);
         }
 
         var chunkSize = characterMessage.Length > 3990 ? 1990 : characterMessage.Length / 2;
@@ -155,6 +170,8 @@ public static class InteractionsHelper
 
         // await thread.ModifyAsync(t => { t.Archived = t.Locked = true; });
         await thread.ModifyAsync(t => { t.Archived = true; });
+
+        return messageId;
     }
 
     #endregion
@@ -162,9 +179,8 @@ public static class InteractionsHelper
 
     #region CreateIntegration
 
-    public static async Task CreateSakuraAiIntegrationAsync(SocketModal modal)
+    public static async Task SendSakuraAiMailAsync(SocketModal modal)
     {
-        // Sending mail
         var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
         var sakuraAiModule = (SakuraAiModule)IntegrationType.SakuraAI.GetIntegrationModule();
 
@@ -176,7 +192,7 @@ public static class InteractionsHelper
         catch (SakuraException e)
         {
             await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} SakuraAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
-            throw;
+            return;
         }
 
         // Respond to user
@@ -194,6 +210,206 @@ public static class InteractionsHelper
         await using var db = DatabaseHelper.GetDbContext();
         await db.StoredActions.AddAsync(newAction);
         await db.SaveChangesAsync();
+    }
+
+
+    public static async Task SendCharacterAiMailAsync(SocketModal modal)
+    {
+        var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
+        var caiModule = (CaiModule)IntegrationType.CharacterAI.GetIntegrationModule();
+
+        try
+        {
+            await caiModule.SendLoginEmailAsync(email);
+        }
+        catch (CharacterAiException e)
+        {
+            await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
+            return;
+        }
+
+        var msg = $"{IntegrationType.CharacterAI.GetIcon()} **CharacterAI**\n\n" +
+                  $"Sign in mail was sent to **{email}**, please check your mailbox. You should've received a sign in link for CharacterAI in it - **DON'T OPEN IT**, copy it and then paste in `/integration confirm` command.\n" +
+                  $"**Example:**\n*`/integration confirm type:CharacterAI data:https://character.ai/login/xxx`*";
+
+        await modal.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+    }
+
+    #endregion
+
+
+    #region SharedSlashCommands
+
+    private const string INHERITED_FROM_DEFAULT = " (default)";
+    private const string INHERITED_FROM_GUILD = " (inherited from server-wide setting)";
+    private const string INHERITED_FROM_CHANNEL = " (inherited from channel-wide setting)";
+
+    public static async Task<string> SharedMessagesFormatAsync(MessagesFormatTarget target, MessagesFormatAction action, object idOrCharacterObject, string? newFormat = null)
+    {
+        await using var db = DatabaseHelper.GetDbContext();
+        switch (action)
+        {
+            case MessagesFormatAction.show:
+            {
+                string? format = default;
+                string? inheritNote = default;
+                string msgBegin = default!;
+
+                switch (target)
+                {
+                    case MessagesFormatTarget.guild:
+                    {
+                        msgBegin = "Current server";
+
+                        format = await GetGuildFormatAsync((ulong)idOrCharacterObject);
+
+                        break;
+                    }
+                    case MessagesFormatTarget.channel:
+                    {
+                        msgBegin = "Current channel";
+
+                        format = await GetChannelFormatAsync((ulong)idOrCharacterObject);
+                        if (format is not null)
+                        {
+                            break;
+                        }
+
+                        var guildId = await db.DiscordChannels.Where(c => c.Id == (ulong)idOrCharacterObject).Select(c => c.DiscordGuildId).FirstAsync();
+
+                        format = await GetGuildFormatAsync(guildId);
+                        if (format is not null)
+                        {
+                            inheritNote = INHERITED_FROM_GUILD;
+                        }
+
+                        break;
+                    }
+                    case MessagesFormatTarget.character:
+                    {
+                        var character = (ISpawnedCharacter)idOrCharacterObject;
+                        msgBegin = $"**{character!.CharacterName}**'s";
+
+                        format = character.MessagesFormat;
+                        if (format is not null)
+                        {
+                            break;
+                        }
+
+                        format = await GetChannelFormatAsync(character.DiscordChannelId);
+                        if (format is not null)
+                        {
+                            inheritNote = INHERITED_FROM_CHANNEL;
+                            break;
+                        }
+
+                        var guildId = await db.DiscordChannels.Where(c => c.Id == character.DiscordChannelId).Select(c => c.DiscordGuildId).FirstAsync();
+                        format = await GetGuildFormatAsync(guildId);
+                        if (format is not null)
+                        {
+                            inheritNote = INHERITED_FROM_GUILD;
+                        }
+
+                        break;
+                    }
+                }
+
+                if (format is null)
+                {
+                    format = GetDefaultFormat();
+                    inheritNote = INHERITED_FROM_DEFAULT;
+                }
+
+                var preview = MH.BuildMessageFormatPreview(format);
+
+                return $"{msgBegin} messages format{inheritNote}:\n" +
+                       $"```{format}```\n" +
+                       $"**Preview:**\n{preview}";
+
+                Task<string?> GetChannelFormatAsync(ulong channelId)
+                    => db.DiscordChannels.Where(c => c.Id == channelId).Select(c => c.MessagesFormat).FirstAsync();
+
+                Task<string?> GetGuildFormatAsync(ulong guildId)
+                    => db.DiscordGuilds.Where(g => g.Id == guildId).Select(g => g.MessagesFormat).FirstAsync();
+            }
+            case MessagesFormatAction.update:
+            {
+                if (newFormat is null)
+                {
+                    throw new UserFriendlyException("Specify a new messages format");
+                }
+
+                if (!newFormat.Contains(MH.MF_MSG))
+                {
+                    throw new UserFriendlyException($"Add {MH.MF_MSG} placeholder");
+                }
+
+                if (newFormat.Contains(MH.MF_REF_MSG))
+                {
+                    var iBegin = newFormat.IndexOf(MH.MF_REF_BEGIN, StringComparison.Ordinal);
+                    var iEnd = newFormat.IndexOf(MH.MF_REF_END, StringComparison.Ordinal);
+                    var iMsg = newFormat.IndexOf(MH.MF_REF_MSG, StringComparison.Ordinal);
+
+                    if (iBegin == -1 || iEnd == -1 || iBegin > iMsg || iEnd < iMsg)
+                    {
+                        throw new UserFriendlyException($"{MH.MF_REF_MSG} placeholder can work only with {MH.MF_REF_BEGIN} and {MH.MF_REF_END} placeholders around it: `{MH.MF_REF_BEGIN} {MH.MF_REF_MSG} {MH.MF_REF_END}`");
+                    }
+                }
+
+                var msgBegin = await UpdateFormatAsync(newFormat);
+
+                return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was changed successfully.\n" +
+                       $"**Preview:**\n" +
+                       $"{MH.BuildMessageFormatPreview(newFormat)}";
+            }
+            case MessagesFormatAction.resetDefault:
+            {
+                var format = GetDefaultFormat();
+                var msgBegin = await UpdateFormatAsync(format);
+
+                return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was reset to default value successfully.\n" +
+                       $"**Preview:**\n" +
+                       $"{MH.BuildMessageFormatPreview(format)}";
+            }
+        }
+
+        return default!;
+
+        async Task<string> UpdateFormatAsync(string format)
+        {
+            switch (target)
+            {
+                case MessagesFormatTarget.guild:
+                {
+                    var guild = await db.DiscordGuilds.FirstAsync(g => g.Id == (ulong)idOrCharacterObject);
+                    guild.MessagesFormat = format;
+                    await db.SaveChangesAsync();
+
+                    return "Default server-wide messages format";
+                }
+                case MessagesFormatTarget.channel:
+                {
+                    var channel = await db.DiscordChannels.FirstAsync(c => c.Id == (ulong)idOrCharacterObject);
+                    channel.MessagesFormat = format;
+                    await db.SaveChangesAsync();
+
+                    return "Default channel-wide messages format";
+                }
+                case MessagesFormatTarget.character:
+                {
+                    var character = (await DatabaseHelper.GetSpawnedCharacterByIdAsync((Guid)idOrCharacterObject))!;
+                    character.MessagesFormat = format;
+                    await DatabaseHelper.UpdateSpawnedCharacterAsync(character);
+
+                    return $"Messages format for character {character.CharacterName}";
+                }
+            }
+
+            return default!;
+        }
+
+        string GetDefaultFormat()
+            => BotConfig.DEFAULT_MESSAGES_FORMAT.Replace("\\n", "\\n\n");
     }
 
     #endregion
@@ -271,7 +487,7 @@ public static class InteractionsHelper
     }
 
 
-    private const string DISABLE_WARN_PROMPT = "If these restrictions were imposed intentionally, and you understand how this may affect the bot's operation, then you can disable this warning with `/channel no-warn` command.";
+    private const string DISABLE_WARN_PROMPT = "If these restrictions were imposed intentionally, then you can disable this warning with `/channel no-warn` or `/server no-warn` command.";
 
     private static readonly ChannelPermission[] REQUIRED_PERMS = [
         ChannelPermission.ViewChannel, ChannelPermission.SendMessages, ChannelPermission.AddReactions, ChannelPermission.EmbedLinks, ChannelPermission.AttachFiles, ChannelPermission.ManageWebhooks,
@@ -282,7 +498,7 @@ public static class InteractionsHelper
     {
         if (channel is not ITextChannel textChannel)
         {
-            throw new UserFriendlyException($"{MessagesTemplates.WARN_SIGN_DISCORD} Bot can operatein only in text channels");
+            throw new UserFriendlyException("Bot can operatein only in text channels");
         }
 
         var guild = (SocketGuild)textChannel.Guild;
@@ -290,7 +506,7 @@ public static class InteractionsHelper
         var botGuildUser = guild.CurrentUser;
         if (botGuildUser is null)
         {
-            throw new UserFriendlyException($"{MessagesTemplates.WARN_SIGN_DISCORD} Bot has no permission to view this channel");
+            throw new UserFriendlyException("Bot has no permission to view this channel");
         }
 
         var botRoles = botGuildUser.Roles;
@@ -339,7 +555,7 @@ public static class InteractionsHelper
         if (prohibitiveOws.Count != 0)
         {
             var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} This channel has some prohibitive permission overwrites applied to the bot, which may affect its work:**\n" +
-                      $"```{string.Join("\n", prohibitiveOws.Select(ow => $"> {ow.perm:G} | Applied to {ow.target}"))}```\n{DISABLE_WARN_PROMPT}";
+                      $"```{string.Join("\n", prohibitiveOws.Select(ow => $"> {ow.perm:G} | Prohibited for {ow.target}"))}```\n{DISABLE_WARN_PROMPT}";
 
             throw new UserFriendlyException(msg, bold: false);
         }

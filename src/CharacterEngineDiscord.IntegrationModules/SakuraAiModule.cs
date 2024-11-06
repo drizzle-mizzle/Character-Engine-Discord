@@ -14,9 +14,9 @@ public class SakuraAiModule : IIntegrationModule
 {
     private readonly SakuraAiClient _sakuraAiClient = new();
 
-    public async Task<List<CommonCharacter>> SearchAsync(string query)
+    public async Task<List<CommonCharacter>> SearchAsync(string query, IGuildIntegration guildIntegration = null!)
     {
-        var characters = await _sakuraAiClient.SearchAsync(query);
+        var characters = await _sakuraAiClient.SearchAsync(query, allowNsfw: false); // TODO: ?
         return characters.Select(sc => sc.ToCommonCharacter()).ToList();
     }
 

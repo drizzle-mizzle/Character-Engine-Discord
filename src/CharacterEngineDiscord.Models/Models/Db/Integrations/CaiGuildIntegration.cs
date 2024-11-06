@@ -1,12 +1,12 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Db.Discord;
 
 namespace CharacterEngineDiscord.Models.Db.Integrations;
 
 
-public class SakuraAiGuildIntegration : ISakuraIntegration
+public class CaiGuildIntegration : ICaiIntegration
 {
     [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -17,11 +17,7 @@ public class SakuraAiGuildIntegration : ISakuraIntegration
     public string? GlobalMessagesFormat { get; set; } = null;
     public required DateTime CreatedAt { get; set; }
 
-
-    public required string SakuraEmail { get; set; }
-    public required string SakuraSessionId { get; set; }
-    public required string SakuraRefreshToken { get; set; }
-
+    public required string CaiAuthToken { get; set; }
 
 
     public virtual DiscordGuild DiscordGuild { get; set; } = null!;

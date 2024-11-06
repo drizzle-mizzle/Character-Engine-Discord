@@ -19,6 +19,7 @@ public class DiscordGuild
 
     public string? MessagesFormat { get; set; }
     public required uint MessagesSent { get; set; }
+    public required bool NoWarn { get; set; }
 
 
     public required bool Joined { get; set; }

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using CharacterEngine.App.Helpers;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 
 namespace CharacterEngine.App.Static.Entities;
@@ -26,7 +28,9 @@ public sealed class CachedCharacerInfoCollection
             CallPrefix = spawnedCharacter.CallPrefix,
             ChannelId = spawnedCharacter.DiscordChannelId,
             WebhookId = spawnedCharacter.WebhookId.ToString(),
-            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableBuffering)
+            IntegrationType = spawnedCharacter.GetIntegrationType(),
+            FreewillFactor = spawnedCharacter.FreewillFactor,
+            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableWideContext)
         };
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
@@ -67,6 +71,9 @@ public record CachedCharacterInfo
     public required ulong ChannelId { get; init; }
     public required string CallPrefix { get; init; }
     public required string WebhookId { get; init; }
+    public required IntegrationType IntegrationType { get; init; }
+
+    public required double FreewillFactor { get; set; }
 
     public required ActiveConversation Conversations { get; init; }
 }

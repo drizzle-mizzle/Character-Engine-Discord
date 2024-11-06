@@ -1,8 +1,14 @@
 ﻿using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Helpers.Mappings;
+using CharacterEngine.App.Static;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -89,22 +95,58 @@ public static class MessagesHelper
     #endregion
 
 
-    public static string SplitWordsBySep(this string source, char sep)
+    public static Embed BuildSearchResultList(SearchQuery searchQuery)
     {
-        var result = new List<char>();
-        var chars = source.Replace(" ", "").ToCharArray();
+        var type = searchQuery.IntegrationType;
+        var embed = new EmbedBuilder().WithColor(type.GetColor());
 
-        for (var i = 0; i < chars.Length; i++)
+        var title = $"{type.GetIcon()} {type:G}";
+        var listTitle = $"({searchQuery.Characters.Count}) Characters found by query **\"{searchQuery.OriginalQuery}\"**:";
+        embed.AddField(title, listTitle);
+
+        var pageMultiplier = (searchQuery.CurrentPage - 1) * 10;
+        var rows = Math.Min(searchQuery.Characters.Count - pageMultiplier, 10);
+
+        for (var row = 1; row <= rows; row++)
         {
-            if (i != 0 && char.IsUpper(chars[i]))
+            var characterNumber = row + pageMultiplier;
+            var character = searchQuery.Characters.ElementAt(characterNumber - 1);
+
+            var rowTitle = $"{characterNumber}. {character.CharacterName}";
+            var rowContent = $"{type.GetStatLabel()}: {character.CharacterStat} **|** [[__character link__]({character.GetCharacterLink()})] **|** Author: [[__{character.CharacterAuthor}__]({character.GetAuthorLink()})]";
+            if (searchQuery.CurrentRow == row)
             {
-                result.Add(sep);
+                rowTitle += " - ✅";
             }
 
-            result.Add(chars[i]);
+            embed.AddField(rowTitle, rowContent);
         }
 
-        return string.Concat(result);
+        embed.WithFooter($"Page {searchQuery.CurrentPage}/{searchQuery.Pages}");
+
+        return embed.Build();
+    }
+
+
+    public static Embed BuildCharactersList(ICollection<ISpawnedCharacter> characters, bool inGuild)
+    {
+        var embed = new EmbedBuilder().WithColor(Color.Gold);
+        embed.WithTitle(inGuild ? "Characters found on this server" : "Characters found in current channel:");
+
+        var listString = new StringBuilder(characters.Count);
+        for (var i = 0; i < characters.Count; i++)
+        {
+            var character = characters.ElementAt(i);
+            var line = $"{i + 1}. {character.CharacterName} (*{character.CallPrefix}*) {character.GetIntegrationType().GetIcon()} | ";
+            line += inGuild ? $"Channel: **{character.DiscordChannel!.ChannelName}** | MS: {character.MessagesSent}" : $"Messages sent: {character.MessagesSent}";
+
+            listString.AppendLine(line);
+        }
+
+        embed.WithDescription(listString.ToString());
+        embed.WithFooter($"Amount: {characters.Count}/15");
+
+        return embed.Build();
     }
 
 
@@ -117,9 +159,120 @@ public static class MessagesHelper
         return $"Time: ***`{DateTime.Now.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US"))}`***\n" +
                $"Referenced message: *`\"{refMessage.content}\"`* from user **`{refMessage.authorName}`**\n" +
                $"User message: *`\"{userMessage.content}\"`* from user **`{userMessage.authorName}`**\n" +
-               $"Result (what character will see):\n***`{formated}`***";
+               $"Result (what character will see):\n```{formated}```";
     }
 
+
+    #region Description cards
+
+    public static async Task<Embed> BuildCharacterDescriptionCardAsync(ISpawnedCharacter spawnedCharacter, bool justSpawned)
+    {
+        var type = spawnedCharacter.GetIntegrationType();
+        var embed = new EmbedBuilder();
+
+        var desc = spawnedCharacter switch
+        {
+            ISakuraCharacter sc => sc.GetSakuraDesc(),
+            ICaiCharacter cc => await cc.GetCaiDescAsync(),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
+        };
+
+        if (desc.Length > DESC_LIMIT)
+        {
+            desc = desc[..DESC_LIMIT] + " [...]";
+        }
+
+        desc += "\n\n";
+
+        var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
+                      $"*Original link: [__{type.GetLinkPrefix()} {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetCharacterLink()})*\n" +
+                      "*Can generate images: `No`*\n";
+
+        if (!justSpawned)
+        {
+            details += // $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" + // TODO: accumulations
+                    $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
+                    $"*Wide context: `{spawnedCharacter.EnableWideContext.ToToggler()}`*\n" +
+                    $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
+                    $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
+                    $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";
+        }
+
+        var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*";
+
+        if (justSpawned)
+        {
+            configuration += "\nUse it or character's call prefix to modify this integration with *`/character`* commands.\n**Example:**\n*`/character edit any-identifier:@ai data-to-edit:call-prefix new-value:.ai`*";
+        }
+
+        embed.WithColor(type.GetColor());
+        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
+        embed.WithDescription($"{desc}");
+        embed.AddField("Details", details + '\n');
+        embed.AddField("Configuration", configuration);
+
+        if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
+        {
+            embed.WithImageUrl(spawnedCharacter.CharacterImageLink);
+        }
+
+        embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
+
+        return embed.Build();
+    }
+
+
+    private static string GetSakuraDesc(this ISakuraCharacter sakuraCharacter)
+    {
+        var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
+        if (desc.Length < 2)
+        {
+            desc = "*No description*";
+        }
+
+        var scenario = sakuraCharacter.SakuraScenario.Trim(' ', '\n');
+        if (scenario.Length < 2)
+        {
+            scenario = "*No scenario*";
+        }
+
+        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
+                     $"**Scenario**\n{scenario}";
+
+        return result;
+    }
+
+    private static async Task<string> GetCaiDescAsync(this ICaiCharacter caiCharacter)
+    {
+        var asSpawnedCharacter = (ISpawnedCharacter)caiCharacter;
+
+        var guildIntegration = (await DatabaseHelper.GetGuildIntegrationAsync(asSpawnedCharacter))!;
+        var fullCharacter = await MemoryStorage.IntegrationModules.CaiModule.GetFullCaiChararcterInfoAsync(caiCharacter.CharacterId, guildIntegration);
+        asSpawnedCharacter.FillWith(fullCharacter);
+
+        var title = caiCharacter.CaiTitle.Trim(' ', '\n');
+        if (title.Length < 2)
+        {
+            title = "*No title*";
+        }
+
+        var desc = caiCharacter.CaiDescription.Trim(' ', '\n');
+        if (desc.Length < 2)
+        {
+            desc = "*No description*";
+        }
+
+        var result = $"**{caiCharacter.CharacterName}**\n{title}\n\n" +
+                     $"**Description**\n{desc}";
+
+        return result;
+    }
+
+    #endregion
+
+
+    #region Formatters
 
     public static string BringMessageToFormat(string messageFormat, ITextChannel? channel,
                                               (string authorName, string authorMention, string content) message,
@@ -211,72 +364,28 @@ public static class MessagesHelper
         return embed.Build();
     }
 
-
-    #region Description cards
-
-    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter)
-    {
-        var type = spawnedCharacter.GetIntegrationType();
-        var embed = new EmbedBuilder();
-
-        var desc = spawnedCharacter switch
-        {
-            ISakuraCharacter s => s.GetSakuraDesc(),
-            _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
-        };
-
-        if (desc.Length > DESC_LIMIT)
-        {
-            desc = desc[..DESC_LIMIT] + " [...]";
-        }
-
-        desc += "\n\n";
-
-        var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
-                      $"*Original link: [__{type.GetLinkPrefix()} {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetCharacterLink()})*\n" +
-                      $"*{type.GetStatLabel()}: `{spawnedCharacter.GetStat()}`*\n" +
-                      "*Can generate images: `No`*\n\n";
-
-        var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\n" +
-                            $"Use it or character's call prefix to modify this integration with *`/character conf`* commands.";
-
-        embed.WithColor(type.GetColor());
-        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
-        embed.WithDescription($"{desc}");
-        embed.AddField("Details", details);
-        embed.AddField("Configuration", configuration);
-
-        if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
-        {
-            embed.WithImageUrl(spawnedCharacter.CharacterImageLink);
-        }
-
-        embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
-
-        return embed.Build();
-    }
-
-
-    private static string GetSakuraDesc(this ISakuraCharacter sakuraCharacter)
-    {
-        var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
-        if (desc.Length < 2)
-        {
-            desc = "*No description*";
-        }
-
-        var scenario = sakuraCharacter.SakuraScenario.Trim(' ', '\n');
-        if (scenario.Length < 2)
-        {
-            scenario = "*No scenario*";
-        }
-
-        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
-                     $"**Scenario**\n{scenario}";
-
-        return result;
-    }
-
     #endregion
 
+
+    public static string SplitWordsBySep(this string source, char sep)
+    {
+        var result = new List<char>();
+        var chars = source.Replace(" ", "").ToCharArray();
+
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (i != 0 && char.IsUpper(chars[i]))
+            {
+                result.Add(sep);
+            }
+
+            result.Add(chars[i]);
+        }
+
+        return string.Concat(result);
+    }
+
+
+    public static string ToToggler(this bool bulka)
+        => bulka ? "enabled" : "disabled";
 }

@@ -1,16 +1,13 @@
-﻿using System.ComponentModel;
-using CharacterEngine.App.CustomAttributes;
+﻿using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
 using Discord.Interactions;
-using Microsoft.EntityFrameworkCore;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -37,8 +34,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: MT.WAIT_MESSAGE);
 
+        var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
+        if (guildIntegration is null)
+        {
+            throw new UserFriendlyException($"You have to setup the {integrationType:G} intergration for this server first!");
+        }
+
         var module = integrationType.GetIntegrationModule();
-        var characters = await module.SearchAsync(query);
+        var characters = await module.SearchAsync(query, guildIntegration);
 
         if (characters.Count == 0)
         {
@@ -52,14 +55,26 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         await ModifyOriginalResponseAsync(msg =>
         {
-            msg.Embed = InteractionsHelper.BuildSearchResultList(searchQuery);
+            msg.Embed = MH.BuildSearchResultList(searchQuery);
             msg.Components = ButtonsHelper.BuildSearchButtons(searchQuery.Pages > 1);
         });
     }
 
 
+    [SlashCommand("info", "Show character info card")]
+    public async Task Info([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
+    {
+        await DeferAsync();
+
+        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var infoEmbed = await MH.BuildCharacterDescriptionCardAsync(spawnedCharacter, justSpawned: false);
+
+        await FollowupAsync(embed: infoEmbed);
+    }
+
+
     [SlashCommand("reset", "Start new chat")]
-    public async Task ResetCharacter([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier)
+    public async Task ResetCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
         await DeferAsync();
 
@@ -80,7 +95,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("remove", "Remove character")]
-    public async Task RemoveCharacter([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier)
+    public async Task RemoveCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
         await DeferAsync();
 
@@ -100,41 +115,151 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
         MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+
+        Task.WaitAll(tasks.ToArray());
     }
 
 
+    #region configure
 
-    public enum ChangeAction
+    [SlashCommand("messages-format", "Messages format")]
+    public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null)
     {
-        CallPrefix, CharacterName,
+        await DeferAsync();
+        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, spawnedCharacter, newFormat);
 
-        [Description("Image URL")]
-        Avatar
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
     }
 
 
-    [SlashCommand("update", "Update character's info, call prefix, etc")]
-    public async Task Update([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier, ChangeAction propertyToUpdate, string newValue)
+    [SlashCommand("freewill-factor", "Chance (0.0-100.0) that character will randomly respond to some user's message; 0 - disable feature")]
+    public async Task FreewillFactor([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, [MinValue(0)] [MaxValue(100)] double factor)
+    {
+        await DeferAsync();
+        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+
+        var message = $"{MT.OK_SIGN_DISCORD} Freewill factor was successfully changed from **{spawnedCharacter.FreewillFactor}** to **{factor}**";
+
+        spawnedCharacter.FreewillFactor = factor;
+        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+        MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
+        await updateSpawnedCharacterAsync;
+    }
+
+
+    #region Toggle
+
+    private const string TOGGLABLE_SETTINGS_DESC = "ResponseSwipes - Back and forth arrow buttons that allows to choose characters messages\n" +
+                                                   "WideContext - EXPERIMENTAL!\n" +
+                                                   "Quotes - Character quotes the message it responds to\n" +
+                                                   "StopButton - You'll need it for character-vs-characters conversations";
+    public enum TogglableSettings
+    {
+        [ChoiceDisplay("response-swipes")]
+        ResponseSwipes,
+
+        [ChoiceDisplay("wide-context")]
+        WideContext,
+
+        [ChoiceDisplay("quotes")]
+        Quotes,
+
+        [ChoiceDisplay("stop-button")]
+        StopButton,
+    }
+
+
+    [SlashCommand("toggle", "Enable/disable feature")]
+    public async Task Toggle([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, TogglableSettings feature)
     {
         await DeferAsync();
 
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var characterName = spawnedCharacter.CharacterName;
-        var propertyName = propertyToUpdate.ToString("G").SplitWordsBySep(' ');
+        var featureName = feature.ToString("G").SplitWordsBySep(' ');
 
-        switch (propertyToUpdate)
+        bool newValue = default;
+        switch (feature)
         {
-            case ChangeAction.CallPrefix:
+            case TogglableSettings.ResponseSwipes:
+            {
+                newValue = spawnedCharacter.EnableSwipes ^= true;
+                break;
+            }
+            case TogglableSettings.WideContext:
+            {
+                newValue = spawnedCharacter.EnableWideContext ^= true;
+                break;
+            }
+            case TogglableSettings.Quotes:
+            {
+                newValue = spawnedCharacter.EnableQuotes ^= true;
+                break;
+            }
+            case TogglableSettings.StopButton:
+            {
+                newValue = spawnedCharacter.EnableStopButton ^= true;
+                break;
+            }
+        }
+
+        var message = $"{MT.OK_SIGN_DISCORD} **{featureName}** for character **{characterName}** was successfully changed to **{newValue}**";
+        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
+        await updateSpawnedCharacterAsync;
+    }
+
+
+    #endregion
+
+
+    #endregion
+
+
+
+    #region Edits
+
+    public enum EditableProp
+    {
+        [ChoiceDisplay("name")]
+        Name,
+
+        [ChoiceDisplay("avatar")]
+        Avatar,
+
+        [ChoiceDisplay("call-prefix")]
+        CallPrefix,
+    }
+
+
+    [SlashCommand("edit", "Update character's info, call prefix, etc")]
+    public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp dataToEdit, string newValue)
+    {
+        await DeferAsync();
+
+        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var characterName = spawnedCharacter.CharacterName;
+        var propertyName = dataToEdit.ToString("G").SplitWordsBySep(' ');
+
+        switch (dataToEdit)
+        {
+            case EditableProp.CallPrefix:
             {
                 UpdateCallPrefix(spawnedCharacter, newValue);
                 break;
             }
-            case ChangeAction.CharacterName:
+            case EditableProp.Name:
             {
                 await UpdateNameAsync(spawnedCharacter, newValue);
                 break;
             }
-            case ChangeAction.Avatar:
+            case EditableProp.Avatar:
             {
                 await UpdateAvatarAsync(spawnedCharacter, newValue);
                 break;
@@ -148,91 +273,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await updateSpawnedCharacterAsync;
     }
 
-
-    public enum MessagesFormatAction { Show, Update, ResetDefault }
-
-    [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat([Description(ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null)
-    {
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-
-        var message = string.Empty;
-        switch (action)
-        {
-            case MessagesFormatAction.Show:
-            {
-                var inherit = string.Empty;
-                var format = spawnedCharacter.MessagesFormat;
-                if (format is null)
-                {
-                    var channel = await _db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == Context.Channel.Id);
-                    if (channel.MessagesFormat is not null)
-                    {
-                        format = channel.MessagesFormat;
-                        inherit = " (inherited from channel-wide messages format setting)";
-                    }
-                    else
-                    {
-                        format = channel.DiscordGuild?.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
-                        inherit = " (inherited from guild-wide messages format setting)";
-                    }
-                }
-
-                var preview = MH.BuildMessageFormatPreview(format);
-                message = $"Current messages format for character **{spawnedCharacter.CharacterName}**{inherit}:\n" +
-                          $"```{format.Replace("\\n", "\\n\n")}```\n" +
-                          $"**Preview:**\n{preview}";
-
-                break;
-            }
-            case MessagesFormatAction.Update:
-            {
-                if (newFormat is null)
-                {
-                    throw new UserFriendlyException("Specify a new messages format");
-                }
-
-                if (!newFormat.Contains(MH.MF_MSG))
-                {
-                    throw new UserFriendlyException($"Add {MH.MF_MSG} placeholder");
-                }
-
-                if (newFormat.Contains(MH.MF_REF_MSG))
-                {
-                    var iBegin = newFormat.IndexOf(MH.MF_REF_BEGIN, StringComparison.Ordinal);
-                    var iEnd = newFormat.IndexOf(MH.MF_REF_END, StringComparison.Ordinal);
-                    var iMsg = newFormat.IndexOf(MH.MF_REF_MSG, StringComparison.Ordinal);
-
-                    if (iBegin == -1 || iEnd == -1 || iBegin > iMsg || iEnd < iMsg)
-                    {
-                        throw new UserFriendlyException($"{MH.MF_REF_MSG} placeholder can work only with {MH.MF_REF_BEGIN} and {MH.MF_REF_END} placeholders around it: `{MH.MF_REF_BEGIN} {MH.MF_REF_MSG} {MH.MF_REF_END}`");
-                    }
-                }
-
-                spawnedCharacter.MessagesFormat = newFormat;
-                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-
-                var preview = MH.BuildMessageFormatPreview(newFormat);
-                message = $"{MT.OK_SIGN_DISCORD} Messages format was changed successfully.\n" +
-                          $"**Preview:**\n{preview}";
-
-                break;
-            }
-            case MessagesFormatAction.ResetDefault:
-            {
-                spawnedCharacter.MessagesFormat = BotConfig.DEFAULT_MESSAGES_FORMAT;
-                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-
-                var preview = MH.BuildMessageFormatPreview(BotConfig.DEFAULT_MESSAGES_FORMAT);
-                message = $"{MT.OK_SIGN_DISCORD} Messages format was reset to default value successfully.\n" +
-                          $"**Preview:**\n{preview}";
-
-                break;
-            }
-        }
-
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
-    }
 
     private static void UpdateCallPrefix(ISpawnedCharacter spawnedCharacter, string newCallPrefix)
     {
@@ -277,6 +317,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
     }
 
+    #endregion
 
 
     private static async Task<ISpawnedCharacter> FindCharacterAsync(string anyIdentifier, ulong channelId)

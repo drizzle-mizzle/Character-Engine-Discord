@@ -1,6 +1,7 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Helpers.Mappings;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -29,8 +30,8 @@ public static class DatabaseHelper
         var result = new List<ISpawnedCharacter>();
 
         await using var db = GetDbContext();
-
         result.AddRange(await db.SakuraAiSpawnedCharacters.ToListAsync());
+        result.AddRange(await db.CaiSpawnedCharacters.ToListAsync());
 
         return result;
     }
@@ -41,8 +42,20 @@ public static class DatabaseHelper
         var result = new List<ISpawnedCharacter>();
 
         await using var db = GetDbContext();
-
         result.AddRange(await db.SakuraAiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+        result.AddRange(await db.CaiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+
+        return result;
+    }
+
+
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInGuildAsync(ulong guildId)
+    {
+        var result = new List<ISpawnedCharacter>();
+
+        await using var db = GetDbContext();
+        result.AddRange(await db.SakuraAiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel!.DiscordGuildId == guildId).ToListAsync());
+        result.AddRange(await db.CaiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel!.DiscordGuildId == guildId).ToListAsync());
 
         return result;
     }
@@ -52,7 +65,8 @@ public static class DatabaseHelper
     {
         await using var db = GetDbContext();
 
-        return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId)
+        return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId) as ISpawnedCharacter
+            ?? await db.CaiSpawnedCharacters.FirstOrDefaultAsync(c => c.Id == characterId) as ISpawnedCharacter
             ?? null;
     }
 
@@ -66,10 +80,16 @@ public static class DatabaseHelper
             case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
             {
                 db.SakuraAiSpawnedCharacters.Update(sakuraAiSpawnedCharacter);
-                await db.SaveChangesAsync();
+                break;
+            }
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                db.CaiSpawnedCharacters.Update(caiSpawnedCharacter);
                 break;
             }
         }
+
+        await db.SaveChangesAsync();
     }
 
 
@@ -82,10 +102,43 @@ public static class DatabaseHelper
             case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
             {
                 db.SakuraAiSpawnedCharacters.Remove(sakuraAiSpawnedCharacter);
-                await db.SaveChangesAsync();
+                break;
+            }
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                db.CaiSpawnedCharacters.Remove(caiSpawnedCharacter);
                 break;
             }
         }
+
+        await db.SaveChangesAsync();
+    }
+
+
+    public static async Task DeleteSpawnedCharactersAsync(ICollection<ISpawnedCharacter> spawnedCharacters)
+    {
+        if (spawnedCharacters.Count == 0)
+        {
+            return;
+        }
+
+        await using var db = GetDbContext();
+
+        switch (spawnedCharacters)
+        {
+            case ICollection<SakuraAiSpawnedCharacter> sakuraAiSpawnedCharacters:
+            {
+                db.SakuraAiSpawnedCharacters.RemoveRange(sakuraAiSpawnedCharacters);
+                break;
+            }
+            case ICollection<CaiSpawnedCharacter> caiSpawnedCharacters:
+            {
+                db.CaiSpawnedCharacters.RemoveRange(caiSpawnedCharacters);
+                break;
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
 
@@ -100,16 +153,16 @@ public static class DatabaseHelper
         string callPrefix;
         if (characterName.Contains(' '))
         {
-            var split = characterName.Split(' ');
-            callPrefix = $"@{split[0][0]}{split[1][0]}".ToLower();
+            var split = characterName.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            callPrefix = $"@{split[0][0]}{split[1][0]}";
         }
-        else if (characterName.Length <= 2)
+        else if (characterName.Length > 2)
         {
-            callPrefix = $"@{characterName}";
+            callPrefix = $"@{characterName[..2]}";
         }
         else
         {
-            callPrefix = $"@{characterName[..2]}";
+            callPrefix = $"@{characterName}";
         }
 
         await using var db = GetDbContext();
@@ -117,38 +170,50 @@ public static class DatabaseHelper
                               .Include(c => c.DiscordGuild)
                               .FirstAsync(c => c.Id == (ulong)webhook.ChannelId!);
 
-        var newSpawnedCharacter = (commonCharacter.GetIntegrationType() switch
+        ISpawnedCharacter newSpawnedCharacter = commonCharacter.IntegrationType switch
         {
-            IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter
+            IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter(),
+            IntegrationType.CharacterAI => new CaiSpawnedCharacter(),
+        };
+
+        newSpawnedCharacter.CharacterId = commonCharacter.CharacterId;
+        newSpawnedCharacter.CharacterName = commonCharacter.CharacterName;
+        newSpawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
+        newSpawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
+        newSpawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor;
+        newSpawnedCharacter.DiscordChannelId = channel.Id;
+        newSpawnedCharacter.WebhookId = webhook.Id;
+        newSpawnedCharacter.WebhookToken = webhook.Token;
+        newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
+        newSpawnedCharacter.MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat;
+        newSpawnedCharacter.ResponseDelay = 1;
+        newSpawnedCharacter.FreewillFactor = 0;
+        newSpawnedCharacter.EnableSwipes = false;
+        newSpawnedCharacter.EnableWideContext = true;
+        newSpawnedCharacter.EnableQuotes = false;
+        newSpawnedCharacter.EnableStopButton = true;
+        newSpawnedCharacter.SkipNextBotMessage = false;
+        newSpawnedCharacter.LastCallerDiscordUserId = 0;
+        newSpawnedCharacter.LastDiscordMessageId = 0;
+        newSpawnedCharacter.MessagesSent = 0;
+        newSpawnedCharacter.LastCallTime = default;
+        newSpawnedCharacter.ResetWithNextMessage = true;
+
+        switch (newSpawnedCharacter)
+        {
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
             {
-                DiscordChannelId = channel.Id,
-                WebhookId = webhook.Id,
-                WebhookToken = webhook.Token,
-                CallPrefix = callPrefix,
-                MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat,
-                ResponseDelay = 0,
-                ResponseChance = 0,
-                EnableSwipes = true,
-                EnableBuffering = true,
-                EnableQuotes = false,
-                EnableStopButton = true,
-                SkipNextBotMessage = false,
-                LastCallerId = 0,
-                LastMessageId = 0,
-                MessagesSent = 0,
-                LastCallTime = default,
-                ResetWithNextMessage = true
+                await db.SakuraAiSpawnedCharacters.AddAsync(sakuraAiSpawnedCharacter);
+                break;
             }
-        }).FillWith(commonCharacter);
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                await db.CaiSpawnedCharacters.AddAsync(caiSpawnedCharacter);
+                break;
+            }
+        }
 
-        await (newSpawnedCharacter switch
-        {
-            SakuraAiSpawnedCharacter castedCharacter => db.SakuraAiSpawnedCharacters.AddAsync(castedCharacter),
-
-            _ => throw new ArgumentOutOfRangeException()
-        });
         await db.SaveChangesAsync();
-
 
         return newSpawnedCharacter;
     }
@@ -158,16 +223,31 @@ public static class DatabaseHelper
 
     #region Integrations
 
-    public static async Task<IGuildIntegration> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
+    public static async Task<IGuildIntegration?> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = GetDbContext();
         var channel = await db.DiscordChannels.FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
 
         var type = spawnedCharacter.GetIntegrationType();
-        IGuildIntegration integration = await (type switch
+        IGuildIntegration? integration = type switch
         {
-            IntegrationType.SakuraAI => db.SakuraAiIntegrations.FirstAsync(i => i.DiscordGuildId == channel.DiscordGuildId)
-        });
+            IntegrationType.SakuraAI => await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.DiscordGuildId),
+            IntegrationType.CharacterAI => await db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.DiscordGuildId),
+        };
+
+        return integration;
+    }
+
+
+    public static async Task<IGuildIntegration?> GetGuildIntegrationAsync(ulong guildId, IntegrationType integrationType)
+    {
+        await using var db = GetDbContext();
+
+        IGuildIntegration? integration = integrationType switch
+        {
+            IntegrationType.SakuraAI => await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId),
+            IntegrationType.CharacterAI => await db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId),
+        };
 
         return integration;
     }
@@ -181,25 +261,40 @@ public static class DatabaseHelper
         {
             case SakuraAiGuildIntegration sakuraAiGuildIntegration:
             {
-                if (removeCharacters)
-                {
-                    var characters = await db.SakuraAiSpawnedCharacters
-                                             .Include(character => character.DiscordChannel)
-                                             .Where(character => character.DiscordChannel.DiscordGuildId == guildIntegration.DiscordGuildId)
-                                             .ToListAsync();
-
-                    db.SakuraAiSpawnedCharacters.RemoveRange(characters);
-                }
-
                 db.SakuraAiIntegrations.Remove(sakuraAiGuildIntegration);
-
+                break;
+            }
+            case CaiGuildIntegration caiGuildIntegration:
+            {
+                db.CaiIntegrations.Remove(caiGuildIntegration);
                 break;
             }
         }
 
         await db.SaveChangesAsync();
-    }
 
+        var giIntegrationType = guildIntegration.GetIntegrationType();
+
+        var guildCharacters = await GetAllSpawnedCharactersInGuildAsync(guildIntegration.DiscordGuildId);
+        var neededCharacters = guildCharacters.Where(character => character.GetIntegrationType() == giIntegrationType).ToArray();
+
+        var tasks = new List<Task>();
+
+        if (removeCharacters)
+        {
+            tasks.Add(DeleteSpawnedCharactersAsync(neededCharacters));
+        }
+        else
+        {
+            foreach (var character in neededCharacters)
+            {
+                character.FreewillFactor = 0;
+                tasks.Add(UpdateSpawnedCharacterAsync(character));
+            }
+        }
+
+        Task.WaitAll(tasks.ToArray());
+    }
 
 
     #endregion
@@ -225,13 +320,13 @@ public static class DatabaseHelper
             };
 
             await db.DiscordChannels.AddAsync(newChannel);
+            await db.SaveChangesAsync();
         }
-        else
+        else if (discordChannel.ChannelName != channel.Name)
         {
             discordChannel.ChannelName = channel.Name;
+            await db.SaveChangesAsync();
         }
-
-        await db.SaveChangesAsync();
     }
 
 
@@ -248,6 +343,7 @@ public static class DatabaseHelper
                 Id = guild.Id,
                 GuildName = guild.Name,
                 MessagesSent = 0,
+                NoWarn = false,
                 OwnerId = owner?.Id ?? guild.OwnerId,
                 OwnerUsername = owner?.Username,
                 Joined = true,

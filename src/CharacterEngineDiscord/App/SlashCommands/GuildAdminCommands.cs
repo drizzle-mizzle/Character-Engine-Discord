@@ -16,7 +16,15 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    public enum ManagersActions { add, remove, clearAll }
+
+
+    public enum ManagersActions
+    {
+        add, remove, // TODO: show
+
+        [ChoiceDisplay("clear-all")]
+        clearAll
+    }
 
 
     public GuildAdminCommands(AppDbContext db, DiscordSocketClient discordClient)

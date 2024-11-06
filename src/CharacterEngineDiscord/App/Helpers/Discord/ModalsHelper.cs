@@ -16,4 +16,12 @@ public static class ModalsHelper
         return modalBuilder.Build();
     }
 
+
+    public static Modal BuildCaiAiAuthModal(this ModalBuilder modalBuilder)
+    {
+        modalBuilder.AddTextInput("Account email", "email", placeholder: "yourmail@bipki.com", required: true, minLength: 2, maxLength: 128);
+
+        return modalBuilder.Build();
+    }
+
 }

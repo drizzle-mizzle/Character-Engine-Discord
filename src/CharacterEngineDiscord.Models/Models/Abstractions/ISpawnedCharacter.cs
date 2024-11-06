@@ -1,4 +1,6 @@
-﻿namespace CharacterEngineDiscord.Models.Abstractions;
+﻿using CharacterEngineDiscord.Models.Db.Discord;
+
+namespace CharacterEngineDiscord.Models.Abstractions;
 
 
 /// <summary>
@@ -29,11 +31,13 @@ public interface ISpawnedCharacter : ICharacter
 
     public uint ResponseDelay { get; set; }
 
-    public float ResponseChance { get; set; }
+    public double FreewillFactor { get; set; }
+
+
+    public bool EnableWideContext { get; set; }
 
     public bool EnableSwipes { get; set; }
 
-    public bool EnableBuffering { get; set; }
 
     public bool EnableQuotes { get; set; }
 
@@ -43,18 +47,22 @@ public interface ISpawnedCharacter : ICharacter
 
     public bool ResetWithNextMessage { get; set; }
 
+
     /// <summary>
     /// Latest user who called a character
     /// </summary>
-    public ulong LastCallerId { get; set; }
+    public ulong LastCallerDiscordUserId { get; set; }
 
     /// <summary>
     /// Latest message that was sent by a character
     /// </summary>
-    public ulong LastMessageId { get; set; }
+    public ulong LastDiscordMessageId { get; set; }
 
     public uint MessagesSent { get; set; }
 
     public DateTime LastCallTime { get; set; }
+
+    public DiscordChannel? DiscordChannel { get; set; }
+
 
 }

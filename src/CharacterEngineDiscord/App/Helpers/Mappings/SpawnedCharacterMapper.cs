@@ -1,4 +1,6 @@
+using CharacterAi.Client.Models.Common;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Models.Common;
 using SakuraAi.Client.Models.Common;
@@ -22,13 +24,17 @@ public static class SpawnedCharacterMapper
 
                 break;
             }
-        }
+            case ICaiCharacter caiCharacterCasted:
+            {
+                var caiCharacter = (CaiCharacter)commonCharacter.OriginalCharacterObject!;
+                caiCharacterCasted.CaiTitle = caiCharacter.title!;
+                caiCharacterCasted.CaiDescription = caiCharacter.description!;
+                caiCharacterCasted.CaiDefinition = caiCharacter.definition;
+                caiCharacterCasted.CaiImageGenEnabled = caiCharacter.img_gen_enabled;
 
-        spawnedCharacter.CharacterId = commonCharacter.CharacterId;
-        spawnedCharacter.CharacterName = commonCharacter.CharacterName;
-        spawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor;
-        spawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
-        spawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
+                break;
+            }
+        }
 
         return spawnedCharacter;
     }

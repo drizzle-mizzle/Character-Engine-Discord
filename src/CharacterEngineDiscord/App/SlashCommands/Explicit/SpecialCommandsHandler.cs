@@ -1,6 +1,5 @@
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -23,21 +22,25 @@ public class SpecialCommandsHandler
 
     public async Task HandleStartCommandAsync(SocketSlashCommand command)
     {
-        await command.DeferAsync();
+        await command.RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
         await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
 
-        await guild.DeleteApplicationCommandsAsync();
+        var registeredCommands = await guild.GetApplicationCommandsAsync();
+        foreach (var registeredCommand in registeredCommands)
+        {
+            await registeredCommand.DeleteAsync();
+        }
 
-        var createDisableCommand = guild.CreateApplicationCommandAsync(disableCommand);
-        await _interactions.RegisterCommandsToGuildAsync(guild.Id, false);
+        await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+        await guild.CreateApplicationCommandAsync(disableCommand);
 
-        await createDisableCommand;
+        const string message = "**Thank you for using Character Engine!**\nUse *`/integration create`* command to begin.";
 
-        await command.FollowupAsync("OK");
+        await command.FollowupAsync(embed: message.ToInlineEmbed(Color.Gold, bold: false));
     }
 
 
@@ -53,6 +56,6 @@ public class SpecialCommandsHandler
         await guild.DeleteApplicationCommandsAsync();
         await guild.CreateApplicationCommandAsync(startCommand);
 
-        await command.FollowupAsync("OK");
+        await command.FollowupAsync("bye D:");
     }
 }

@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App;
 using CharacterEngine.App.Helpers;
+using Microsoft.EntityFrameworkCore;
 using NLog;
 
 namespace CharacterEngine
@@ -33,10 +34,10 @@ namespace CharacterEngine
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-            using var db = DatabaseHelper.GetDbContext();
-            // db.Database.EnsureDeleted();
-            db.Database.EnsureCreated();
-            // await db.Database.MigrateAsync();
+            using (var db = DatabaseHelper.GetDbContext())
+            {
+                db.Database.Migrate();
+            }
 
             CharacterEngineBot.Run();
         }

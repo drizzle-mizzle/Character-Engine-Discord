@@ -1,4 +1,5 @@
-﻿using CharacterEngineDiscord.Models.Db;
+﻿using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Discord;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
@@ -10,7 +11,7 @@ namespace CharacterEngineDiscord.Models;
 
 public sealed class AppDbContext : DbContext
 {
-    private readonly string CONNECTION_STRING;
+    private readonly string CONNECTION_STRING = null!;
 
 
     #region Discord
@@ -25,12 +26,16 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<SakuraAiGuildIntegration> SakuraAiIntegrations { get; init; }
 
+    public DbSet<CaiGuildIntegration> CaiIntegrations { get; init; }
+
     #endregion
 
 
     #region SpawnedCharacters
 
     public DbSet<SakuraAiSpawnedCharacter> SakuraAiSpawnedCharacters { get; init; }
+
+    public DbSet<CaiSpawnedCharacter> CaiSpawnedCharacters { get; init; }
 
     #endregion
 
@@ -51,6 +56,7 @@ public sealed class AppDbContext : DbContext
 
     #endregion
 
+    public AppDbContext() { }
 
     public AppDbContext(string connectionString)
     {

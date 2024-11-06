@@ -1,13 +1,13 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Db.Discord;
 
 namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 
 
-public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
+public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
 {
     [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -38,13 +38,15 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public string CharacterFirstMessage { get; set; } = null!;
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; } = null!;
-    public string CharacterStat => SakuraMessagesCount.ToString();
+    public string CharacterStat => CaiChatsCount.ToString();
 
-    public string SakuraDescription { get; set; } = string.Empty;
-    public string SakuraPersona { get; set; } = string.Empty;
-    public string SakuraScenario { get; set; } = string.Empty;
-    public int SakuraMessagesCount { get; set; }
-    public string? SakuraChatId { get; set; }
+    public string CaiTitle { get; set; } = string.Empty;
+    public string CaiDescription { get; set; } = string.Empty;
+    public string? CaiDefinition { get; set; }
+    public bool CaiImageGenEnabled { get; set; }
+    public int CaiChatsCount { get; set; }
+
 
     public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
+
 }

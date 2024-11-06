@@ -4,7 +4,7 @@
 public enum IntegrationType
 {
     SakuraAI = 1,
-    // CharacterAI = 2,
+    CharacterAI = 2,
 }
 
 
@@ -18,3 +18,7 @@ public enum ButtonActionType
 {
     SearchQuery = 1,
 }
+
+public enum MessagesFormatAction { show, update, resetDefault }
+
+public enum MessagesFormatTarget { guild, channel, character }
