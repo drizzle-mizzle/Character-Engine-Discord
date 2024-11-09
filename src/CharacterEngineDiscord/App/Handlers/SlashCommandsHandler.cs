@@ -15,21 +15,15 @@ namespace CharacterEngine.App.Handlers;
 public class SlashCommandsHandler
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _log;
-
     private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
-    private readonly AppDbContext _db;
+    private readonly InteractionService _interactionService;
 
 
-    public SlashCommandsHandler(IServiceProvider serviceProvider, ILogger log, DiscordSocketClient discordClient, InteractionService interactions, AppDbContext db)
+    public SlashCommandsHandler(IServiceProvider serviceProvider, DiscordSocketClient discordClient, InteractionService interactionService)
     {
         _serviceProvider = serviceProvider;
-        _log = log;
-
         _discordClient = discordClient;
-        _interactions = interactions;
-        _db = db;
+        _interactionService = interactionService;
     }
 
 
@@ -37,14 +31,7 @@ public class SlashCommandsHandler
     {
         Task.Run(async () =>
         {
-            try
-            {
-                await HandleSlashCommandAsync(command);
-            }
-            catch (Exception e)
-            {
-                await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
-            }
+            await HandleSlashCommandAsync(command);
         });
 
         return Task.CompletedTask;
@@ -59,12 +46,16 @@ public class SlashCommandsHandler
         }
 
         var ensureExistInDbAsync = guildChannel.EnsureExistInDbAsync();
-        await InteractionsHelper.ValidateUserAsync(command);
-
         try
         {
+            await InteractionsHelper.ValidateUserAsync(command);
+
+            var context = new InteractionContext(_discordClient, command, command.Channel);
+
             if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
             {
+                await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
+
                 var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
                 await (specialCommand switch
                 {
@@ -89,8 +80,12 @@ public class SlashCommandsHandler
             }
             else
             {
-                await _interactions.ExecuteCommandAsync(new InteractionContext(_discordClient, command, command.Channel), _serviceProvider);
+                await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
             }
+        }
+        catch (Exception e)
+        {
+            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
         }
         finally
         {

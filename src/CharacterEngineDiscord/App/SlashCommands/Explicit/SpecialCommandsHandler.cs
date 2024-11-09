@@ -1,5 +1,7 @@
-using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -24,21 +26,27 @@ public class SpecialCommandsHandler
     {
         await command.RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
 
-        await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
-
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
 
-        var registeredCommands = await guild.GetApplicationCommandsAsync();
-        foreach (var registeredCommand in registeredCommands)
-        {
-            await registeredCommand.DeleteAsync();
-        }
+        var registerCommandsToGuildAsync = _interactions.RegisterCommandsToGuildAsync(guild.Id);
+        var createApplicationCommandAsync = guild.CreateApplicationCommandAsync(disableCommand);
 
-        await _interactions.RegisterCommandsToGuildAsync(guild.Id);
-        await guild.CreateApplicationCommandAsync(disableCommand);
+        var integrations = Enum.GetValues<IntegrationType>()
+                               .Select(i => $"- [{i.GetIcon()} **{i:G}**]({i.GetServiceLink()})")
+                               .ToArray();
 
-        const string message = "**Thank you for using Character Engine!**\nUse *`/integration create`* command to begin.";
+        var message = "**Thank you for using Character Engine**\n\n" +
+                      "**Character Engine** is a powerful aggregator of various online platforms that provide access to LLM chat-bots, it allows you to create AI-driven characters " +
+                      "based on [Discord Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) and designed to help you bring some life on your server!\n\n" +
+                      "**List of supported platforms:**\n" +
+                      $"{string.Join('\n', integrations)}" +
+                      "\n\nUse *`/integration create`* command to begin. *Please not that you need to have an existing account on chosen platform in order to create a server integration for it.*\n\n" +
+                      $"Questions, bug reports, suggestions and any other feedback: {BotConfig.ADMIN_GUILD_INVITE_LINK}"; // TODO: banner
+
+
+        await registerCommandsToGuildAsync;
+        await createApplicationCommandAsync;
 
         await command.FollowupAsync(embed: message.ToInlineEmbed(Color.Gold, bold: false));
     }
@@ -47,8 +55,6 @@ public class SpecialCommandsHandler
     public async Task HandleDisableCommandAsync(SocketSlashCommand command)
     {
         await command.DeferAsync();
-
-        await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var startCommand = ExplicitCommandBuilders.BuildStartCommand();

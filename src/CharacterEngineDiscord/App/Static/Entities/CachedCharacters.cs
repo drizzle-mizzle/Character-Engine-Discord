@@ -3,6 +3,8 @@ using System.Diagnostics;
 using CharacterEngine.App.Helpers;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using Discord;
+using Discord.WebSocket;
 
 namespace CharacterEngine.App.Static.Entities;
 
@@ -30,6 +32,7 @@ public sealed class CachedCharacerInfoCollection
             WebhookId = spawnedCharacter.WebhookId.ToString(),
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
+            CachedUserMessages = new CachedUserMessages(),
             Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableWideContext)
         };
 
@@ -39,10 +42,7 @@ public sealed class CachedCharacerInfoCollection
 
     public void Remove(Guid spawnedCharacterId)
     {
-        if (_cachedCharacters.ContainsKey(spawnedCharacterId))
-        {
-            _cachedCharacters.TryRemove(spawnedCharacterId, out _);
-        }
+        _cachedCharacters.TryRemove(spawnedCharacterId, out _);
     }
 
 
@@ -74,7 +74,10 @@ public record CachedCharacterInfo
     public required IntegrationType IntegrationType { get; init; }
 
     public required double FreewillFactor { get; set; }
+    public bool Blocked { get; set; }
+    public ulong? WideContextLastMessageId { get; set; }
 
+    public required CachedUserMessages CachedUserMessages { get; init; }
     public required ActiveConversation Conversations { get; init; }
 }
 
@@ -120,4 +123,51 @@ public record CharacterMessage
     public required string MessageId { get; init; }
     public required string Content { get; init; }
     public string? ImageUrl { get; set; }
+}
+
+
+public sealed class CachedUserMessages
+{
+    private readonly ConcurrentDictionary<ulong, CachedUserMessage> _cachedUserMessages = [];
+
+
+    public void AddRange(IEnumerable<IUserMessage> messages)
+    {
+        Parallel.ForEach(messages, Add);
+    }
+
+
+    public void Add(IUserMessage message)
+    {
+        Remove(message.Id);
+
+        var author = (SocketGuildUser)message.Author;
+        var newCachedMessage = new CachedUserMessage
+        {
+            MessageId = message.Id,
+            UserId = author.Id,
+            Username = author.DisplayName ?? author.Username,
+            UserMention = author.Mention,
+            CreatedAt = message.CreatedAt.LocalDateTime
+        };
+
+        _cachedUserMessages.TryAdd(message.Id, newCachedMessage);
+    }
+
+
+    public void Remove(ulong messageId)
+    {
+        _cachedUserMessages.TryRemove(messageId, out _);
+    }
+}
+
+
+public class CachedUserMessage
+{
+    public required ulong MessageId { get; set; }
+
+    public required ulong UserId { get; set; }
+    public required string Username { get; set; }
+    public required string UserMention { get; set; }
+    public required DateTime CreatedAt { get; set; }
 }

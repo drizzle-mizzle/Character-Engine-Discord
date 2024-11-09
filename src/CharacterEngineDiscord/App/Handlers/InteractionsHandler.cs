@@ -30,10 +30,14 @@ public class InteractionsHandler
             {
                 await HandleInteractionAsync(interactionContext, result, traceId);
             }
+            catch (SakuraException)
+            {
+                // care not
+            }
             catch (Exception e)
             {
                 await _discordClient.ReportErrorAsync(e, traceId);
-                await RespondWithErrorAsync(interactionContext, e, traceId);
+                await InteractionsHelper.RespondWithErrorAsync(interactionContext.Interaction, e, traceId);
             }
         });
 
@@ -54,67 +58,44 @@ public class InteractionsHandler
         }
 
         var interaction = (ISlashCommandInteraction)interactionContext.Interaction;
-        var exception = ((ExecuteResult)result).Exception;
+        if (result is not ExecuteResult executeResult)
+        {
+            return;
+        }
 
+        var exception = executeResult.Exception;
 
         if (exception is not UserFriendlyException && exception.InnerException is not UserFriendlyException)
         {
-            var content = $"Command: {interaction.Data.Name} [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n" +
-                          $"User: {interactionContext.User.Username} ({interactionContext.User.Id})\n" +
-                          $"Channel: {interactionContext.Channel.Name} ({interactionContext.Channel.Id})\n" +
-                          $"Guild: {interactionContext.Guild.Name} ({interactionContext.Guild.Id})\n\n" +
-                          $"Exception:\n{exception}";
+            string content;
+
+            if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommand))
+            {
+                var subCommand = interaction.Data.Options.First();
+                content = $"Command: {interaction.Data.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            }
+            else if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommandGroup))
+            {
+                var subCommandGroup = interaction.Data.Options.First();
+                var subCommand = subCommandGroup.Options.First();
+                content = $"Command: {interaction.Data.Name}/{subCommandGroup.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            }
+            else
+            {
+                content = $"Command: {interaction.Data.Name} [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            }
+
+            var owner = await interactionContext.Guild.GetOwnerAsync();
+            content += $"User: **{interactionContext.User.Username}** ({interactionContext.User.Id})\n" +
+                       $"Channel: **{interactionContext.Channel.Name}** ({interactionContext.Channel.Id})\n" +
+                       $"Guild: **{interactionContext.Guild.Name}** ({interactionContext.Guild.Id})\n" +
+                       $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
+                       $"Exception:\n```cs{exception}```";
 
             await _discordClient.ReportErrorAsync("Interaction exception", content, traceId);
         }
 
-        await RespondWithErrorAsync(interactionContext, exception, traceId);
+        await InteractionsHelper.RespondWithErrorAsync(interactionContext.Interaction, exception, traceId);
     }
 
-
-    private static async Task RespondWithErrorAsync(IInteractionContext interactionContext, Exception e, string traceId)
-    {
-        var isBold = (e as UserFriendlyException)?.Bold ?? true;
-        var exception = e.InnerException ?? e;
-
-        var message = exception is UserFriendlyException or SakuraException or CharacterAiException // controlled exceptions
-                ? exception.Message : $"{MessagesTemplates.X_SIGN_DISCORD} Something went wrong!";
-
-        if (!message.StartsWith(MessagesTemplates.X_SIGN_DISCORD) && !message.StartsWith(MessagesTemplates.WARN_SIGN_DISCORD))
-        {
-            message = $"{MessagesTemplates.X_SIGN_DISCORD} {message}";
-        }
-
-        if (isBold)
-        {
-            message = $"**{message}**";
-        }
-
-        var embed = new EmbedBuilder().WithColor(Color.Red)
-                                      .WithDescription(message)
-                                      .WithFooter($"ERROR TRACE ID: {traceId}")
-                                      .Build();
-        try
-        {
-            await interactionContext.Interaction.RespondAsync(embed: embed);
-        }
-        catch
-        {
-            try
-            {
-                await interactionContext.Interaction.FollowupAsync(embed: embed);
-            }
-            catch
-            {
-                try
-                {
-                    await interactionContext.Interaction.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
-                }
-                catch
-                {
-                    // ...but in the end, it doesn't even matter
-                }
-            }
-        }
-    }
 }

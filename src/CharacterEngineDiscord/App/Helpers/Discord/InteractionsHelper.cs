@@ -27,9 +27,104 @@ public static class InteractionsHelper
 {
     public const string COMMAND_SEPARATOR = "~sep~";
 
-    private static ILogger _log = DI.GetLogger;
+    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
+
+    public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
+    {
+        var isBold = (e as UserFriendlyException)?.Bold ?? true;
+        var exception = e.InnerException ?? e;
+
+        var message = exception is UserFriendlyException or FormatException or SakuraException or CharacterAiException // controlled exceptions
+                ? exception.Message : $"{MessagesTemplates.X_SIGN_DISCORD} Something went wrong!";
+
+        if (!message.StartsWith(MessagesTemplates.X_SIGN_DISCORD) && !message.StartsWith(MessagesTemplates.WARN_SIGN_DISCORD))
+        {
+            message = $"{MessagesTemplates.X_SIGN_DISCORD} {message}";
+        }
+
+        if (isBold)
+        {
+            message = $"**{message}**";
+        }
+
+        var embed = new EmbedBuilder().WithColor(Color.Red)
+                                      .WithDescription(message)
+                                      .WithFooter($"ERROR TRACE ID: {traceId}")
+                                      .Build();
+        try
+        {
+            await interaction.RespondAsync(embed: embed);
+        }
+        catch
+        {
+            try
+            {
+                await interaction.FollowupAsync(embed: embed);
+            }
+            catch
+            {
+                try
+                {
+                    await interaction.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
+                }
+                catch
+                {
+                    // ...but in the end, it doesn't even matter
+                }
+            }
+        }
+    }
+
+
+    public static async Task SendSakuraAiMailAsync(IDiscordInteraction interaction, string email)
+    {
+        var sakuraAiModule = (SakuraAiModule)IntegrationType.SakuraAI.GetIntegrationModule();
+
+        var attempt = await sakuraAiModule.SendLoginEmailAsync(email);
+
+        // Respond to user
+        var msg = $"{IntegrationType.SakuraAI.GetIcon()} **SakuraAI**\n\n" +
+                  $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
+                  $"- *It may take up to a minute for the bot to react on successful confirmation.*\n" +
+                  $"- *It's highly recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail, as SakuraAI doesn't allow multiple active user sessions. " +
+                  $"Also, bot will be logged out of your account if you log in it in the browser again. You will be able to log in back with `/integration re-login` command.*";
+
+        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+
+        // Update db
+        var data = StoredActionsHelper.CreateSakuraAiEnsureLoginData(attempt, (ulong)interaction.ChannelId!, interaction.User.Id);
+        var newAction = new StoredAction(StoredActionType.SakuraAiEnsureLogin, data, maxAttemtps: 25);
+
+        await using var db = DatabaseHelper.GetDbContext();
+        await db.StoredActions.AddAsync(newAction);
+        await db.SaveChangesAsync();
+    }
+
+
+    public static async Task SendCharacterAiMailAsync(IDiscordInteraction interaction, string email)
+    {
+        var caiModule = (CaiModule)IntegrationType.CharacterAI.GetIntegrationModule();
+
+        try
+        {
+            await caiModule.SendLoginEmailAsync(email);
+        }
+        catch (CharacterAiException e)
+        {
+            _log.Error(e.ToString());
+            await interaction.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
+
+            return;
+        }
+
+        var msg = $"{IntegrationType.CharacterAI.GetIcon()} **CharacterAI**\n\n" +
+                  $"Sign in mail was sent to **{email}**, please check your mailbox.\nYou should've received a sign in link for CharacterAI in it - **DON'T OPEN IT (!)**, copy it and then paste in `/integration confirm` command.\n" +
+                  $"**Example:**\n*`/integration confirm type:CharacterAI data:https://character.ai/login/xxx`*";
+
+        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+    }
 
     #region CustomId
 
@@ -56,9 +151,7 @@ public static class InteractionsHelper
 
     public static async Task<ISpawnedCharacter> SpawnCharacterAsync(ulong channelId, CommonCharacter commonCharacter)
     {
-        var channel = await DI.GetDiscordSocketClient.GetChannelAsync(channelId) as ITextChannel;
-
-        if (channel is null)
+        if (CharacterEngineBot.DiscordShardedClient.GetChannel(channelId) is not ITextChannel channel)
         {
             throw new Exception($"Failed to get channel {channelId}");
         }
@@ -131,7 +224,7 @@ public static class InteractionsHelper
         }
 
         avatarOutput.Seek(0, SeekOrigin.Begin);
-        return await channel.CreateWebhookAsync(characterName, avatarOutput);;
+        return await channel.CreateWebhookAsync(characterName, avatarOutput);
     }
 
 
@@ -159,7 +252,7 @@ public static class InteractionsHelper
 
         var messageId = await webhookClient.SendMessageAsync(chunks[0]);
 
-        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(spawnedCharacter.DiscordChannelId);
+        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(spawnedCharacter.DiscordChannelId);
         var message = await channel.GetMessageAsync(messageId);
         var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
 
@@ -172,67 +265,6 @@ public static class InteractionsHelper
         await thread.ModifyAsync(t => { t.Archived = true; });
 
         return messageId;
-    }
-
-    #endregion
-
-
-    #region CreateIntegration
-
-    public static async Task SendSakuraAiMailAsync(SocketModal modal)
-    {
-        var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
-        var sakuraAiModule = (SakuraAiModule)IntegrationType.SakuraAI.GetIntegrationModule();
-
-        SakuraSignInAttempt attempt;
-        try
-        {
-            attempt = await sakuraAiModule.SendLoginEmailAsync(email);
-        }
-        catch (SakuraException e)
-        {
-            await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} SakuraAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
-            return;
-        }
-
-        // Respond to user
-        var msg = $"{IntegrationType.SakuraAI.GetIcon()} **SakuraAI**\n\n" +
-                  $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
-                  $"- *It's recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail; or simply open it in [incognito tab](https://support.google.com/chrome/answer/95464?hl=en&co=GENIE.Platform%3DDesktop&oco=1#:~:text=New%20Incognito%20Window).*\n" +
-                  $"- *It may take up to a minute for the bot to react on succeful confirmation.*";
-
-        await modal.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
-
-        // Update db
-        var data = StoredActionsHelper.CreateSakuraAiEnsureLoginData(attempt, (ulong)modal.ChannelId!, modal.User.Id);
-        var newAction = new StoredAction(StoredActionType.SakuraAiEnsureLogin, data, maxAttemtps: 25);
-
-        await using var db = DatabaseHelper.GetDbContext();
-        await db.StoredActions.AddAsync(newAction);
-        await db.SaveChangesAsync();
-    }
-
-
-    public static async Task SendCharacterAiMailAsync(SocketModal modal)
-    {
-        var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
-        var caiModule = (CaiModule)IntegrationType.CharacterAI.GetIntegrationModule();
-
-        try
-        {
-            await caiModule.SendLoginEmailAsync(email);
-        }
-        catch (CharacterAiException e)
-        {
-            await modal.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
-            return;
-        }
-
-        var msg = $"{IntegrationType.CharacterAI.GetIcon()} **CharacterAI**\n\n" +
-                  $"Sign in mail was sent to **{email}**, please check your mailbox. You should've received a sign in link for CharacterAI in it - **DON'T OPEN IT**, copy it and then paste in `/integration confirm` command.\n" +
-                  $"**Example:**\n*`/integration confirm type:CharacterAI data:https://character.ai/login/xxx`*";
-
-        await modal.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
     }
 
     #endregion
@@ -275,6 +307,7 @@ public static class InteractionsHelper
                             break;
                         }
 
+
                         var guildId = await db.DiscordChannels.Where(c => c.Id == (ulong)idOrCharacterObject).Select(c => c.DiscordGuildId).FirstAsync();
 
                         format = await GetGuildFormatAsync(guildId);
@@ -288,7 +321,7 @@ public static class InteractionsHelper
                     case MessagesFormatTarget.character:
                     {
                         var character = (ISpawnedCharacter)idOrCharacterObject;
-                        msgBegin = $"**{character!.CharacterName}**'s";
+                        msgBegin = $"**{character.CharacterName}**'s";
 
                         format = character.MessagesFormat;
                         if (format is not null)
@@ -304,6 +337,7 @@ public static class InteractionsHelper
                         }
 
                         var guildId = await db.DiscordChannels.Where(c => c.Id == character.DiscordChannelId).Select(c => c.DiscordGuildId).FirstAsync();
+
                         format = await GetGuildFormatAsync(guildId);
                         if (format is not null)
                         {
@@ -356,7 +390,7 @@ public static class InteractionsHelper
                     }
                 }
 
-                var msgBegin = await UpdateFormatAsync(newFormat);
+                var msgBegin = await UpdateFormatAsync(newFormat, db);
 
                 return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was changed successfully.\n" +
                        $"**Preview:**\n" +
@@ -365,7 +399,7 @@ public static class InteractionsHelper
             case MessagesFormatAction.resetDefault:
             {
                 var format = GetDefaultFormat();
-                var msgBegin = await UpdateFormatAsync(format);
+                var msgBegin = await UpdateFormatAsync(format, db);
 
                 return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was reset to default value successfully.\n" +
                        $"**Preview:**\n" +
@@ -375,23 +409,23 @@ public static class InteractionsHelper
 
         return default!;
 
-        async Task<string> UpdateFormatAsync(string format)
+        async Task<string> UpdateFormatAsync(string format, AppDbContext dbContext)
         {
             switch (target)
             {
                 case MessagesFormatTarget.guild:
                 {
-                    var guild = await db.DiscordGuilds.FirstAsync(g => g.Id == (ulong)idOrCharacterObject);
+                    var guild = await dbContext.DiscordGuilds.FirstAsync(g => g.Id == (ulong)idOrCharacterObject);
                     guild.MessagesFormat = format;
-                    await db.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
 
                     return "Default server-wide messages format";
                 }
                 case MessagesFormatTarget.channel:
                 {
-                    var channel = await db.DiscordChannels.FirstAsync(c => c.Id == (ulong)idOrCharacterObject);
+                    var channel = await dbContext.DiscordChannels.FirstAsync(c => c.Id == (ulong)idOrCharacterObject);
                     channel.MessagesFormat = format;
-                    await db.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
 
                     return "Default channel-wide messages format";
                 }
@@ -479,10 +513,10 @@ public static class InteractionsHelper
     }
 
 
-    private static Task<bool> UserIsManagerAsync(SocketGuildUser user)
+    private static async Task<bool> UserIsManagerAsync(SocketGuildUser user)
     {
-        using var db = DatabaseHelper.GetDbContext();
-        return db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
+        await using var db = DatabaseHelper.GetDbContext();
+        return await db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
                                                     && manager.UserId == user.Id);
     }
 

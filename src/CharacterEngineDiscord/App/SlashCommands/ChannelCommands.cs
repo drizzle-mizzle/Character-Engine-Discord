@@ -18,13 +18,11 @@ namespace CharacterEngine.App.SlashCommands;
 public class ChannelCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly DiscordSocketClient _discordClient;
 
 
-    public ChannelCommands(AppDbContext db, DiscordSocketClient discordClient)
+    public ChannelCommands(AppDbContext db)
     {
         _db = db;
-        _discordClient = discordClient;
     }
 
 
@@ -42,6 +40,8 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("no-warn", "Disable/enable permissions warning")]
     public async Task NoWarn(bool toggle)
     {
+        await DeferAsync();
+
         var channel = await _db.DiscordChannels.FirstAsync(c => c.Id == Context.Channel.Id);
         channel.NoWarn = toggle;
         await _db.SaveChangesAsync();

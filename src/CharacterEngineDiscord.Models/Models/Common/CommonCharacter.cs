@@ -13,6 +13,7 @@ public class CommonCharacter : ICharacter
 
     public required object? OriginalCharacterObject { get; init; }
 
+    public required bool IsNfsw { get; set; }
     public required string? CharacterStat { get; set; }
 
     public required IntegrationType IntegrationType { get; init; }

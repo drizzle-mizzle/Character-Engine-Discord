@@ -1,5 +1,4 @@
-﻿using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Models.Db;
+﻿using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Discord;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
@@ -42,7 +41,7 @@ public sealed class AppDbContext : DbContext
 
     #region Bot
 
-    public DbSet<BlockedGuildUser> BlockedGuildUsers { get; init; }
+    public DbSet<BlockedGuildUser> GuildBlockedUsers { get; init; }
     public DbSet<BlockedUser> BlockedUsers { get; init; }
     public DbSet<GuildBotManager> GuildBotManagers { get; init; }
 

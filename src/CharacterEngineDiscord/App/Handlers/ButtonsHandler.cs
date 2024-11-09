@@ -30,7 +30,9 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
+                var traceId = CommonHelper.NewTraceId();
+                await _discordClient.ReportErrorAsync(e, traceId);
+                await InteractionsHelper.RespondWithErrorAsync(component, e, traceId);
             }
         });
 
@@ -78,7 +80,7 @@ public class ButtonsHandler
             await component.ModifyOriginalResponseAsync(msg =>
             {
                 var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
-                msg.Embeds = new[] { msg.Embeds.Value.First(), newEmbed };
+                msg.Embeds = !msg.Embeds.IsSpecified ? [msg.Embeds.Value!.First(), newEmbed] : new[] { newEmbed };
             });
             return;
         }
@@ -126,7 +128,7 @@ public class ButtonsHandler
                 var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
-                await newSpawnedCharacter.SendGreetingAsync(user.DisplayName);
+                await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
                 await modifyOriginalResponseAsync1;
                 await modifyOriginalResponseAsync2;
 

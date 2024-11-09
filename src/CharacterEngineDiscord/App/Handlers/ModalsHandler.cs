@@ -1,27 +1,19 @@
-﻿using CharacterEngine.App.Helpers;
+﻿using CharacterEngine.App.Exceptions;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord.WebSocket;
-using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
 
 public class ModalsHandler
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _log;
-    private AppDbContext _db { get; }
-
     private readonly DiscordSocketClient _discordClient;
 
 
-    public ModalsHandler(IServiceProvider serviceProvider, ILogger log, AppDbContext db, DiscordSocketClient discordClient)
+    public ModalsHandler(DiscordSocketClient discordClient)
     {
-        _serviceProvider = serviceProvider;
-        _log = log;
-        _db = db;
-
         _discordClient = discordClient;
     }
 
@@ -36,7 +28,9 @@ public class ModalsHandler
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
+                var traceId = CommonHelper.NewTraceId();
+                await _discordClient.ReportErrorAsync(e, traceId);
+                await InteractionsHelper.RespondWithErrorAsync(modal, e, traceId);
             }
         });
 
@@ -57,13 +51,20 @@ public class ModalsHandler
     }
 
 
-    private static Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
+    private static async Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
     {
-        return (IntegrationType)intergrationType switch
+        var type = (IntegrationType)intergrationType;
+        var existingIntegration = await DatabaseHelper.GetGuildIntegrationAsync((ulong)modal.GuildId!, type);
+        if (existingIntegration is not null)
         {
-            IntegrationType.SakuraAI => InteractionsHelper.SendSakuraAiMailAsync(modal),
-            IntegrationType.CharacterAI => InteractionsHelper.SendCharacterAiMailAsync(modal),
-        };
+            throw new UserFriendlyException($"This server already has {type.GetIcon()}{type:G} integration");
+        }
+
+        await (type switch
+        {
+            IntegrationType.SakuraAI => ModalsHelper.CreateSakuraAiIntegrationAsync(modal),
+            IntegrationType.CharacterAI => ModalsHelper.CreateCharacterAiIntegrationAsync(modal),
+        });
     }
 
 }

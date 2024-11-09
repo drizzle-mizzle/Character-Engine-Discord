@@ -94,11 +94,18 @@ public static class IntegrationsHelper
         {
             IntegrationType.SakuraAI or
             IntegrationType.CharacterAI => "Chat with",
-
-
         };
     }
 
+
+    public static string GetServiceLink(this IntegrationType type)
+    {
+        return type switch
+        {
+            IntegrationType.SakuraAI => "https://www.sakura.fm/",
+            IntegrationType.CharacterAI => "https://character.ai/",
+        };
+    }
 
     #endregion
 
@@ -106,7 +113,7 @@ public static class IntegrationsHelper
     #region ObjectBased
 
     public static string GetCharacterLink(this ICharacter character)
-    {;
+    {
         return character.GetIntegrationType() switch
         {
             IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
@@ -145,7 +152,7 @@ public static class IntegrationsHelper
         }
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
-        var channel = (ITextChannel)await DI.GetDiscordSocketClient.GetChannelAsync(sourceInfo.ChannelId);
+        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(sourceInfo.ChannelId);
 
         var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (integration is not null)

@@ -14,6 +14,9 @@ public static class BotConfig
     public static ulong ADMIN_GUILD_ID
         => GetParamByName<ulong>("ADMIN_GUILD_ID");
 
+    public static string ADMIN_GUILD_INVITE_LINK
+        => GetParamByName<string>("ADMIN_GUILD_INVITE_LINK").Trim();
+
     public static ulong LOGS_CHANNEL_ID
         => GetParamByName<ulong>("LOGS_CHANNEL_ID");
 

@@ -22,6 +22,7 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public uint ResponseDelay { get; set; }
     public double FreewillFactor { get; set; }
 
+    public uint WideContextMaxLength { get; set; }
     public bool EnableSwipes { get; set; }
     public bool EnableWideContext { get; set; }
     public bool EnableQuotes { get; set; }
@@ -38,6 +39,7 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public string CharacterFirstMessage { get; set; } = null!;
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; } = null!;
+    public bool IsNfsw { get; set; }
     public string CharacterStat => CaiChatsCount.ToString();
 
     public string CaiTitle { get; set; } = string.Empty;
@@ -46,6 +48,7 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
+    public string? CaiChatId { get; set; }
 
     public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
 

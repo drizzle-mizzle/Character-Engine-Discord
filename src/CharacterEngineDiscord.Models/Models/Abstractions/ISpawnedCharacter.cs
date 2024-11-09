@@ -35,6 +35,7 @@ public interface ISpawnedCharacter : ICharacter
 
 
     public bool EnableWideContext { get; set; }
+    public uint WideContextMaxLength { get; set; }
 
     public bool EnableSwipes { get; set; }
 

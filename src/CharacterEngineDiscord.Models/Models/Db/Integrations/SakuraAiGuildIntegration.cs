@@ -9,7 +9,7 @@ namespace CharacterEngineDiscord.Models.Db.Integrations;
 public class SakuraAiGuildIntegration : ISakuraIntegration
 {
     [Key]
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }

@@ -9,4 +9,6 @@ public interface ICaiCharacter : ICharacter
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
+    public string CaiChatId { get; set; }
+
 }

@@ -8,7 +8,6 @@ using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
-using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -46,15 +45,25 @@ public static class MessagesHelper
 
 
     private const int MSG_LIMIT = 1990;
-    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId)
+    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool consoleLog = true)
     {
-        _log.Error($"[{traceId}] Error report:\n[ {title} ]\n{content}");
+        if (consoleLog)
+        {
+            _log.Error($"[{traceId}] Error report:\n[ {title} ]\n{content}");
+        }
 
         var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
         var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
 
+        var count = 0;
         while (content.Length > 0)
         {
+            if (count == 5)
+            {
+                break;
+            }
+
+            count++;
             if (content.Length <= MSG_LIMIT)
             {
                 await thread.SendMessageAsync($"```js\n{content}```");
@@ -67,12 +76,12 @@ public static class MessagesHelper
     }
 
 
-    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content, string? imageUrl = null, Color? color = null)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content = null, string? imageUrl = null, Color? color = null)
     {
         _log.Info($"[ {title} ] {content}");
 
         var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
-        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl));
+        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
         if (content is null)
         {
             return;
@@ -187,29 +196,24 @@ public static class MessagesHelper
 
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
                       $"*Original link: [__{type.GetLinkPrefix()} {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetCharacterLink()})*\n" +
-                      "*Can generate images: `No`*\n";
+                      "*Can generate images: `No`*\n" +
+                      $"*NSFW: `{spawnedCharacter.IsNfsw}`*\n\n";
 
-        if (!justSpawned)
-        {
-            details += // $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" + // TODO: accumulations
-                    $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
-                    $"*Wide context: `{spawnedCharacter.EnableWideContext.ToToggler()}`*\n" +
-                    $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
-                    $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
-                    $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";
-        }
-
-        var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*";
+        var configuration = $"Webhook ID: *`{spawnedCharacter.WebhookId}`*\n";
 
         if (justSpawned)
         {
-            configuration += "\nUse it or character's call prefix to modify this integration with *`/character`* commands.\n**Example:**\n*`/character edit any-identifier:@ai data-to-edit:call-prefix new-value:.ai`*";
+            configuration += "Use it or character's call prefix to modify this integration with *`/character`* commands.\n**Example:**\n*`/character edit any-identifier:@ai data-to-edit:call-prefix new-value:.ai`*";
+        }
+        else
+        {
+            configuration += GetConfigurationInfo(spawnedCharacter);
         }
 
         embed.WithColor(type.GetColor());
         embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
         embed.WithDescription($"{desc}");
-        embed.AddField("Details", details + '\n');
+        embed.AddField("Details", details);
         embed.AddField("Configuration", configuration);
 
         if (!string.IsNullOrEmpty(spawnedCharacter.CharacterImageLink))
@@ -267,6 +271,26 @@ public static class MessagesHelper
                      $"**Description**\n{desc}";
 
         return result;
+    }
+
+
+    private static string GetConfigurationInfo(this ISpawnedCharacter spawnedCharacter)
+    {
+        var info = // $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" + // TODO: accumulations
+                $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
+                $"*Wide context: `{spawnedCharacter.EnableWideContext.ToToggler()}`*\n" +
+                $"*Wide context max length: `{spawnedCharacter.WideContextMaxLength}`*\n" +
+                $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
+                $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
+                $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";
+
+        return info + spawnedCharacter switch
+        {
+            ISakuraCharacter sakuraCharacter => $"*Chat ID: `{sakuraCharacter.SakuraChatId}`*",
+            ICaiCharacter caiCharacter => $"*Chat ID: `{caiCharacter.CaiChatId}`*",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
+        };
     }
 
     #endregion

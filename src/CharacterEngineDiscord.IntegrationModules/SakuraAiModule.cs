@@ -14,26 +14,19 @@ public class SakuraAiModule : IIntegrationModule
 {
     private readonly SakuraAiClient _sakuraAiClient = new();
 
-    public async Task<List<CommonCharacter>> SearchAsync(string query, IGuildIntegration guildIntegration = null!)
+    public async Task<List<CommonCharacter>> SearchAsync(string query, bool allowNsfw, IGuildIntegration guildIntegration = null!)
     {
-        var characters = await _sakuraAiClient.SearchAsync(query, allowNsfw: false); // TODO: ?
+        var characters = await _sakuraAiClient.SearchAsync(query, allowNsfw: allowNsfw); // TODO: ?
         return characters.Select(sc => sc.ToCommonCharacter()).ToList();
     }
 
 
-    public async Task<(string chatId, string? characterMessage)> CreateNewChatAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, string firstUserMessage)
+    public async Task<CommonCharacter> GetCharacterAsync(string characterId, IGuildIntegration guildIntegration)
     {
         var sakuraIntegration = (ISakuraIntegration)guildIntegration;
+        var character = await _sakuraAiClient.GetCharacterInfoAsync(characterId);
 
-        var sakuraCharacter = new SakuraCharacter
-        {
-            id = spawnedCharacter.CharacterId,
-            firstMessage = spawnedCharacter.CharacterFirstMessage
-        };
-
-        var sakuraChat = await _sakuraAiClient.CreateNewChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, sakuraCharacter, firstUserMessage);
-
-        return (sakuraChat.chatId, sakuraChat.messages.Last().content);
+        return character.ToCommonCharacter();
     }
 
 
@@ -45,13 +38,19 @@ public class SakuraAiModule : IIntegrationModule
         string response;
         if (spawnedSakuraCharacter.SakuraChatId is null || spawnedSakuraCharacter.ResetWithNextMessage)
         {
-            var newSakuraChat = await CreateNewChatAsync(spawnedCharacter, guildIntegration, message);
-            spawnedSakuraCharacter.SakuraChatId = newSakuraChat.chatId;
-            response = newSakuraChat.characterMessage!;
+            var sakuraCharacter = new SakuraCharacter
+            {
+                id = spawnedCharacter.CharacterId,
+                firstMessage = spawnedCharacter.CharacterFirstMessage
+            };
+
+            var sakuraChat = await _sakuraAiClient.CreateNewChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, sakuraCharacter, message);
+            response = sakuraChat.messages.Last().content;
+            spawnedSakuraCharacter.SakuraChatId = sakuraChat.chatId;
         }
         else
         {
-            var sakuraMessage =await _sakuraAiClient.SendMessageToChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, spawnedSakuraCharacter.SakuraChatId, message);
+            var sakuraMessage = await _sakuraAiClient.SendMessageToChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, spawnedSakuraCharacter.SakuraChatId, message);
             response = sakuraMessage.content;
         }
 

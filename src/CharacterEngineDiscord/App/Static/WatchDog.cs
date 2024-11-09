@@ -36,7 +36,7 @@ public static class WatchDog
             _blockedUsers.TryAdd(user.Id, null);
         }
 
-        var blockedGuildUsers = db.BlockedGuildUsers.ToList();
+        var blockedGuildUsers = db.GuildBlockedUsers.ToList();
         foreach (var user in blockedGuildUsers)
         {
             _blockedGuildUsers.TryAdd((user.UserId, user.DiscordGuildId), null);
@@ -96,7 +96,7 @@ public static class WatchDog
         }
 
         await using var db = DatabaseHelper.GetDbContext();
-        await db.BlockedGuildUsers.AddAsync(new BlockedGuildUser
+        await db.GuildBlockedUsers.AddAsync(new BlockedGuildUser
         {
             UserId = user.Id,
             DiscordGuildId = user.GuildId,
@@ -130,13 +130,13 @@ public static class WatchDog
         _blockedGuildUsers.TryRemove((user.Id, user.GuildId), out _);
 
         await using var db = DatabaseHelper.GetDbContext();
-        var blockedGuildUser = await db.BlockedGuildUsers.FirstOrDefaultAsync(u => u.UserId == user.Id && u.DiscordGuildId == user.GuildId);
+        var blockedGuildUser = await db.GuildBlockedUsers.FirstOrDefaultAsync(u => u.UserId == user.Id && u.DiscordGuildId == user.GuildId);
         if (blockedGuildUser is null)
         {
             return false;
         }
 
-        db.BlockedGuildUsers.Remove(blockedGuildUser);
+        db.GuildBlockedUsers.Remove(blockedGuildUser);
         await db.SaveChangesAsync();
 
         return true;

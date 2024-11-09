@@ -2,7 +2,7 @@
 
 public interface IGuildIntegration
 {
-    public Guid Id { get; }
+    public Guid Id { get; set; }
 
     public ulong DiscordGuildId { get; set; }
 

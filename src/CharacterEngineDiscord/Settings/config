@@ -5,16 +5,18 @@
 BOT_TOKEN:
 
 # Application restart or reconnection event required for the changes to take effect
-PLAYING_STATUS: Still in beta, stuff may break!
+PLAYING_STATUS: /start
 
 # Users with absolute access to all bot commands, separated with ','
 OWNER_USERS_IDS: 0
 
 ADMIN_GUILD_ID:
+ADMIN_GUILD_INVITE_LINK:
+
 LOGS_CHANNEL_ID:
 ERRORS_CHANNEL_ID:
 
-DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [id:{{mention_hint}}] {{user}}:\n{{msg}}
+DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_id:{{mention_hint}}] {{user}}:\n{{msg}}
 
 # Max messages per minute for a single user
 USER_RATE_LIMIT: 20

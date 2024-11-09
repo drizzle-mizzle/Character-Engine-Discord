@@ -22,7 +22,7 @@ public static class CommonHelper
         }
         catch (Exception e)
         {
-            await DependencyInjectionHelper.GetDiscordSocketClient.ReportErrorAsync(e, NewTraceId());
+            await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync(e, NewTraceId());
             return null;
         }
     }

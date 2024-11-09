@@ -1,10 +1,8 @@
 ﻿using System.Diagnostics;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
-using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -16,8 +14,8 @@ namespace CharacterEngine.App;
 
 public class BackgroundWorker
 {
-    private readonly ILogger _log = DI.GetLogger;
-    private static bool _running = false;
+    private readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static bool _running;
 
 
     public static void Run()
@@ -53,7 +51,10 @@ public class BackgroundWorker
 
                 var traceId = CommonHelper.NewTraceId();
 
-                _log.Info($"[{traceId}] JOB START: {jobTask.Method.Name}");
+                if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
+                {
+                    _log.Info($"[{traceId}] JOB START: {jobTask.Method.Name}");
+                }
 
                 sw.Restart();
 
@@ -63,10 +64,13 @@ public class BackgroundWorker
                 }
                 catch (Exception e)
                 {
-                    await DI.GetDiscordSocketClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId);
+                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId);
                 }
 
-                _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+                if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
+                {
+                    _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+                }
 
                 sw.Restart();
             }
@@ -89,7 +93,7 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId);
             }
         });
     }
@@ -100,8 +104,7 @@ public class BackgroundWorker
         var data = action.ExtractSakuraAiLoginData();
         var source = action.ExtractDiscordSourceInfo();
 
-        var getChannelTask = DI.GetDiscordSocketClient.GetChannelAsync(source.ChannelId);
-        if (await getChannelTask is not ITextChannel channel)
+        if (CharacterEngineBot.DiscordShardedClient.GetChannel(source.ChannelId) is not ITextChannel channel)
         {
             return;
         }
@@ -137,11 +140,11 @@ public class BackgroundWorker
             }
             catch (SakuraException se)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync("SakuraException", se, traceId);
+                // care not
             }
             catch (Exception e)
             {
-                await DI.GetDiscordSocketClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
@@ -177,7 +180,7 @@ public class BackgroundWorker
                       $"**ActionID**: {action.Id}\n" +
                       $"**UserID**: {sourceInfo.UserId}\n" +
                       $"**ChannelID**: {sourceInfo.ChannelId}";
-            await DI.GetDiscordSocketClient.ReportLogAsync(title, msg);
+            await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(title, msg);
 
             action.Status = StoredActionStatus.Canceled;
             await db.SaveChangesAsync();

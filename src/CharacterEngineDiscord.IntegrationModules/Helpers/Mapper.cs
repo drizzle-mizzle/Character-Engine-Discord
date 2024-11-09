@@ -19,7 +19,8 @@ public static class Mapper
             CharacterImageLink = character.imageUri,
             CharacterStat = character.messageCount.ToString(),
             OriginalCharacterObject = character,
-            IntegrationType = IntegrationType.SakuraAI
+            IntegrationType = IntegrationType.SakuraAI,
+            IsNfsw = character.nsfw
         };
 
         return spawnedCharacter;
@@ -37,7 +38,8 @@ public static class Mapper
             CharacterImageLink = $"https://characterai.io/i/200/static/avatars/{character.avatar_file_name}?webp=true&anim=0",
             CharacterStat = character.participant__num_interactions.ToString(),
             OriginalCharacterObject = character,
-            IntegrationType = IntegrationType.CharacterAI
+            IntegrationType = IntegrationType.CharacterAI,
+            IsNfsw = false
         };
 
         return spawnedCharacter;

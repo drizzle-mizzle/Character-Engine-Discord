@@ -1,4 +1,5 @@
-﻿using CharacterEngine.App.CustomAttributes;
+﻿using System.ComponentModel;
+using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
@@ -6,8 +7,10 @@ using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -21,7 +24,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
     private const string ANY_IDENTIFIER_DESC = "Character call prefix or User ID (Webhook ID)";
-
+    private const string NSFW_REQUIRED = "Sorry, but NSFW characters can be spawned only in age restricted channels. Please, mark channel as NSFW and try again.";
 
     public CharacterCommands(AppDbContext db)
     {
@@ -30,34 +33,74 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("spawn", "Spawn new character!")]
-    public async Task SpawnCharacter(string query, IntegrationType integrationType)
+    public async Task SpawnCharacter(IntegrationType integrationType,
+                                     [Summary(description: "Query to perform character search")] string? searchQuery = null,
+                                     [Summary(description: "Needed for search only")] bool showNsfw = false,
+                                     [Summary(description: "Not required; you can spawn character directly with its ID")] string? characterId = null)
     {
+        if (searchQuery is null && characterId is null)
+        {
+            throw new UserFriendlyException("search-query or character-id is required");
+        }
+
         await RespondAsync(embed: MT.WAIT_MESSAGE);
+
+        var channel = (ITextChannel)Context.Channel;
 
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
         {
-            throw new UserFriendlyException($"You have to setup the {integrationType:G} intergration for this server first!");
+            throw new UserFriendlyException($"You have to setup a {integrationType.GetIcon()}{integrationType:G} intergration for this server first!");
         }
 
         var module = integrationType.GetIntegrationModule();
-        var characters = await module.SearchAsync(query, guildIntegration);
-
-        if (characters.Count == 0)
+        if (string.IsNullOrWhiteSpace(characterId))
         {
-            var message = $"{integrationType.GetIcon()} No characters were found by query **\"{query}\"**";
-            await ModifyOriginalResponseAsync(msg => { msg.Embed = message.ToInlineEmbed(Color.Orange, false); });
+            if (showNsfw && !channel.IsNsfw)
+            {
+                await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
+                return;
+            }
+
+            var characters = await module.SearchAsync(searchQuery!, showNsfw, guildIntegration);
+
+            if (characters.Count == 0)
+            {
+                var message = $"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**";
+                await ModifyOriginalResponseAsync(msg => { msg.Embed = message.ToInlineEmbed(Color.Orange, false); });
+                return;
+            }
+
+            var newSq = new SearchQuery(Context.Channel.Id, Context.User.Id, searchQuery!, characters, integrationType);
+            MemoryStorage.SearchQueries.Add(newSq);
+
+            await ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = MH.BuildSearchResultList(newSq);
+                msg.Components = ButtonsHelper.BuildSearchButtons(newSq.Pages > 1);
+            });
+
             return;
         }
 
-        var searchQuery = new SearchQuery(Context.Channel.Id, Context.User.Id, query, characters, integrationType);
-        MemoryStorage.SearchQueries.Add(searchQuery);
-
-        await ModifyOriginalResponseAsync(msg =>
+        if (characterId.Contains('/'))
         {
-            msg.Embed = MH.BuildSearchResultList(searchQuery);
-            msg.Components = ButtonsHelper.BuildSearchButtons(searchQuery.Pages > 1);
-        });
+            characterId = characterId.Split('/').Last();
+        }
+
+        var character = await module.GetCharacterAsync(characterId, guildIntegration);
+        if (character.IsNfsw && !channel.IsNsfw)
+        {
+            await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
+            return;
+        }
+
+        var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, character);
+        var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
+        var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
+
+        await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName);
+        await modifyOriginalResponseAsync;
     }
 
 
@@ -130,25 +173,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, spawnedCharacter, newFormat);
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
-    }
-
-
-    [SlashCommand("freewill-factor", "Chance (0.0-100.0) that character will randomly respond to some user's message; 0 - disable feature")]
-    public async Task FreewillFactor([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, [MinValue(0)] [MaxValue(100)] double factor)
-    {
-        await DeferAsync();
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-
-        var message = $"{MT.OK_SIGN_DISCORD} Freewill factor was successfully changed from **{spawnedCharacter.FreewillFactor}** to **{factor}**";
-
-        spawnedCharacter.FreewillFactor = factor;
-        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-
-        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-        MemoryStorage.CachedCharacters.Add(spawnedCharacter);
-
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
-        await updateSpawnedCharacterAsync;
     }
 
 
@@ -235,6 +259,15 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         [ChoiceDisplay("call-prefix")]
         CallPrefix,
+
+        [ChoiceDisplay("chat-id")]
+        ChatId,
+
+        [ChoiceDisplay("wide-context-max-length")]
+        WideContextMaxLength,
+
+        [ChoiceDisplay("freewill-factor")]
+        FreewillFactor,
     }
 
 
@@ -251,7 +284,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         {
             case EditableProp.CallPrefix:
             {
-                UpdateCallPrefix(spawnedCharacter, newValue);
+                spawnedCharacter.CallPrefix = newValue;
+                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+                MemoryStorage.CachedCharacters.Add(spawnedCharacter);
                 break;
             }
             case EditableProp.Name:
@@ -264,6 +299,30 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 await UpdateAvatarAsync(spawnedCharacter, newValue);
                 break;
             }
+            case EditableProp.ChatId:
+            {
+                UpdateChatId(spawnedCharacter, newValue);
+                break;
+            }
+            case EditableProp.WideContextMaxLength:
+            {
+                spawnedCharacter.WideContextMaxLength = uint.Parse(newValue);
+                break;
+            }
+            case EditableProp.FreewillFactor:
+            {
+                var newFreewillFactor = double.Parse(newValue);
+                if (newFreewillFactor is < 0 or > 100)
+                {
+                    throw new UserFriendlyException("Allowed values: 0.00-100.00");
+                }
+
+                spawnedCharacter.FreewillFactor = newFreewillFactor;
+
+                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+                MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+                break;
+            }
         }
 
         var message = $"{MT.OK_SIGN_DISCORD} **{propertyName}** for character **{characterName}** was successfully changed to **{newValue}**";
@@ -273,13 +332,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await updateSpawnedCharacterAsync;
     }
 
-
-    private static void UpdateCallPrefix(ISpawnedCharacter spawnedCharacter, string newCallPrefix)
-    {
-        spawnedCharacter.CallPrefix = newCallPrefix;
-        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-        MemoryStorage.CachedCharacters.Add(spawnedCharacter);
-    }
 
     private async Task UpdateNameAsync(ISpawnedCharacter spawnedCharacter, string newName)
     {
@@ -314,6 +366,24 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
 
             await webhookClient.ModifyWebhookAsync(w => { w.Image = new Image(image); });
+        }
+    }
+
+
+    private static void UpdateChatId(ISpawnedCharacter spawnedCharacter, string newChatId)
+    {
+        switch (spawnedCharacter)
+        {
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
+            {
+                sakuraAiSpawnedCharacter.SakuraChatId = newChatId;
+                break;
+            }
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                caiSpawnedCharacter.CaiChatId = newChatId;
+                break;
+            }
         }
     }
 

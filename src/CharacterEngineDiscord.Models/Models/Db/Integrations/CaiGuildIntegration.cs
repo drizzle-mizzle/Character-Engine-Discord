@@ -9,7 +9,7 @@ namespace CharacterEngineDiscord.Models.Db.Integrations;
 public class CaiGuildIntegration : ICaiIntegration
 {
     [Key]
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }
@@ -17,7 +17,10 @@ public class CaiGuildIntegration : ICaiIntegration
     public string? GlobalMessagesFormat { get; set; } = null;
     public required DateTime CreatedAt { get; set; }
 
+    public required string CaiEmail { get; set; }
     public required string CaiAuthToken { get; set; }
+    public required string CaiUserId { get; set; }
+    public required string CaiUsername { get; set; }
 
 
     public virtual DiscordGuild DiscordGuild { get; set; } = null!;

@@ -39,7 +39,16 @@ public class ValidateChannelPermissionsAttribute : PreconditionAttribute
 {
     public override async Task<PreconditionResult> CheckRequirementsAsync(IInteractionContext context, ICommandInfo info, IServiceProvider services)
     {
-        await InteractionsHelper.ValidateChannelPermissionsAsync((IGuildChannel)context.Channel);
+        if (IsNoWarnCommand((SocketSlashCommand)context.Interaction) == false)
+        {
+            await InteractionsHelper.ValidateChannelPermissionsAsync((IGuildChannel)context.Channel);
+        }
+
         return PreconditionResult.FromSuccess();
     }
+
+
+    private static bool IsNoWarnCommand(SocketSlashCommand command)
+        => command.CommandName.StartsWith("channel", StringComparison.Ordinal)
+        && command.Data.Options.All(opt => opt.Name is string optName && optName.StartsWith("no-warn", StringComparison.Ordinal));
 }

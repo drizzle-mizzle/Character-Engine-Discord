@@ -10,17 +10,13 @@ namespace CharacterEngine.App.SlashCommands.Explicit;
 
 public class BotAdminCommandsHandler
 {
-    private readonly AppDbContext _db;
-    private readonly DiscordSocketClient _discordClient;
-    private readonly InteractionService _interactions;
 
-
-    public BotAdminCommandsHandler(AppDbContext db, DiscordSocketClient discordClient, InteractionService interactions)
-    {
-        _db = db;
-        _discordClient = discordClient;
-        _interactions = interactions;
-    }
+    // public BotAdminCommandsHandler(AppDbContext db, DiscordShardedClient discordClient, InteractionService interactions)
+    // {
+    //     _db = db;
+    //     _discordClient = discordClient;
+    //     _interactions = interactions;
+    // }
 
 
     public async Task ShutdownAsync(SocketSlashCommand command)

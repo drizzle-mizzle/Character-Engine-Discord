@@ -1,7 +1,5 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Helpers.Mappings;
-using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -180,7 +178,8 @@ public static class DatabaseHelper
         newSpawnedCharacter.CharacterName = commonCharacter.CharacterName;
         newSpawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
         newSpawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
-        newSpawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor;
+        newSpawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor ?? "unknown";
+        newSpawnedCharacter.IsNfsw = commonCharacter.IsNfsw;
         newSpawnedCharacter.DiscordChannelId = channel.Id;
         newSpawnedCharacter.WebhookId = webhook.Id;
         newSpawnedCharacter.WebhookToken = webhook.Token;
@@ -190,6 +189,7 @@ public static class DatabaseHelper
         newSpawnedCharacter.FreewillFactor = 0;
         newSpawnedCharacter.EnableSwipes = false;
         newSpawnedCharacter.EnableWideContext = true;
+        newSpawnedCharacter.WideContextMaxLength = 1000;
         newSpawnedCharacter.EnableQuotes = false;
         newSpawnedCharacter.EnableStopButton = true;
         newSpawnedCharacter.SkipNextBotMessage = false;
@@ -223,6 +223,16 @@ public static class DatabaseHelper
 
     #region Integrations
 
+    public static async Task<IGuildIntegration?> GetGuildIntegrationAsync(Guid integrationId)
+    {
+        await using var db = GetDbContext();
+
+        return await db.SakuraAiIntegrations.FirstOrDefaultAsync(s => s.Id == integrationId) as IGuildIntegration
+            ?? await db.CaiIntegrations.FirstOrDefaultAsync(c => c.Id == integrationId) as IGuildIntegration
+            ?? null;
+    }
+
+
     public static async Task<IGuildIntegration?> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = GetDbContext();
@@ -250,6 +260,28 @@ public static class DatabaseHelper
         };
 
         return integration;
+    }
+
+
+    public static async Task<List<IGuildIntegration>> GetAllIntegrationsInGuildAsync(ulong guildId)
+    {
+        var result = new List<IGuildIntegration>();
+
+        await using var db = GetDbContext();
+
+        var sakuraAiGuildIntegration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId);
+        if (sakuraAiGuildIntegration is not null)
+        {
+            result.Add(sakuraAiGuildIntegration);
+        }
+
+        var characterAiGuildIntegration = await db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId);
+        if (characterAiGuildIntegration is not null)
+        {
+            result.Add(characterAiGuildIntegration);
+        }
+
+        return result;
     }
 
 
@@ -335,7 +367,17 @@ public static class DatabaseHelper
         await using var db = GetDbContext();
         var discordGuild = await db.DiscordGuilds.FirstOrDefaultAsync(g => g.Id == guild.Id);
 
-        var owner = (guild as SocketGuild)?.Owner ?? await guild.GetOwnerAsync();
+        string? ownerUsername = null;
+        int? memberCount = null;
+        if (guild is SocketGuild socketGuild)
+        {
+            ownerUsername = socketGuild.Owner?.Username;
+            memberCount = socketGuild.MemberCount;
+        }
+
+        ownerUsername ??= (await guild.GetOwnerAsync())?.Username;
+        memberCount ??= guild.ApproximateMemberCount;
+
         if (discordGuild is null)
         {
             var newGuild = new DiscordGuild
@@ -344,8 +386,9 @@ public static class DatabaseHelper
                 GuildName = guild.Name,
                 MessagesSent = 0,
                 NoWarn = false,
-                OwnerId = owner?.Id ?? guild.OwnerId,
-                OwnerUsername = owner?.Username,
+                OwnerId = guild.OwnerId,
+                OwnerUsername = ownerUsername,
+                MemberCount = memberCount ?? 0,
                 Joined = true,
                 FirstJoinDate = DateTime.Now
             };
@@ -355,9 +398,10 @@ public static class DatabaseHelper
         else
         {
             discordGuild.Joined = true;
-            discordGuild.GuildName = guild.Name;
-            discordGuild.OwnerId = owner?.Id ?? guild.OwnerId;
-            discordGuild.OwnerUsername = owner?.Username;
+            discordGuild.GuildName = guild.Name ?? "";
+            discordGuild.OwnerId = guild.OwnerId;
+            discordGuild.OwnerUsername = ownerUsername;
+            discordGuild.MemberCount = memberCount ?? 0;
         }
 
         await db.SaveChangesAsync();

@@ -1,4 +1,9 @@
-﻿using Discord;
+﻿using CharacterAi.Client.Exceptions;
+using CharacterEngineDiscord.IntegrationModules;
+using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
+using Discord;
+using Discord.WebSocket;
 using NLog;
 
 namespace CharacterEngine.App.Helpers.Discord;
@@ -6,7 +11,7 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public static class ModalsHelper
 {
-    private static readonly ILogger _log = LogManager.GetCurrentClassLogger();
+    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
     public static Modal BuildSakuraAiAuthModal(this ModalBuilder modalBuilder)
@@ -24,4 +29,17 @@ public static class ModalsHelper
         return modalBuilder.Build();
     }
 
+
+     public static async Task CreateSakuraAiIntegrationAsync(SocketModal modal)
+    {
+        var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
+        await InteractionsHelper.SendSakuraAiMailAsync(modal, email);
+    }
+
+
+    public static async Task CreateCharacterAiIntegrationAsync(SocketModal modal)
+    {
+        var email = modal.Data.Components.First(c => c.CustomId == "email").Value.Trim();
+        await InteractionsHelper.SendCharacterAiMailAsync(modal, email);
+    }
 }

@@ -22,6 +22,7 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public uint ResponseDelay { get; set; }
     public double FreewillFactor { get; set; }
 
+    public uint WideContextMaxLength { get; set; }
     public bool EnableSwipes { get; set; }
     public bool EnableWideContext { get; set; }
     public bool EnableQuotes { get; set; }
@@ -38,6 +39,7 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public string CharacterFirstMessage { get; set; } = null!;
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; } = null!;
+    public bool IsNfsw { get; set; }
     public string CharacterStat => SakuraMessagesCount.ToString();
 
     public string SakuraDescription { get; set; } = string.Empty;
