@@ -13,7 +13,7 @@ namespace CharacterEngine
 
         private static async Task Main(string[] args)
         {
-            var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"Settings\NLog.config");
+            var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "NLog.config");
             LogManager.Configuration = new NLog.Config.XmlLoggingConfiguration(nlogPath);
 
             _log.Info("[ Starting Character Engine ]");
@@ -40,12 +40,8 @@ namespace CharacterEngine
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-            await using (var db = DatabaseHelper.GetDbContext())
-            {
-                await db.Database.MigrateAsync();
-            }
-
             await CharacterEngineBot.RunAsync(args.All(arg => arg != "no-update"));
         }
+
     }
 }

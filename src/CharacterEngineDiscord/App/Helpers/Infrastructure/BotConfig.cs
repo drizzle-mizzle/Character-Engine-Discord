@@ -1,4 +1,6 @@
-﻿namespace CharacterEngine.App.Helpers.Infrastructure;
+﻿using NLog;
+
+namespace CharacterEngine.App.Helpers.Infrastructure;
 
 public static class BotConfig
 {
@@ -67,8 +69,12 @@ public static class BotConfig
             }
 
             var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings"));
-            return _configPath = files.GetFileThatStartsWith("env.config") ??
-                                 files.GetFileThatStartsWith("config")!;
+            _configPath = files.GetFileThatStartsWith("env.config") ??
+                          files.GetFileThatStartsWith("config")!;
+
+            LogManager.GetCurrentClassLogger().Info($"[ Config path: {_configPath} ]");
+
+            return _configPath;
         }
     }
 
