@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Text;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
@@ -144,22 +145,27 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
 
-        var tasks = new List<Task>();
-        tasks.Add(DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter));
+        var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
 
         var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is not null)
         {
-            tasks.Add(webhookClient.DeleteWebhookAsync());
+            try
+            {
+                await webhookClient.DeleteWebhookAsync();
+            }
+            catch
+            {
+                // care not
+            }
         }
 
         var message = $"{MT.OK_SIGN_DISCORD} Character **{spawnedCharacter.CharacterName}** removed successfully";
-        tasks.Add(FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false)));
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
 
         MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
         MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
-
-        Task.WaitAll(tasks.ToArray());
+        await deleteSpawnedCharacterAsync;
     }
 
 
@@ -215,11 +221,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 newValue = spawnedCharacter.EnableSwipes ^= true;
                 break;
             }
-            case TogglableSettings.WideContext:
-            {
-                newValue = spawnedCharacter.EnableWideContext ^= true;
-                break;
-            }
             case TogglableSettings.Quotes:
             {
                 newValue = spawnedCharacter.EnableQuotes ^= true;
@@ -264,38 +265,50 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         ChatId,
 
         [ChoiceDisplay("wide-context-max-length")]
-        WideContextMaxLength,
+        FreewillMaxContextSize,
 
         [ChoiceDisplay("freewill-factor")]
         FreewillFactor,
+
+        [ChoiceDisplay("first-message")]
+        FirstMessage
     }
 
 
     [SlashCommand("edit", "Update character's info, call prefix, etc")]
-    public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp dataToEdit, string newValue)
+    public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp property, string newValue)
     {
         await DeferAsync();
 
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var characterName = spawnedCharacter.CharacterName;
-        var propertyName = dataToEdit.ToString("G").SplitWordsBySep(' ');
 
-        switch (dataToEdit)
+        string? oldValue = null;
+        switch (property)
         {
             case EditableProp.CallPrefix:
             {
+                oldValue = spawnedCharacter.CallPrefix;
                 spawnedCharacter.CallPrefix = newValue;
+
                 MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
                 MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+
                 break;
             }
             case EditableProp.Name:
             {
-                await UpdateNameAsync(spawnedCharacter, newValue);
+                oldValue = spawnedCharacter.CharacterName;
+                spawnedCharacter.CharacterName = newValue;
+
+                await UpdateNameAsync(spawnedCharacter);
                 break;
             }
             case EditableProp.Avatar:
             {
+                oldValue = spawnedCharacter.CharacterImageLink;
+                spawnedCharacter.CharacterImageLink = newValue;
+
                 await UpdateAvatarAsync(spawnedCharacter, newValue);
                 break;
             }
@@ -304,13 +317,15 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 UpdateChatId(spawnedCharacter, newValue);
                 break;
             }
-            case EditableProp.WideContextMaxLength:
+            case EditableProp.FreewillMaxContextSize:
             {
-                spawnedCharacter.WideContextMaxLength = uint.Parse(newValue);
+                spawnedCharacter.FreewillContextSize = uint.Parse(newValue);
                 break;
             }
             case EditableProp.FreewillFactor:
             {
+                oldValue = spawnedCharacter.FreewillFactor.ToString();
+
                 var newFreewillFactor = double.Parse(newValue);
                 if (newFreewillFactor is < 0 or > 100)
                 {
@@ -323,20 +338,34 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 MemoryStorage.CachedCharacters.Add(spawnedCharacter);
                 break;
             }
+            case EditableProp.FirstMessage:
+            {
+                oldValue = spawnedCharacter.CharacterFirstMessage;
+                spawnedCharacter.CharacterFirstMessage = newValue;
+
+                break;
+            }
         }
 
-        var message = $"{MT.OK_SIGN_DISCORD} **{propertyName}** for character **{characterName}** was successfully changed to **{newValue}**";
-        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
-        await updateSpawnedCharacterAsync;
+        var message = new StringBuilder();
+        var propertyName = property.ToString("G").SplitWordsBySep(' ');
+        message.Append($"{MT.OK_SIGN_DISCORD} **{propertyName}** for character **{characterName}** was successfully changed ");
+
+        if (oldValue is not null)
+        {
+            message.Append($"from **{oldValue}** ");
+        }
+
+        message.Append($"to **{newValue}**");
+
+        await FollowupAsync(embed: message.ToString().ToInlineEmbed(Color.Green, bold: false));
     }
 
 
-    private async Task UpdateNameAsync(ISpawnedCharacter spawnedCharacter, string newName)
+    private async Task UpdateNameAsync(ISpawnedCharacter spawnedCharacter)
     {
-        spawnedCharacter.CharacterName = newName;
-
         var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
@@ -344,14 +373,12 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
         else
         {
-            await webhookClient.ModifyWebhookAsync(w => { w.Name = newName; });
+            await webhookClient.ModifyWebhookAsync(w => { w.Name = spawnedCharacter.CharacterName; });
         }
     }
 
     private async Task UpdateAvatarAsync(ISpawnedCharacter spawnedCharacter, string newAvatarUrl)
     {
-        spawnedCharacter.CharacterImageLink = newAvatarUrl;
-
         var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {

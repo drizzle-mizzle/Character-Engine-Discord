@@ -199,34 +199,43 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
              return;
         }
 
-        if (removeAssociatedCharacters)
+        var channelsInGuild = await _db.DiscordChannels.Where(c => c.DiscordGuildId == integration.DiscordGuildId).ToListAsync();
+
+        foreach (var channel in channelsInGuild)
         {
-            var channels = await _db.DiscordChannels.Where(c => c.DiscordGuildId == Context.Guild.Id).ToListAsync();
+            var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(channel.Id);
 
-            var charactersInChannels = channels.Select(TargetedCharacters).SelectMany(character => character);
-
-            foreach (var character in charactersInChannels)
+            foreach (var spawnedCharacter in spawnedCharacters.Where(sc => sc.GetIntegrationType() == type))
             {
-                try
+                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+
+                if (removeAssociatedCharacters)
                 {
-                    var webhookId = ulong.Parse(character.WebhookId);
-                    var webhookClient = MemoryStorage.CachedWebhookClients.Find(webhookId);
-                    if (webhookClient is not null)
+                    var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+
+                    try
                     {
-                        await webhookClient.DeleteWebhookAsync();
-                        MemoryStorage.CachedWebhookClients.Remove(webhookId);
+                        var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+                        if (webhookClient is not null)
+                        {
+                            await webhookClient.DeleteWebhookAsync();
+                        }
+                    }
+                    catch
+                    {
+                        // care not
                     }
 
-                    MemoryStorage.CachedCharacters.Remove(character.Id);
+                    MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+                    await deleteSpawnedCharacterAsync;
                 }
-                catch (Exception e) // TODO: handle
+                else
                 {
-                    //
+                    spawnedCharacter.FreewillFactor = 0;
+                    MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+                    await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
                 }
             }
-
-            IEnumerable<CachedCharacterInfo> TargetedCharacters(DiscordChannel channel)
-                => MemoryStorage.CachedCharacters.ToList(channel.Id).Where(c => c.IntegrationType == type);
         }
 
         await DatabaseHelper.DeleteGuildIntegrationAsync(integration, removeAssociatedCharacters);

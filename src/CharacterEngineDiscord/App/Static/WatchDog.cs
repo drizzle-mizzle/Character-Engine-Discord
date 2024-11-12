@@ -61,7 +61,7 @@ public static class WatchDog
         var validationResult = Validate(watchedUser);
         if (validationResult is WatchDogValidationResult.Blocked)
         {
-            Task.Run(async () => await BlockUserGloballyAsync(user.Id));
+            _ = BlockUserGloballyAsync(user.Id);
         }
 
         return validationResult;

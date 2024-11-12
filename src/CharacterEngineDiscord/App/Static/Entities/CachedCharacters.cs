@@ -33,7 +33,7 @@ public sealed class CachedCharacerInfoCollection
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
             CachedUserMessages = new CachedUserMessages(),
-            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes, spawnedCharacter.EnableWideContext)
+            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
         };
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
@@ -84,17 +84,11 @@ public record CachedCharacterInfo
 
 public record ActiveConversation
 {
-    public ActiveConversation(bool swipable, bool useBuffer)
+    public ActiveConversation(bool swipable)
     {
         if (swipable)
         {
             SwipableCharacterMessages = [];
-        }
-
-        if (useBuffer)
-        {
-            BufferTimer = new Stopwatch();
-            BufferedUserMessages = [];
         }
     }
 
@@ -104,9 +98,6 @@ public record ActiveConversation
 
     public int SelectedSwipableMessageIndex { get; set; } = 0;
     public List<CharacterMessage>? SwipableCharacterMessages { get; }
-
-    public Stopwatch? BufferTimer { get; }
-    public List<UserMessage>? BufferedUserMessages { get; }
 }
 
 

@@ -18,10 +18,7 @@ public sealed class CachedWebhookClientCollection
 
     public void Remove(ulong webhookId)
     {
-        if (_webhookClients.ContainsKey(webhookId))
-        {
-            _webhookClients.TryRemove(webhookId, out _);
-        }
+        _webhookClients.TryRemove(webhookId, out _);
     }
 
 

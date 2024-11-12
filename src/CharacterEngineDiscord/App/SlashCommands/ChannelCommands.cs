@@ -76,24 +76,29 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
 
         var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(Context.Channel.Id);
 
-        var tasks = new List<Task>();
         foreach (var spawnedCharacter in spawnedCharacters)
         {
-            tasks.Add(DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter));
+            var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+            MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
 
-            var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
-            if (webhookClient is not null)
+            try
             {
-                await webhookClient.DeleteWebhookAsync();
+                var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+                if (webhookClient is not null)
+                {
+                    await webhookClient.DeleteWebhookAsync();
+                }
+            }
+            catch
+            {
+                // care not
             }
 
-            MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
             MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+            await deleteSpawnedCharacterAsync;
         }
 
         var message = $"{MP.OK_SIGN_DISCORD} Successfully removed {spawnedCharacters.Count} characters from the current channel";
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
-
-        Task.WaitAll(tasks.ToArray());
     }
 }

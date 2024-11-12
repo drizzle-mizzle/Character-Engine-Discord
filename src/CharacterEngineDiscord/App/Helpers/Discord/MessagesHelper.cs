@@ -278,8 +278,7 @@ public static class MessagesHelper
     {
         var info = // $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" + // TODO: accumulations
                 $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
-                $"*Wide context: `{spawnedCharacter.EnableWideContext.ToToggler()}`*\n" +
-                $"*Wide context max length: `{spawnedCharacter.WideContextMaxLength}`*\n" +
+                $"*Freewill max context size: `{(spawnedCharacter.FreewillContextSize == 0 ? "disabled" : $"{spawnedCharacter.FreewillContextSize} characters")}`*\n" +
                 $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
                 $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
                 $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";

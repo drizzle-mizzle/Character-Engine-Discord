@@ -90,7 +90,7 @@ public class InteractionsHandler
                        $"Channel: **{interactionContext.Channel.Name}** ({interactionContext.Channel.Id})\n" +
                        $"Guild: **{interactionContext.Guild.Name}** ({interactionContext.Guild.Id})\n" +
                        $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
-                       $"Exception:\n```cs{exception}```";
+                       $"Exception:\n{exception}";
 
             await _discordClient.ReportErrorAsync("Interaction exception", content, traceId);
         }

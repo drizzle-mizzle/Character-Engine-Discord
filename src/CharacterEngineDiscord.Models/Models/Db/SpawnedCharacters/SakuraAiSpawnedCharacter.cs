@@ -22,7 +22,7 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public uint ResponseDelay { get; set; }
     public double FreewillFactor { get; set; }
 
-    public uint WideContextMaxLength { get; set; }
+    public uint FreewillContextSize { get; set; }
     public bool EnableSwipes { get; set; }
     public bool EnableWideContext { get; set; }
     public bool EnableQuotes { get; set; }

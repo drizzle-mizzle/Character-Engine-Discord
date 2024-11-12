@@ -34,7 +34,6 @@ public class CharacterEngineBot
     private readonly SlashCommandsHandler _slashCommandsHandler;
 
 
-
     public static async Task RunAsync(bool update)
     {
         _update = update;
@@ -162,8 +161,8 @@ public class CharacterEngineBot
             return Task.CompletedTask;
         };
 
-        _discordSocketClient.ButtonExecuted += _buttonsHandler.HandleButton;
         _interactionService.InteractionExecuted += _interactionsHandler.HandleInteraction;
+        _discordSocketClient.ButtonExecuted += _buttonsHandler.HandleButton;
         _discordSocketClient.MessageReceived += _messagesHandler.HandleMessage;
         _discordSocketClient.ModalSubmitted += _modalsHandler.HandleModal;
         _discordSocketClient.SlashCommandExecuted += _slashCommandsHandler.HandleSlashCommand;
@@ -190,7 +189,12 @@ public class CharacterEngineBot
 
             _log.Info($"[{_discordSocketClient.ShardId}] Registering commands to {_discordSocketClient.Guilds.Count} guilds");
 
-            await ProcessAdminGuildAsync();
+
+            var adminGuild = _discordSocketClient.Guilds.FirstOrDefault(g => g.Id == BotConfig.ADMIN_GUILD_ID);
+            if (adminGuild is not null)
+            {
+                await ProcessAdminGuildAsync(adminGuild);
+            }
 
             var failedGuilds = new ConcurrentBag<(IGuild guild, string err)>();
             var guildChunks = _discordSocketClient.Guilds.Where(g => g.Id != BotConfig.ADMIN_GUILD_ID).Chunk(5); // to not hit rate limit
@@ -200,7 +204,6 @@ public class CharacterEngineBot
             foreach (var guilds in guildChunks)
             {
                 while (sw.Elapsed.Seconds < 1) { } // wait
-
                 sw.Restart();
 
                 await Parallel.ForEachAsync(guilds, TryToProcessGuild);
@@ -237,14 +240,8 @@ public class CharacterEngineBot
     }
 
 
-    private async Task ProcessAdminGuildAsync()
+    private async Task ProcessAdminGuildAsync(SocketGuild adminGuild)
     {
-        var adminGuild = _discordSocketClient.Guilds.FirstOrDefault(g => g.Id == BotConfig.ADMIN_GUILD_ID);
-        if (adminGuild is null)
-        {
-            return;
-        }
-
         await _interactionService.RegisterCommandsToGuildAsync(adminGuild.Id);
 
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
@@ -263,22 +260,21 @@ public class CharacterEngineBot
     private async Task EnsureCommandsRegisteredAsync(SocketGuild guild)
     {
         var commands = await guild.GetApplicationCommandsAsync();
+        if (commands.Count == 0)
+        {
+            var startCommand = ExplicitCommandBuilders.BuildStartCommand();
+            await guild.CreateApplicationCommandAsync(startCommand);
+            return;
+        }
+
         var commandNames = commands.Select(c => c.Name).ToArray();
-
-        var hasStartCommand = commandNames.Contains($"{SpecialCommands.start:G}");
-        if (hasStartCommand)
+        if (commandNames.Contains($"{SpecialCommands.start:G}"))
         {
             return;
         }
 
-        var hasDisableCommand = commandNames.Contains($"{SpecialCommands.disable:G}");
-        if (hasDisableCommand)
-        {
-            await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
-            return;
-        }
-
-        var startCommand = ExplicitCommandBuilders.BuildStartCommand();
-        await guild.CreateApplicationCommandAsync(startCommand);
+        await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
+        var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
+        await guild.CreateApplicationCommandAsync(disableCommand);
     }
 }

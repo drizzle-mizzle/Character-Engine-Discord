@@ -1,3 +1,4 @@
+using System.Text;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
@@ -15,11 +16,12 @@ namespace CharacterEngine.App.SlashCommands;
 public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
+    // private readonly DiscordSocketClient _discordClient;
 
 
     public enum UserAction
     {
-        add, remove, // TODO: show
+        show, add, remove,
 
         [ChoiceDisplay("clear-all")]
         clearAll
@@ -29,6 +31,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     public GuildAdminCommands(AppDbContext db)
     {
         _db = db;
+        // _discordClient = discordClient;
     }
 
 
@@ -40,14 +43,33 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
         var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
 
-        if (action is UserAction.clearAll)
+        switch (action)
         {
-            _db.GuildBotManagers.RemoveRange(managers);
-            await _db.SaveChangesAsync();
+            case UserAction.show:
+            {
+                var list = new StringBuilder();
 
-            await FollowupAsync(embed: "Managers list has been cleared".ToInlineEmbed(Color.Green, bold: true));
+                foreach (var manager in managers)
+                {
+                    var managerUser = await Context.Guild.GetUserAsync(manager.UserId);
+                    list.AppendLine(managerUser.DisplayName ?? managerUser.Username);
+                }
 
-            return;
+                var embed = new EmbedBuilder().WithColor(Color.Blue)
+                                              .WithTitle($"Managers ({managers.Count})")
+                                              .WithDescription(list.ToString());
+
+                await FollowupAsync(embed: embed.Build());
+                return;
+            }
+            case UserAction.clearAll:
+            {
+                _db.GuildBotManagers.RemoveRange(managers);
+                await _db.SaveChangesAsync();
+
+                await FollowupAsync(embed: "Managers list has been cleared".ToInlineEmbed(Color.Green, bold: true));
+                return;
+            }
         }
 
         if (user is null && userId is null)

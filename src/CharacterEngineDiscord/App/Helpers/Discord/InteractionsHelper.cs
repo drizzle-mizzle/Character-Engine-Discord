@@ -10,6 +10,7 @@ using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
+using Discord.Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
 using SakuraAi.Client.Models.Common;
-using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
+using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.Helpers.Discord;
@@ -37,11 +38,11 @@ public static class InteractionsHelper
         var exception = e.InnerException ?? e;
 
         var message = exception is UserFriendlyException or FormatException or SakuraException or CharacterAiException // controlled exceptions
-                ? exception.Message : $"{MessagesTemplates.X_SIGN_DISCORD} Something went wrong!";
+                ? exception.Message : $"{MT.X_SIGN_DISCORD} Something went wrong!";
 
-        if (!message.StartsWith(MessagesTemplates.X_SIGN_DISCORD) && !message.StartsWith(MessagesTemplates.WARN_SIGN_DISCORD))
+        if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
         {
-            message = $"{MessagesTemplates.X_SIGN_DISCORD} {message}";
+            message = $"{MT.X_SIGN_DISCORD} {message}";
         }
 
         if (isBold)
@@ -71,7 +72,15 @@ public static class InteractionsHelper
                 }
                 catch
                 {
-                    // ...but in the end, it doesn't even matter
+                    try
+                    {
+                        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel((ulong)interaction.ChannelId!);
+                        await channel.SendMessageAsync(embed: embed);
+                    }
+                    catch
+                    {
+                        // ...but in the end, it doesn't even matter
+                    }
                 }
             }
         }
@@ -114,7 +123,7 @@ public static class InteractionsHelper
         catch (CharacterAiException e)
         {
             _log.Error(e.ToString());
-            await interaction.FollowupAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
+            await interaction.FollowupAsync(embed: $"{MT.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
 
             return;
         }
@@ -228,43 +237,73 @@ public static class InteractionsHelper
     }
 
 
-    public static Task SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
+    public static async Task SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
     {
+        if (string.IsNullOrWhiteSpace(spawnedCharacter.CharacterFirstMessage))
+        {
+            return;
+        }
+
         var characterMessage = spawnedCharacter.CharacterFirstMessage
                                                .Replace("{{char}}", spawnedCharacter.CharacterName)
                                                .Replace("{{user}}", $"**{username}**");
 
-        return SendMessageAsync(spawnedCharacter, characterMessage);
+        await SendMessageAsync(spawnedCharacter, characterMessage);
     }
 
 
     public static async Task<ulong> SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
     {
-        var webhookClient = MemoryStorage.CachedWebhookClients.FindOrCreate(spawnedCharacter);
-
-        if (characterMessage.Length <= 2000)
+        try
         {
-            return await webhookClient.SendMessageAsync(characterMessage);
+            var webhookClient = MemoryStorage.CachedWebhookClients.FindOrCreate(spawnedCharacter);
+
+            if (characterMessage.Length <= 2000)
+            {
+                return await webhookClient.SendMessageAsync(characterMessage);
+            }
+
+            var chunkSize = characterMessage.Length > 3990 ? 1990 : characterMessage.Length / 2;
+            var chunks = characterMessage.Chunk(chunkSize).Select(c => new string(c)).ToArray();
+
+            var messageId = await webhookClient.SendMessageAsync(chunks[0]);
+
+            var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(spawnedCharacter.DiscordChannelId);
+            var message = await channel.GetMessageAsync(messageId);
+            var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
+
+            for (var i = 1; i < chunks.Length; i++)
+            {
+                await webhookClient.SendMessageAsync(chunks[i], threadId: thread.Id);
+            }
+
+            await thread.ModifyAsync(t => { t.Archived = true; });
+
+            return messageId;
         }
-
-        var chunkSize = characterMessage.Length > 3990 ? 1990 : characterMessage.Length / 2;
-        var chunks = characterMessage.Chunk(chunkSize).Select(c => new string(c)).ToArray();
-
-        var messageId = await webhookClient.SendMessageAsync(chunks[0]);
-
-        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(spawnedCharacter.DiscordChannelId);
-        var message = await channel.GetMessageAsync(messageId);
-        var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
-
-        for (var i = 1; i < chunks.Length; i++)
+        catch (Exception e)
         {
-            await webhookClient.SendMessageAsync(chunks[i], threadId: thread.Id);
+            if (e is HttpException or InvalidOperationException
+             && (e.Message.Contains("Unknown Webhook") || e.Message.Contains("Could not find a webhook")))
+            {
+                MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+
+                await DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+            }
+
+            var ie = e.InnerException;
+            if (ie is HttpException or InvalidOperationException
+             && (ie.Message.Contains("Unknown Webhook") || ie.Message.Contains("Could not find a webhook")))
+            {
+                MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+
+                await DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+            }
+
+            throw;
         }
-
-        // await thread.ModifyAsync(t => { t.Archived = t.Locked = true; });
-        await thread.ModifyAsync(t => { t.Archived = true; });
-
-        return messageId;
     }
 
     #endregion
@@ -392,7 +431,7 @@ public static class InteractionsHelper
 
                 var msgBegin = await UpdateFormatAsync(newFormat, db);
 
-                return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was changed successfully.\n" +
+                return $"{MT.OK_SIGN_DISCORD} {msgBegin} was changed successfully.\n" +
                        $"**Preview:**\n" +
                        $"{MH.BuildMessageFormatPreview(newFormat)}";
             }
@@ -401,7 +440,7 @@ public static class InteractionsHelper
                 var format = GetDefaultFormat();
                 var msgBegin = await UpdateFormatAsync(format, db);
 
-                return $"{MessagesTemplates.OK_SIGN_DISCORD} {msgBegin} was reset to default value successfully.\n" +
+                return $"{MT.OK_SIGN_DISCORD} {msgBegin} was reset to default value successfully.\n" +
                        $"**Preview:**\n" +
                        $"{MH.BuildMessageFormatPreview(format)}";
             }
@@ -451,7 +490,7 @@ public static class InteractionsHelper
 
     #region Validations
 
-    public static async Task ValidateUserAsync(SocketInteraction interaction)
+    public static void ValidateUser(SocketInteraction interaction)
     {
         var validationResult = WatchDog.ValidateUser((IGuildUser)interaction.User);
 
@@ -459,15 +498,14 @@ public static class InteractionsHelper
         {
             case WatchDogValidationResult.Blocked:
             {
-                await interaction.FollowupAsync();
+                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: ":rage:".ToInlineEmbed(Color.Red));
                 throw new UnauthorizedAccessException();
             }
             case WatchDogValidationResult.Warning:
             {
-                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: MessagesTemplates.RATE_LIMIT_WARNING);
+                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down".ToInlineEmbed(Color.Orange));
+                break;
             }
-
-            return;
         }
     }
 
@@ -580,7 +618,7 @@ public static class InteractionsHelper
 
         if (missingPerms.Count != 0)
         {
-            var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} There are permissions required for the bot to operate in this channel that are missing:**\n" +
+            var msg = $"**{MT.WARN_SIGN_DISCORD} There are permissions required for the bot to operate in this channel that are missing:**\n" +
                       $"```{string.Join("\n", missingPerms.Select(perm => $"> {perm:G}"))}```\n{DISABLE_WARN_PROMPT}";
 
             throw new UserFriendlyException(msg, bold: false);
@@ -588,7 +626,7 @@ public static class InteractionsHelper
 
         if (prohibitiveOws.Count != 0)
         {
-            var msg = $"**{MessagesTemplates.WARN_SIGN_DISCORD} This channel has some prohibitive permission overwrites applied to the bot, which may affect its work:**\n" +
+            var msg = $"**{MT.WARN_SIGN_DISCORD} This channel has some prohibitive permission overwrites applied to the bot, which may affect its work:**\n" +
                       $"```{string.Join("\n", prohibitiveOws.Select(ow => $"> {ow.perm:G} | Prohibited for {ow.target}"))}```\n{DISABLE_WARN_PROMPT}";
 
             throw new UserFriendlyException(msg, bold: false);

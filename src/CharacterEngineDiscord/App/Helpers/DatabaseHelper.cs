@@ -186,10 +186,9 @@ public static class DatabaseHelper
         newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
         newSpawnedCharacter.MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat;
         newSpawnedCharacter.ResponseDelay = 1;
-        newSpawnedCharacter.FreewillFactor = 0;
+        newSpawnedCharacter.FreewillFactor = 5;
         newSpawnedCharacter.EnableSwipes = false;
-        newSpawnedCharacter.EnableWideContext = true;
-        newSpawnedCharacter.WideContextMaxLength = 1000;
+        newSpawnedCharacter.FreewillContextSize = 3000;
         newSpawnedCharacter.EnableQuotes = false;
         newSpawnedCharacter.EnableStopButton = true;
         newSpawnedCharacter.SkipNextBotMessage = false;
@@ -304,28 +303,6 @@ public static class DatabaseHelper
         }
 
         await db.SaveChangesAsync();
-
-        var giIntegrationType = guildIntegration.GetIntegrationType();
-
-        var guildCharacters = await GetAllSpawnedCharactersInGuildAsync(guildIntegration.DiscordGuildId);
-        var neededCharacters = guildCharacters.Where(character => character.GetIntegrationType() == giIntegrationType).ToArray();
-
-        var tasks = new List<Task>();
-
-        if (removeCharacters)
-        {
-            tasks.Add(DeleteSpawnedCharactersAsync(neededCharacters));
-        }
-        else
-        {
-            foreach (var character in neededCharacters)
-            {
-                character.FreewillFactor = 0;
-                tasks.Add(UpdateSpawnedCharacterAsync(character));
-            }
-        }
-
-        Task.WaitAll(tasks.ToArray());
     }
 
 

@@ -6,8 +6,10 @@ using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
+using Discord.Net;
 using Discord.Rest;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using SakuraAi.Client.Exceptions;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
@@ -29,13 +31,24 @@ public class MessagesHandler
     {
         Task.Run(async () =>
         {
+            var traceId = CommonHelper.NewTraceId();
             try
             {
-                await HandleMessageAsync(socketMessage);
+                await HandleMessageAsync(socketMessage, traceId);
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
+                var channel = (IGuildChannel)socketMessage.Channel;
+                var guild = channel.Guild;
+                var owner = await guild.GetOwnerAsync();
+
+                var content = $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
+                              $"Channel: **{channel.Name}** ({channel.Id})\n" +
+                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
+                              $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
+                              $"Exception:\n{e}";
+
+                await _discordClient.ReportErrorAsync("MessagesHandler exception", content, traceId);
             }
         });
 
@@ -43,7 +56,7 @@ public class MessagesHandler
     }
 
 
-    private async Task HandleMessageAsync(SocketMessage socketMessage)
+    private async Task HandleMessageAsync(SocketMessage socketMessage, string traceId)
     {
         if (socketMessage.Channel is not ITextChannel channel)
         {
@@ -91,23 +104,37 @@ public class MessagesHandler
 
             Task.WaitAll(tasks.ToArray());
         }
-        catch (CaiUserInputFilteredException)
-        {
-            await socketUserMessage.ReplyAsync(embed: "Your message for filtered by CharacterAI".ToInlineEmbed(Color.Blue));
-        }
         catch (Exception e)
         {
-            var innerException = e.InnerException;
-            if (innerException is SakuraException or CharacterAiException)
+            var ie = e.InnerException;
+            string? message = null;
+
+            if (e is HttpException or InvalidOperationException && (e.Message.Contains("Unknown Webhook") || e.Message.Contains("Could not find a webhook")))
             {
-                await socketUserMessage.ReplyAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {innerException.Message}".ToInlineEmbed(Color.Orange));
+                message = e.Message;
+            }
+            else if ((ie is SakuraException or CharacterAiException)
+                  || (ie is HttpException or InvalidOperationException && (ie.Message.Contains("Unknown Webhook") || ie.Message.Contains("Could not find a webhook"))))
+            {
+                message = ie!.Message;
+            }
+            else
+            {
+                return;
             }
 
-            throw;
+            await socketUserMessage.ReplyAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {message}".ToInlineEmbed(Color.Orange));
         }
         finally
         {
-            await ensureExistInDbAsync;
+            try
+            {
+                await ensureExistInDbAsync;
+            }
+            catch (DbUpdateException)
+            {
+                // ok
+            }
         }
     }
 
@@ -146,7 +173,7 @@ public class MessagesHandler
         try
         {
             string message;
-            if (randomCall && spawnedCharacter.EnableWideContext)
+            if (randomCall && spawnedCharacter.FreewillContextSize != 0)
             {
                 message = "";
                 var messageLength = 0;
@@ -171,7 +198,7 @@ public class MessagesHandler
                     var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
                     messageLength += messagePartial.Length;
 
-                    if (messageLength > spawnedCharacter.WideContextMaxLength)
+                    if (messageLength > spawnedCharacter.FreewillContextSize)
                     {
                         break;
                     }
