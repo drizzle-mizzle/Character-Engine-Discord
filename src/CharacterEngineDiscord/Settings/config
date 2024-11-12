@@ -18,7 +18,7 @@ ERRORS_CHANNEL_ID:
 
 DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_id:{{mention_hint}}] {{user}}:\n{{msg}}
 
-# Max messages per minute for a single user
+# Max interactions per minute for a single user
 USER_RATE_LIMIT: 20
 USER_FIRST_BLOCK_MINUTES: 60 # one hour
 USER_SECOND_BLOCK_HOURS: 24
@@ -31,6 +31,5 @@ DEFAULT_AVATAR_FILE: good_duckling.png
 # Postgres only
 DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki
 
-
-SAKURA_AI_EMOJI: <:sakura_ico:1294009130595520643>
-CHARACTER_AI_EMOJI: <:cai_ico:1303751264060047360>
+SAKURA_AI_EMOJI:
+CHARACTER_AI_EMOJI:
