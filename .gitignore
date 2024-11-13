@@ -5,6 +5,7 @@
 [Ll]ogs/
 */.idea
 *.idea
+*.env
 env.*
 .vs/
 Migrations/
