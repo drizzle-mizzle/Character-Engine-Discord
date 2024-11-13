@@ -25,6 +25,7 @@
 - Embedded characters explorer
 - Per-server, per-channel and per-character flexible configurations
 
+##
 # 🚀 Self-Hosting Setup Guide
 
 1. **Initialize Submodules**
