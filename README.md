@@ -21,6 +21,6 @@
 - [SakuraAI](https://www.sakura.fm/)
 
 ### 🕹 Features
-- Allows to spawn up to 15 characters in a single channel and unlimited amount for on the whole server
+- Allows to spawn up to 15 characters in a single channel and unlimited amount on the whole server
 - Embedded characters explorer
-- Per-server, per-channel aand per-character flexible configurations
+- Per-server, per-channel and per-character flexible configurations
