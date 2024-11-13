@@ -128,10 +128,10 @@ public class CharacterEngineBot
             Task.Run(async () =>
             {
                 var ownerName = await _discordSocketClient.GetUserAsync(guild.OwnerId) is not IUser guildOwner ? guild.OwnerId.ToString()
-                        : $"{guildOwner.GlobalName ?? guildOwner.Username} ({guild.OwnerId})";
+                        : $"**{guildOwner.GlobalName ?? guildOwner.Username}** ({guild.OwnerId})";
 
                 var message = $"Joined server **{guild.Name}** ({guild.Id})\n" +
-                              $"Owner: **{ownerName}**\n" +
+                              $"Owner: {ownerName}\n" +
                               $"Members: {guild.MemberCount}\n" +
                               $"Description: {guild.Description ?? "none"}";
 
@@ -148,10 +148,10 @@ public class CharacterEngineBot
             Task.Run(async () =>
             {
                 var ownerName = await _discordSocketClient.GetUserAsync(guild.OwnerId) is not IUser guildOwner ? guild.OwnerId.ToString()
-                        : $"{guildOwner.GlobalName ?? guildOwner.Username} ({guild.OwnerId})";
+                        : $"**{guildOwner.GlobalName ?? guildOwner.Username}** ({guild.OwnerId})";
 
                 var message = $"Left server **{guild.Name}** ({guild.Id})\n" +
-                              $"Owner: **{ownerName}**\n" +
+                              $"Owner: {ownerName}\n" +
                               $"Members: {guild.MemberCount}";
 
                 await _discordSocketClient.ReportLogAsync(message, color: Color.DarkGrey, imageUrl: guild.IconUrl);

@@ -106,24 +106,12 @@ public class MessagesHandler
         }
         catch (Exception e)
         {
-            var ie = e.InnerException;
-            string? message = null;
-
-            if (e is HttpException or InvalidOperationException && (e.Message.Contains("Unknown Webhook") || e.Message.Contains("Could not find a webhook")))
+            var userFriendlyExceptionCheck = e.IsUserFriendlyException();
+            if (userFriendlyExceptionCheck.valid)
             {
-                message = e.Message;
+                var message = $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {userFriendlyExceptionCheck.message}";
+                await socketUserMessage.ReplyAsync(embed: message.ToInlineEmbed(Color.Orange));
             }
-            else if ((ie is SakuraException or CharacterAiException)
-                  || (ie is HttpException or InvalidOperationException && (ie.Message.Contains("Unknown Webhook") || ie.Message.Contains("Could not find a webhook"))))
-            {
-                message = ie!.Message;
-            }
-            else
-            {
-                return;
-            }
-
-            await socketUserMessage.ReplyAsync(embed: $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {message}".ToInlineEmbed(Color.Orange));
         }
         finally
         {

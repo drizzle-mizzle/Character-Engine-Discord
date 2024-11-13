@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.ComponentModel;
+using System.Text.RegularExpressions;
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
@@ -17,7 +18,6 @@ using Microsoft.EntityFrameworkCore;
 using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
-using SakuraAi.Client.Models.Common;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
@@ -32,13 +32,49 @@ public static class InteractionsHelper
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 
+    public static (bool valid, string? message) IsUserFriendlyException(this Exception exception)
+    {
+        var webhookExceptionCheck = exception.CheckForWebhookException();
+        if (webhookExceptionCheck.valid)
+        {
+            return webhookExceptionCheck;
+        }
+
+        var ie = exception.InnerException;
+        if (ie is not null && Check(ie))
+        {
+            return (true, ie.Message);
+        }
+
+        return Check(exception) ? (true, exception.Message) : (false, null);
+
+        bool Check(Exception e)
+            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentOutOfRangeException or ArgumentException or FormatException;
+    }
+
+
+    public static (bool valid, string? message) CheckForWebhookException(this Exception exception)
+    {
+        var ie = exception.InnerException;
+        if (ie is not null && Check(ie))
+        {
+            return (true, ie.Message);
+        }
+
+        return Check(exception) ? (false, exception.Message) : (false, null);
+
+        bool Check(Exception e)
+            => (e is HttpException or InvalidOperationException)
+            && (e.Message.Contains("Unknown Webhook") || e.Message.Contains("Could not find a webhook"));
+    }
+
+
     public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
         var isBold = (e as UserFriendlyException)?.Bold ?? true;
-        var exception = e.InnerException ?? e;
 
-        var message = exception is UserFriendlyException or FormatException or SakuraException or CharacterAiException // controlled exceptions
-                ? exception.Message : $"{MT.X_SIGN_DISCORD} Something went wrong!";
+        var userFriendlyExceptionCheck = e.IsUserFriendlyException();
+        var message = userFriendlyExceptionCheck.valid ? userFriendlyExceptionCheck.message! : $"{MT.X_SIGN_DISCORD} Something went wrong!";
 
         if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
         {
@@ -283,18 +319,8 @@ public static class InteractionsHelper
         }
         catch (Exception e)
         {
-            if (e is HttpException or InvalidOperationException
-             && (e.Message.Contains("Unknown Webhook") || e.Message.Contains("Could not find a webhook")))
-            {
-                MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
-                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-
-                await DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
-            }
-
-            var ie = e.InnerException;
-            if (ie is HttpException or InvalidOperationException
-             && (ie.Message.Contains("Unknown Webhook") || ie.Message.Contains("Could not find a webhook")))
+            var webhookExceptionCheck = e.CheckForWebhookException();
+            if (webhookExceptionCheck.valid)
             {
                 MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
                 MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
