@@ -49,7 +49,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     [SlashCommand("re-login", "Re-login into the integration")]
     public async Task ReLogin(IntegrationType type)
     {
-        await DeferAsync();
+        await DeferAsync(ephemeral: true);
 
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, type);
         if (guildIntegration is null)
@@ -119,7 +119,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             }
             default:
             {
-                throw new ArgumentException($"Unknown integration type: {copyGuildIntegration?.GetType()}");
+                throw new ArgumentException();
             }
         }
 
@@ -177,8 +177,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                    .WithColor(IntegrationType.CharacterAI.GetColor())
                    .WithThumbnailUrl(thumbnailUrl);
 
-        await FollowupAsync(ephemeral: true, embed: $"{MessagesTemplates.OK_SIGN_DISCORD} OK".ToInlineEmbed(Color.Green));
-        await Context.Channel.SendMessageAsync(Context.User.Mention, embed: embed.Build());
+        await FollowupAsync(embed: embed.Build());
     }
 
 

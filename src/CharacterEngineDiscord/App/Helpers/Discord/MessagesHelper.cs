@@ -146,7 +146,7 @@ public static class MessagesHelper
         for (var i = 0; i < characters.Count; i++)
         {
             var character = characters.ElementAt(i);
-            var line = $"{i + 1}. {character.CharacterName} (*{character.CallPrefix}*) {character.GetIntegrationType().GetIcon()} | ";
+            var line = $"{i + 1}. [{character.CharacterName}]({character.GetCharacterLink()}) (*{character.CallPrefix}*) {character.GetIntegrationType().GetIcon()} | ";
             line += inGuild ? $"Channel: **{character.DiscordChannel!.ChannelName}** | MS: {character.MessagesSent}" : $"Messages sent: {character.MessagesSent}";
 
             listString.AppendLine(line);
@@ -165,7 +165,7 @@ public static class MessagesHelper
         var refMessage = (authorName: "Dude", content: "Bipki");
         var formated = BringMessageToFormat(messagesFormat, null, userMessage, refMessage);
 
-        return $"Time: ***`{DateTime.Now.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US"))}`***\n" +
+        return $"Time: ***`{DateTime.Now.HumanizeDateTime()}`***\n" +
                $"Referenced message: *`\"{refMessage.content}\"`* from user **`{refMessage.authorName}`**\n" +
                $"User message: *`\"{userMessage.content}\"`* from user **`{userMessage.authorName}`**\n" +
                $"Result (what character will see):\n```{formated}```";
@@ -305,7 +305,7 @@ public static class MessagesHelper
                                   .Replace(MF_USER, message.authorName)
                                   .Replace(MF_USER_MENTION_HINT, message.authorMention)
                                   .Replace(MF_MSG, message.content)
-                                  .Replace(MF_DATETIME, DateTime.Now.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US")));
+                                  .Replace(MF_DATETIME, DateTime.Now.HumanizeDateTime());
 
         if (!messageFormat.Contains(MF_REF_MSG))
         {
@@ -407,6 +407,10 @@ public static class MessagesHelper
 
         return string.Concat(result);
     }
+
+
+    public static string HumanizeDateTime(this DateTime dateTime)
+        => dateTime.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US"));
 
 
     public static string ToToggler(this bool bulka)

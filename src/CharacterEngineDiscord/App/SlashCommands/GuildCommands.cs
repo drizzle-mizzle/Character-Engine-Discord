@@ -5,7 +5,6 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -40,6 +39,8 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("no-warn", "Disable/enable permissions warning")]
     public async Task NoWarn(bool toggle)
     {
+        await DeferAsync();
+
         var guild = await _db.DiscordGuilds.FirstAsync(c => c.Id == Context.Guild.Id);
         guild.NoWarn = toggle;
         await _db.SaveChangesAsync();

@@ -27,9 +27,9 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null)
+    public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
-        await DeferAsync();
+        await DeferAsync(ephemeral: hide);
 
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.channel, action, Context.Channel.Id, newFormat);
 
@@ -52,9 +52,9 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("list-characters", "Show a list of all characters spawned in the current channel")]
-    public async Task ListCharacters()
+    public async Task ListCharacters(bool hide = false)
     {
-        await RespondAsync(embed: MP.WAIT_MESSAGE);
+        await DeferAsync(ephemeral: hide);
 
         var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(Context.Channel.Id);
         if (spawnedCharacters.Count == 0)
@@ -99,6 +99,6 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
         }
 
         var message = $"{MP.OK_SIGN_DISCORD} Successfully removed {spawnedCharacters.Count} characters from the current channel";
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green));
+        await ModifyOriginalResponseAsync(msg => { msg.Embed = message.ToInlineEmbed(Color.Green); });
     }
 }

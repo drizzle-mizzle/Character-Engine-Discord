@@ -52,7 +52,9 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                 foreach (var manager in managers)
                 {
                     var managerUser = await Context.Guild.GetUserAsync(manager.UserId);
-                    list.AppendLine(managerUser.DisplayName ?? managerUser.Username);
+                    var addedByUser = await Context.Guild.GetUserAsync(manager.AddedBy);
+
+                    list.AppendLine($"**{managerUser.DisplayName ?? managerUser.Username}** | Added by **{addedByUser.DisplayName ?? addedByUser.Username}**");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)
@@ -123,20 +125,45 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    public async Task BlockedUsersCommand(UserAction action, IGuildUser? user = null, string? userId = null)
+    [SlashCommand("ignored-users", "Add or remove ignored users")]
+    public async Task BlockedUserCommand(UserAction action, IGuildUser? user = null, string? userId = null)
     {
         await DeferAsync();
 
         var blockedUsers = await _db.GuildBlockedUsers.Where(u => u.DiscordGuildId == Context.Guild.Id).ToListAsync();
 
-        if (action is UserAction.clearAll)
+        switch (action)
         {
-            _db.GuildBlockedUsers.RemoveRange(blockedUsers);
-            await _db.SaveChangesAsync();
+            case UserAction.show:
+            {
+                var list = new StringBuilder();
 
-            await FollowupAsync(embed: "Blocked users list has been cleared".ToInlineEmbed(Color.Green, bold: true));
+                foreach (var blockedUser in blockedUsers)
+                {
+                    var guildBlockedUser = await Context.Guild.GetUserAsync(blockedUser.UserId);
+                    var blockedUserName = guildBlockedUser.DisplayName ?? guildBlockedUser.Username;
+                    var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
+                    var managerUserName = managerUser.DisplayName ?? managerUser.Username;
 
-            return;
+                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.HumanizeDateTime()}`");
+                }
+
+                var embed = new EmbedBuilder().WithColor(Color.Blue)
+                                              .WithTitle($"Ignored users ({blockedUsers.Count})")
+                                              .WithDescription(list.ToString());
+
+                await FollowupAsync(embed: embed.Build());
+                return;
+            }
+            case UserAction.clearAll:
+            {
+                _db.GuildBlockedUsers.RemoveRange(blockedUsers);
+                await _db.SaveChangesAsync();
+
+                await FollowupAsync(embed: "Blocked users list has been cleared".ToInlineEmbed(Color.Green, bold: true));
+
+                return;
+            }
         }
 
         if (user is null && userId is null)

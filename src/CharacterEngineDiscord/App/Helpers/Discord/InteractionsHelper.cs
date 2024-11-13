@@ -100,7 +100,7 @@ public static class InteractionsHelper
                   $"- *It's highly recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail, as SakuraAI doesn't allow multiple active user sessions. " +
                   $"Also, bot will be logged out of your account if you log in it in the browser again. You will be able to log in back with `/integration re-login` command.*";
 
-        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green), ephemeral: true);
 
         // Update db
         var data = StoredActionsHelper.CreateSakuraAiEnsureLoginData(attempt, (ulong)interaction.ChannelId!, interaction.User.Id);
@@ -123,7 +123,7 @@ public static class InteractionsHelper
         catch (CharacterAiException e)
         {
             _log.Error(e.ToString());
-            await interaction.FollowupAsync(embed: $"{MT.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red));
+            await interaction.FollowupAsync(embed: $"{MT.WARN_SIGN_DISCORD} CharacterAI responded with error:\n```{e.Message}```".ToInlineEmbed(Color.Red), ephemeral: true);
 
             return;
         }
@@ -132,7 +132,7 @@ public static class InteractionsHelper
                   $"Sign in mail was sent to **{email}**, please check your mailbox.\nYou should've received a sign in link for CharacterAI in it - **DON'T OPEN IT (!)**, copy it and then paste in `/integration confirm` command.\n" +
                   $"**Example:**\n*`/integration confirm type:CharacterAI data:https://character.ai/login/xxx`*";
 
-        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green));
+        await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green), ephemeral: true);
     }
 
     #region CustomId

@@ -37,14 +37,15 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     public async Task SpawnCharacter(IntegrationType integrationType,
                                      [Summary(description: "Query to perform character search")] string? searchQuery = null,
                                      [Summary(description: "Needed for search only")] bool showNsfw = false,
-                                     [Summary(description: "Not required; you can spawn character directly with its ID")] string? characterId = null)
+                                     [Summary(description: "Not required; you can spawn character directly with its ID")] string? characterId = null,
+                                     bool hide = false)
     {
         if (searchQuery is null && characterId is null)
         {
             throw new UserFriendlyException("search-query or character-id is required");
         }
 
-        await RespondAsync(embed: MT.WAIT_MESSAGE);
+        await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
 
         var channel = (ITextChannel)Context.Channel;
 
@@ -59,7 +60,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         {
             if (showNsfw && !channel.IsNsfw)
             {
-                await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
+                await ModifyOriginalResponseAsync(msg => { msg.Embed = NSFW_REQUIRED.ToInlineEmbed(Color.Purple); });
+
                 return;
             }
 
@@ -106,9 +108,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("info", "Show character info card")]
-    public async Task Info([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
+    public async Task Info([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, bool hide = false)
     {
-        await DeferAsync();
+        await DeferAsync(ephemeral: hide);
 
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var infoEmbed = await MH.BuildCharacterDescriptionCardAsync(spawnedCharacter, justSpawned: false);
@@ -172,9 +174,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     #region configure
 
     [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null)
+    public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
-        await DeferAsync();
+        await DeferAsync(ephemeral: hide);
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, spawnedCharacter, newFormat);
 
@@ -183,18 +185,10 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     #region Toggle
-
-    private const string TOGGLABLE_SETTINGS_DESC = "ResponseSwipes - Back and forth arrow buttons that allows to choose characters messages\n" +
-                                                   "WideContext - EXPERIMENTAL!\n" +
-                                                   "Quotes - Character quotes the message it responds to\n" +
-                                                   "StopButton - You'll need it for character-vs-characters conversations";
     public enum TogglableSettings
     {
         [ChoiceDisplay("response-swipes")]
         ResponseSwipes,
-
-        [ChoiceDisplay("wide-context")]
-        WideContext,
 
         [ChoiceDisplay("quotes")]
         Quotes,
