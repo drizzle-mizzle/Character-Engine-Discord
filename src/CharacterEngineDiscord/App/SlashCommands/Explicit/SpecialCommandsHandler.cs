@@ -24,8 +24,8 @@ public class SpecialCommandsHandler
 
     private static readonly string[] _integrationsList = Enum.GetValues<IntegrationType>().Select(i => $"- [{i.GetIcon()} **{i:G}**]({i.GetServiceLink()})").ToArray();
     private static readonly string HELLO_MESSAGE = "**Thank you for using Character Engine**\n\n" +
-                                          "Character Engine is a powerful aggregator of various online platforms that provide access to LLM chat-bots, it allows you to create AI-driven characters " +
-                                          "based on [Discord Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) and designed to help you bring some life on your server!\n\n" +
+                                          "Character Engine is a powerful aggregator of various online platforms in the form of a Discord bot that allows you to create AI-driven characters " +
+                                          "based on [Discord Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) and LLM chatbots to help you bring some life and joy on your server!\n\n" +
                                           "**List of supported platforms:**\n" +
                                           $"{string.Join('\n', _integrationsList)}\n- *more soon...*" +
                                           "\n\nUse *`/integration create`* command to begin. *Please note that you need to have an existing account on chosen platform in order to create a server integration for it.*\n\n" +
