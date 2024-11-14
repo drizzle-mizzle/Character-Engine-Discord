@@ -29,6 +29,7 @@ public static class DependencyInjectionHelper
             services.AddScoped<ButtonsHandler>();
             services.AddScoped<MessagesHandler>();
             services.AddScoped<SpecialCommandsHandler>();
+            services.AddScoped<BotAdminCommandsHandler>();
         }
 
         return services.BuildServiceProvider();;
