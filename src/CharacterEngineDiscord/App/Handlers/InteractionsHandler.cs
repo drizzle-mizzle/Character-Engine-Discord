@@ -35,7 +35,7 @@ public class InteractionsHandler
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e, traceId);
+                await _discordClient.ReportErrorAsync(e, traceId, false);
                 await InteractionsHelper.RespondWithErrorAsync(interactionContext.Interaction, e, traceId);
             }
         });
@@ -97,7 +97,7 @@ public class InteractionsHandler
                    $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
                    $"Exception:\n{exception}";
 
-        await _discordClient.ReportErrorAsync("Interaction exception", content, traceId);
+        await _discordClient.ReportErrorAsync("Interaction exception", content, traceId, writeMetric: false);
     }
 
 }

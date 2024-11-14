@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
@@ -14,7 +15,7 @@ namespace CharacterEngine.App;
 
 public class BackgroundWorker
 {
-    private readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static readonly Logger _log = LogManager.GetCurrentClassLogger();
     private static bool _running;
 
 
@@ -27,7 +28,7 @@ public class BackgroundWorker
 
         _running = true;
         var worker = new BackgroundWorker();
-        var jobs = new List<Func<string, Task>> { worker.QuickJobs };
+        var jobs = new List<Func<string, Task>> { QuickJobs };
 
         Parallel.ForEach(jobs, job => worker.RunInLoop(job, cooldownSeconds: 5));
     }
@@ -64,7 +65,7 @@ public class BackgroundWorker
                 }
                 catch (Exception e)
                 {
-                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId);
+                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId, writeMetric: true);
                 }
 
                 if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
@@ -78,7 +79,7 @@ public class BackgroundWorker
     }
 
 
-    private void CallGiveUpFinalizer(StoredAction action, string traceId)
+    private static void CallGiveUpFinalizer(StoredAction action, string traceId)
     {
         var finalizer = action.StoredActionType switch
         {
@@ -93,13 +94,13 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId, writeMetric: true);
             }
         });
     }
 
 
-    private async Task SendSakuraAuthGiveUpNotificationAsync(StoredAction action)
+    private static async Task SendSakuraAuthGiveUpNotificationAsync(StoredAction action)
     {
         var data = action.ExtractSakuraAiLoginData();
         var source = action.ExtractDiscordSourceInfo();
@@ -123,7 +124,7 @@ public class BackgroundWorker
     //////////////////
 
     private static readonly StoredActionType[] _quickJobActionTypes = [StoredActionType.SakuraAiEnsureLogin];
-    private async Task QuickJobs(string traceId)
+    private static async Task QuickJobs(string traceId)
     {
         var actions = await GetPendingActionsAsync(_quickJobActionTypes, traceId);
 
@@ -138,13 +139,13 @@ public class BackgroundWorker
             {
                 await job;
             }
-            catch (SakuraException se)
+            catch (SakuraException)
             {
                 // care not
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId, writeMetric: true);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
@@ -155,7 +156,54 @@ public class BackgroundWorker
     }
 
 
-    private async Task<List<StoredAction>> GetPendingActionsAsync(StoredActionType[] actionTypes, string traceId)
+    private DateTime LastMetricReport;
+    private async Task HourlyMetricsReport()
+    {
+        MetricsWriter.Lock();
+        Metric[] metrics;
+        try
+        {
+            if (LastMetricReport == default)
+            {
+                return;
+            }
+
+            await using var db = DatabaseHelper.GetDbContext();
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= LastMetricReport).ToArrayAsync();
+        }
+        finally
+        {
+            LastMetricReport = DateTime.Now;
+            MetricsWriter.Unlock();
+        }
+
+        var guildsJoined = metrics.Count(m => m.MetricType == MetricType.JoinedGuild);
+        var guildsLeft = metrics.Count(m => m.MetricType == MetricType.LeftGuild);
+
+        var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
+        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
+        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
+        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:{newSakuraIntegrations}; " +
+                               $"{IntegrationType.CharacterAI.GetIcon()}:{newCaiIntegrations}";
+
+        var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
+        var calledCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterCalled);
+
+        var message = $"Joined servers: **{guildsJoined}**\n" +
+                      $"Left servers: **{guildsLeft}**\n" +
+                      $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
+                      $"Characters spawned: **{spawnedCharacters}**\n" +
+                      $"Characters called: **{calledCharacters}**";
+
+        var client = CharacterEngineBot.DiscordShardedClient;
+        await client.ReportLogAsync("Hourly Metrics Report", message);
+    }
+
+
+
+    // Helpers
+
+    private static async Task<List<StoredAction>> GetPendingActionsAsync(StoredActionType[] actionTypes, string traceId)
     {
         var actionsToRun = new List<StoredAction>();
 
@@ -180,7 +228,8 @@ public class BackgroundWorker
                       $"**ActionID**: {action.Id}\n" +
                       $"**UserID**: {sourceInfo.UserId}\n" +
                       $"**ChannelID**: {sourceInfo.ChannelId}";
-            await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(title, msg);
+
+            await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(title, msg, logToConsole: true);
 
             action.Status = StoredActionStatus.Canceled;
             await db.SaveChangesAsync();

@@ -1,5 +1,6 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;

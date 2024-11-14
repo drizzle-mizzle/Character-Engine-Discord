@@ -6,6 +6,7 @@ using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Discord;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
@@ -110,11 +111,13 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             case SakuraAiGuildIntegration sakuraAiGuildIntegration:
             {
                 await _db.SakuraAiIntegrations.AddAsync(sakuraAiGuildIntegration);
+                MetricsWriter.Create(MetricType.IntegrationCreated, sakuraAiGuildIntegration.Id, $"{sakuraAiGuildIntegration.GetIntegrationType():G} | {sakuraAiGuildIntegration.SakuraEmail}");
                 break;
             }
             case CaiGuildIntegration caiGuildIntegration:
             {
                 await _db.CaiIntegrations.AddAsync(caiGuildIntegration);
+                MetricsWriter.Create(MetricType.IntegrationCreated, caiGuildIntegration.Id, $"{caiGuildIntegration.GetIntegrationType():G} | {caiGuildIntegration.CaiEmail}");
                 break;
             }
             default:
@@ -155,6 +158,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                     CaiEmail = caiUser.UserEmail
                 };
 
+                MetricsWriter.Create(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{newCaiIntergration.GetIntegrationType():G} | {newCaiIntergration.CaiEmail}");
                 await _db.CaiIntegrations.AddAsync(newCaiIntergration);
                 await _db.SaveChangesAsync();
 

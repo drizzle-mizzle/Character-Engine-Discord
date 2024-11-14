@@ -1,0 +1,35 @@
+# CHARACTER ENGINE BOT CONFIG FILE
+# Supports hot-reload
+
+# Application restart or reconnection event required for the changes to take effect
+BOT_TOKEN:
+
+# Application restart or reconnection event required for the changes to take effect
+PLAYING_STATUS: /start
+
+# Users with absolute access to all bot commands, separated with ','
+OWNER_USERS_IDS: 0
+
+ADMIN_GUILD_ID:
+ADMIN_GUILD_INVITE_LINK:
+
+LOGS_CHANNEL_ID:
+ERRORS_CHANNEL_ID:
+
+DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_id:{{mention_hint}}] {{user}}:\n{{msg}}
+
+# Max interactions per minute for a single user
+USER_RATE_LIMIT: 20
+USER_FIRST_BLOCK_MINUTES: 60 # one hour
+USER_SECOND_BLOCK_HOURS: 24
+
+# Image or GIF file from /img/ directory that will be sent when user tries to execute a command he has no access to. Leave empty to disable.
+NO_POWER_FILE: nopower.gif
+
+DEFAULT_AVATAR_FILE: good_duckling.png
+
+# Postgres only
+DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=bipki
+
+SAKURA_AI_EMOJI:
+CHARACTER_AI_EMOJI:

@@ -85,7 +85,7 @@ public class SlashCommandsHandler
         }
         catch (Exception e)
         {
-            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
+            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId(), false);
         }
         finally
         {

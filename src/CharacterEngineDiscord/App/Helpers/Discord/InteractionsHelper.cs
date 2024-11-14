@@ -49,7 +49,7 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentOutOfRangeException or ArgumentException or FormatException;
+            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentException or FormatException;
     }
 
 
@@ -207,6 +207,8 @@ public static class InteractionsHelper
 
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
         MemoryStorage.CachedCharacters.Add(newSpawnedCharacter);
+
+        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()} | {newSpawnedCharacter.CharacterName}");
 
         return newSpawnedCharacter;
     }

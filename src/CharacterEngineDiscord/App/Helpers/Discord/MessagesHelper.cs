@@ -8,6 +8,7 @@ using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -37,67 +38,91 @@ public static class MessagesHelper
 
     #region Reports
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId)
-        => discordClient.ReportErrorAsync("Unknown exception", $"{e}", traceId);
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync("Unknown exception", e.ToString(), traceId, writeMetric);
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId)
-        => discordClient.ReportErrorAsync(title, $"{e}", traceId);
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync(title, e.ToString(), traceId, writeMetric);
 
 
     private const int MSG_LIMIT = 1990;
-    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool consoleLog = true)
+    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool writeMetric)
     {
-        if (consoleLog)
+        if (writeMetric)
         {
-            _log.Error($"[{traceId}] Error report:\n[ {title} ]\n{content}");
+            MetricsWriter.Create(MetricType.Error, payload: $"[{traceId} | {title}]\n{content}");
         }
 
-        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
-        var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
-
-        var count = 0;
-        while (content.Length > 0)
+        try
         {
-            if (count == 5)
-            {
-                break;
-            }
+            var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
+            var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
 
-            count++;
-            if (content.Length <= MSG_LIMIT)
+            var count = 0;
+            while (content.Length > 0)
             {
-                await thread.SendMessageAsync($"```js\n{content}```");
-                break;
-            }
+                if (count == 5)
+                {
+                    break;
+                }
 
-            await thread.SendMessageAsync(text: $"```js\n{content[..(MSG_LIMIT-1)]}```");
-            content = content[MSG_LIMIT..];
+                count++;
+                if (content.Length <= MSG_LIMIT)
+                {
+                    await thread.SendMessageAsync($"```js\n{content}```");
+                    break;
+                }
+
+                await thread.SendMessageAsync(text: $"```js\n{content[..(MSG_LIMIT-1)]}```");
+                content = content[MSG_LIMIT..];
+            }
+        }
+        catch (Exception e)
+        {
+            _log.Error($"[ FAILIED TO REPORT ERROR IN DISCORD! ]\n{e}");
         }
     }
 
 
-    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content = null, string? imageUrl = null, Color? color = null)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content = null, string? imageUrl = null, Color? color = null, bool logToConsole = false)
     {
-        _log.Info($"[ {title} ] {content}");
-
-        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
-        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
-        if (content is null)
+        if (logToConsole)
         {
-            return;
+            _log.Info(content is null ? title : $"[ {title} ] {content}");
         }
 
-        var thread = await channel.CreateThreadAsync("Info", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
-        while (content.Length > 0)
+        try
         {
-            if (content.Length <= MSG_LIMIT)
+            var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
+            if (content is null)
             {
-                await thread.SendMessageAsync(content);
-                break;
+                await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
+                return;
             }
 
-            await thread.SendMessageAsync(content[..(MSG_LIMIT-1)]);
-            content = content[MSG_LIMIT..];
+            if (content.Length < 1000)
+            {
+                await channel.SendMessageAsync(embeds: [title.ToInlineEmbed(color ?? Color.Green, false), content.ToInlineEmbed(Color.LightGrey, false, imageUrl, imageAsThumb: true)]);
+                return;
+            }
+
+            var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
+            var thread = await channel.CreateThreadAsync("[ Details ]", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
+            while (content.Length > 0)
+            {
+                if (content.Length <= MSG_LIMIT)
+                {
+                    await thread.SendMessageAsync(content);
+                    break;
+                }
+
+                await thread.SendMessageAsync(content[..(MSG_LIMIT - 1)]);
+                content = content[MSG_LIMIT..];
+            }
+        }
+        catch (Exception e)
+        {
+            _log.Error($"[ FAILIED TO REPORT LOG IN DISCORD! ]\n{e}");
         }
     }
 

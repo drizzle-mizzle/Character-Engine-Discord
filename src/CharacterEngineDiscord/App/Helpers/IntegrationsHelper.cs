@@ -173,6 +173,7 @@ public static class IntegrationsHelper
                 CreatedAt = DateTime.Now
             };
 
+            MetricsWriter.Create(MetricType.IntegrationCreated, newSakuraIntegration.Id, $"{newSakuraIntegration.GetIntegrationType():G} | {newSakuraIntegration.SakuraEmail}");
             await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
         }
 

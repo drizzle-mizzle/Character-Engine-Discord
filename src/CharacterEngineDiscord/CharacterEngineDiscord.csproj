@@ -3,10 +3,9 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
-        <RootNamespace>CharacterEngine</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+        <RootNamespace>CharacterEngine</RootNamespace>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -17,7 +16,7 @@
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-      <Optimize>false</Optimize>
+      <Optimize>true</Optimize>
       <DebugSymbols>true</DebugSymbols>
       <DebugType>embedded</DebugType>
       <NoWarn>CS8524</NoWarn>
@@ -39,9 +38,10 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="Settings\**">
+      <Content Include="Settings\**">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
     </ItemGroup>
 
     <ItemGroup>

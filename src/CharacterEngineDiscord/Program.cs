@@ -1,6 +1,7 @@
 ﻿using CharacterEngine.App;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
+using CharacterEngineDiscord.Models.Db;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 
@@ -38,6 +39,7 @@ namespace CharacterEngine
                 _log.Error($"Unobserved task exception: {sender}\n{e.Exception}");
             };
 
+            MetricsWriter.Create(MetricType.ApplicationLaunch);
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
             await CharacterEngineBot.RunAsync(args.All(arg => arg != "no-update"));

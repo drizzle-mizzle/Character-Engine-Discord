@@ -32,7 +32,7 @@ public sealed class CachedCharacerInfoCollection
             WebhookId = spawnedCharacter.WebhookId.ToString(),
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
-            CachedUserMessages = new CachedUserMessages(),
+            // CachedUserMessages = new CachedUserMessages(),
             Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
         };
 
@@ -67,6 +67,18 @@ public sealed class CachedCharacerInfoCollection
 
 public record CachedCharacterInfo
 {
+    private int _queue;
+    private bool _locked;
+
+    public int Queue => _queue;
+
+    public void QueueIncrement()
+        => Interlocked.Increment(ref _queue);
+
+    public void QueueDecrement()
+        => Interlocked.Decrement(ref _queue);
+
+
     public required Guid Id { get; init; }
     public required ulong ChannelId { get; init; }
     public required string CallPrefix { get; init; }
@@ -74,10 +86,35 @@ public record CachedCharacterInfo
     public required IntegrationType IntegrationType { get; init; }
 
     public required double FreewillFactor { get; set; }
-    public bool Blocked { get; set; }
+
+
+    public bool TryLock()
+    {
+        lock (this)
+        {
+            if (_locked)
+            {
+                return false;
+            }
+
+            _locked = true;
+            return true;
+        }
+    }
+
+
+    public void Unlock()
+    {
+        lock (this)
+        {
+            _locked = false;
+        }
+    }
+
+
     public ulong? WideContextLastMessageId { get; set; }
 
-    public required CachedUserMessages CachedUserMessages { get; init; }
+    // public required CachedUserMessages CachedUserMessages { get; init; }
     public required ActiveConversation Conversations { get; init; }
 }
 

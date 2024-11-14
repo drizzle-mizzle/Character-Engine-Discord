@@ -5,6 +5,7 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Net;
 using Discord.Rest;
@@ -48,7 +49,7 @@ public class MessagesHandler
                               $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
                               $"Exception:\n{e}";
 
-                await _discordClient.ReportErrorAsync("MessagesHandler exception", content, traceId);
+                await _discordClient.ReportErrorAsync("MessagesHandler exception", content, traceId, writeMetric: false);
             }
         });
 
@@ -152,12 +153,12 @@ public class MessagesHandler
         }
 
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
-        if (cachedCharacter.Blocked)
+        if (cachedCharacter.Queue > 5)
         {
             return;
         }
 
-        cachedCharacter.Blocked = true;
+        cachedCharacter.QueueIncrement();
         try
         {
             string message;
@@ -202,22 +203,36 @@ public class MessagesHandler
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
-            var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, message);
-            var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
-            var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
+            while (!cachedCharacter.TryLock())
+            {
+                await Task.Delay(500);
+            }
 
-            spawnedCharacter.LastCallerDiscordUserId = socketUserMessage.Author.Id;
-            spawnedCharacter.LastDiscordMessageId = messageId;
-            spawnedCharacter.ResetWithNextMessage = false;
-            spawnedCharacter.LastCallTime = DateTime.Now;
-            spawnedCharacter.MessagesSent++;
+            try
+            {
+
+                var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, message);
+                var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
+                var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
+
+                spawnedCharacter.LastCallerDiscordUserId = socketUserMessage.Author.Id;
+                spawnedCharacter.LastDiscordMessageId = messageId;
+                spawnedCharacter.ResetWithNextMessage = false;
+                spawnedCharacter.LastCallTime = DateTime.Now;
+                spawnedCharacter.MessagesSent++;
+                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+                MetricsWriter.Create(MetricType.CharacterCalled, spawnedCharacter.Id, message);
+            }
+            finally
+            {
+                cachedCharacter.Unlock();
+            }
         }
         finally
         {
-            cachedCharacter.Blocked = false;
+            cachedCharacter.QueueDecrement();
         }
-
-        await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
     }
 
 
