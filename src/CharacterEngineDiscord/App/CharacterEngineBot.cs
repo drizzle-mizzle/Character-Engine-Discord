@@ -85,8 +85,6 @@ public class CharacterEngineBot
             _log.Info($"Playing status - {BotConfig.PLAYING_STATUS}");
         }
 
-        BackgroundWorker.Run();
-
         // Prevent application from closing
         await Task.Delay(-1);
     }
@@ -168,6 +166,12 @@ public class CharacterEngineBot
         _discordClient.SlashCommandExecuted += _slashCommandsHandler.HandleSlashCommand;
 
         Task.Run(async () => await RegisterCommandsAsync());
+
+        if (_discordClient.Guilds.Any(g => g.Id == BotConfig.ADMIN_GUILD_ID))
+        {
+            Task.Run(async () => await _discordClient.ReportLogAsync("Online"));
+            BackgroundWorker.Run();
+        }
 
         return Task.CompletedTask;
     }

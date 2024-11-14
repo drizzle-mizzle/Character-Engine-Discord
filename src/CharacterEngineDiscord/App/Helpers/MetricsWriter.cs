@@ -36,7 +36,7 @@ public static class MetricsWriter
             };
 
             var type = metricType.ToString("G").SplitWordsBySep(' ').ToUpperInvariant();
-            var msg = new StringBuilder($"[Metric] {type}: ");
+            var msg = new StringBuilder($"[Metric] {type} ");
 
             if (entityId is not null)
             {

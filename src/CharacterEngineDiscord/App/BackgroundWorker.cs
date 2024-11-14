@@ -26,18 +26,20 @@ public class BackgroundWorker
             return;
         }
 
+        _log.Info("[ Launching Background Worker ]");
         _running = true;
-        var worker = new BackgroundWorker();
-        var jobs = new List<Func<string, Task>> { QuickJobs };
 
-        Parallel.ForEach(jobs, job => worker.RunInLoop(job, cooldownSeconds: 5));
+        var worker = new BackgroundWorker();
+
+        RunInLoop(worker.QuickJobs, duration: TimeSpan.FromSeconds(5));
+        RunInLoop(worker.HourlyMetricsReport, TimeSpan.FromMinutes(30));
     }
 
 
 
-    private void RunInLoop(Func<string, Task> jobTask, int cooldownSeconds)
+    private static void RunInLoop(Func<string, Task> jobTask, TimeSpan duration)
     {
-        _log.Info($"Starting loop {jobTask.Method.Name} with {cooldownSeconds}s cooldown");
+        _log.Info($"Starting loop {jobTask.Method.Name} with {(duration.TotalMinutes < 1 ? $"{duration.TotalSeconds}s" : $"{duration.TotalMinutes}min")} cooldown");
 
         Task.Run(async () =>
         {
@@ -45,7 +47,7 @@ public class BackgroundWorker
 
             while (true)
             {
-                if (sw.IsRunning && sw.Elapsed.TotalSeconds < cooldownSeconds)
+                if (sw.IsRunning && sw.Elapsed.TotalNanoseconds < duration.TotalNanoseconds)
                 {
                     continue;
                 }
@@ -70,7 +72,7 @@ public class BackgroundWorker
 
                 if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
                 {
-                    _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {cooldownSeconds}s");
+                    _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {(duration.TotalMinutes < 1 ? $"{duration.TotalSeconds}s" : $"{duration.TotalMinutes}min")}");
                 }
 
                 sw.Restart();
@@ -124,7 +126,7 @@ public class BackgroundWorker
     //////////////////
 
     private static readonly StoredActionType[] _quickJobActionTypes = [StoredActionType.SakuraAiEnsureLogin];
-    private static async Task QuickJobs(string traceId)
+    private async Task QuickJobs(string traceId)
     {
         var actions = await GetPendingActionsAsync(_quickJobActionTypes, traceId);
 
@@ -157,7 +159,7 @@ public class BackgroundWorker
 
 
     private DateTime LastMetricReport;
-    private async Task HourlyMetricsReport()
+    private async Task HourlyMetricsReport(string _)
     {
         MetricsWriter.Lock();
         Metric[] metrics;
@@ -183,8 +185,8 @@ public class BackgroundWorker
         var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
         var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
         var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
-        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:{newSakuraIntegrations}; " +
-                               $"{IntegrationType.CharacterAI.GetIcon()}:{newCaiIntegrations}";
+        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:**{newSakuraIntegrations}** " +
+                               $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
 
         var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
         var calledCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterCalled);

@@ -53,30 +53,21 @@ public static class BotConfig
         => GetParamByName<string>("CHARACTER_AI_EMOJI");
 
 
-    // Private
+
+    private static string CONFIG_PATH = default!;
+    public static void Initialize()
+    {
+        var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings"));
+        CONFIG_PATH = files.GetFileThatStartsWith("env.config") ??
+                      files.GetFileThatStartsWith("config")!;
+
+        LogManager.GetCurrentClassLogger().Info($"[ Config path: {CONFIG_PATH} ]");
+    }
+
 
     private static string? GetFileThatStartsWith(this string[] paths, string pattern)
         => paths.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
 
-    private static string? _configPath;
-    private static string CONFIG_PATH
-    {
-        get
-        {
-            if (_configPath is not null)
-            {
-                return _configPath;
-            }
-
-            var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings"));
-            _configPath = files.GetFileThatStartsWith("env.config") ??
-                          files.GetFileThatStartsWith("config")!;
-
-            LogManager.GetCurrentClassLogger().Info($"[ Config path: {_configPath} ]");
-
-            return _configPath;
-        }
-    }
 
     private static T GetParamByName<T>(string paramName) where T : notnull
     {
