@@ -207,7 +207,11 @@ public class CharacterEngineBot
 
             foreach (var guilds in guildChunks)
             {
-                while (sw.Elapsed.Seconds < 1) { } // wait
+                while (sw.Elapsed.Seconds < 1)
+                {
+                    await Task.Delay(100);
+                }
+
                 sw.Restart();
 
                 await Parallel.ForEachAsync(guilds, TryToProcessGuild);

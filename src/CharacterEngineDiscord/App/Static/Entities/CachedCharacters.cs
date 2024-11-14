@@ -67,16 +67,26 @@ public sealed class CachedCharacerInfoCollection
 
 public record CachedCharacterInfo
 {
-    private int _queue;
-    private bool _locked;
+    private readonly List<ulong> _queue = [];
 
-    public int Queue => _queue;
+    public bool QueueIsFull
+        => _queue.Count >= 5;
 
-    public void QueueIncrement()
-        => Interlocked.Increment(ref _queue);
+    public bool QueueIsTurnOf(ulong userId)
+        => _queue.Count < 2 || _queue[0] == userId;
 
-    public void QueueDecrement()
-        => Interlocked.Decrement(ref _queue);
+    public bool QueueContains(ulong userId)
+        => _queue.Contains(userId);
+
+    public void QueueAdd(ulong userId)
+    {
+        _queue.Add(userId);
+    }
+
+    public void QueueRemove(ulong userId)
+    {
+        _queue.Remove(userId);
+    }
 
 
     public required Guid Id { get; init; }
@@ -87,29 +97,6 @@ public record CachedCharacterInfo
 
     public required double FreewillFactor { get; set; }
 
-
-    public bool TryLock()
-    {
-        lock (this)
-        {
-            if (_locked)
-            {
-                return false;
-            }
-
-            _locked = true;
-            return true;
-        }
-    }
-
-
-    public void Unlock()
-    {
-        lock (this)
-        {
-            _locked = false;
-        }
-    }
 
 
     public ulong? WideContextLastMessageId { get; set; }

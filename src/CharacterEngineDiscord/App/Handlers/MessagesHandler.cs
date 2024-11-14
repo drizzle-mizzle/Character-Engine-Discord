@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CharacterAi.Client;
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.Helpers;
@@ -138,88 +139,90 @@ public class MessagesHandler
             return;
         }
 
+        var author = socketUserMessage.Author;
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
-        if (cachedCharacter.Queue > 5)
+        if (cachedCharacter.QueueIsFull || cachedCharacter.QueueContains(author.Id))
         {
             return;
         }
 
-        cachedCharacter.QueueIncrement();
+        cachedCharacter.QueueAdd(author.Id);
         try
         {
-            while (!cachedCharacter.TryLock())
+            // Wait for the first place in queue
+            var sw = Stopwatch.StartNew();
+            while (!cachedCharacter.QueueIsTurnOf(author.Id))
             {
+                // just in case it hang on for some reason (are there any?)
+                if (sw.Elapsed.TotalMinutes >= 2d)
+                {
+                    return;
+                }
+
                 await Task.Delay(500);
             }
 
-            var author = socketUserMessage.Author;
+            // Wait for delay
             var responseDelay = author.IsBot || author.IsWebhook ? Math.Max(5, spawnedCharacter.ResponseDelay) : spawnedCharacter.ResponseDelay;
             if (responseDelay > 0)
             {
                 await Task.Delay((int)(responseDelay * 1000));
             }
 
-            try
+            string userMessage;
+            if (randomCall && spawnedCharacter.FreewillContextSize != 0)
             {
-                string userMessage;
-                if (randomCall && spawnedCharacter.FreewillContextSize != 0)
+                userMessage = "";
+                var messageLength = 0;
+                var downloadedMessages = (await channel.GetMessagesAsync(20).FlattenAsync()).ToList();
+
+                foreach (var downloadedMessage in downloadedMessages.Select(m => m as IUserMessage))
                 {
-                    userMessage = "";
-                    var messageLength = 0;
-                    var downloadedMessages = (await channel.GetMessagesAsync(20).FlattenAsync()).ToList();
-
-                    foreach (var downloadedMessage in downloadedMessages.Select(m => m as IUserMessage))
+                    if (downloadedMessage is null
+                     || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
+                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
+                     || downloadedMessage.Author.Id == spawnedCharacter.WebhookId
+                     || downloadedMessage.Content.Trim('\n', ' ').Length == 0)
                     {
-                        if (downloadedMessage is null
-                         || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
-                         || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
-                         || downloadedMessage.Author.Id == spawnedCharacter.WebhookId
-                         || downloadedMessage.Content.Trim('\n', ' ').Length == 0)
-                        {
-                            continue;
-                        }
-
-                        var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
-                        messageLength += messagePartial.Length;
-
-                        if (messageLength <= spawnedCharacter.FreewillContextSize)
-                        {
-                            userMessage = messagePartial + userMessage;
-                            continue;
-                        }
-
-                        break;
+                        continue;
                     }
 
-                    cachedCharacter.WideContextLastMessageId = downloadedMessages.FirstOrDefault()?.Id; // remember
+                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
+                    messageLength += messagePartial.Length;
+
+                    if (messageLength <= spawnedCharacter.FreewillContextSize)
+                    {
+                        userMessage = messagePartial + userMessage;
+                        continue;
+                    }
+
+                    break;
                 }
-                else
-                {
-                    userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter);
-                    cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
-                }
 
-                var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
-                var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
-                var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
-
-                spawnedCharacter.LastCallerDiscordUserId = socketUserMessage.Author.Id;
-                spawnedCharacter.LastDiscordMessageId = messageId;
-                spawnedCharacter.ResetWithNextMessage = false;
-                spawnedCharacter.LastCallTime = DateTime.Now;
-                spawnedCharacter.MessagesSent++;
-                await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-
-                MetricsWriter.Create(MetricType.CharacterCalled, spawnedCharacter.Id, $"{channel.Id}:{channel.Guild.Id}", silent: true);
+                cachedCharacter.WideContextLastMessageId = downloadedMessages.FirstOrDefault()?.Id; // remember
             }
-            finally
+            else
             {
-                cachedCharacter.Unlock();
+                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter);
+                cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
+
+            var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
+            var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
+            var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
+
+            spawnedCharacter.LastCallerDiscordUserId = socketUserMessage.Author.Id;
+            spawnedCharacter.LastDiscordMessageId = messageId;
+            spawnedCharacter.ResetWithNextMessage = false;
+            spawnedCharacter.LastCallTime = DateTime.Now;
+            spawnedCharacter.MessagesSent++;
+            await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+            MetricsWriter.Create(MetricType.CharacterCalled, spawnedCharacter.Id, $"{channel.Id}:{channel.Guild.Id}", silent: true);
         }
         finally
         {
-            cachedCharacter.QueueDecrement();
+            cachedCharacter.QueueRemove(author.Id);
         }
     }
 

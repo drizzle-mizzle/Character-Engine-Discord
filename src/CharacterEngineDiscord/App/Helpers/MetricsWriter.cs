@@ -24,7 +24,7 @@ public static class MetricsWriter
         {
             while (_locked)
             {
-                // wait
+                await Task.Delay(500);
             }
 
             var metric = new Metric

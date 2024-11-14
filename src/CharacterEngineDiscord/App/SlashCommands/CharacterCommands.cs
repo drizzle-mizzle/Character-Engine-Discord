@@ -127,16 +127,17 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         spawnedCharacter.ResetWithNextMessage = true;
 
-        var tasks = new List<Task>();
-        tasks.Add(DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter));
+        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
+        MemoryStorage.CachedCharacters.Add(spawnedCharacter);
 
         var message = $"{MT.OK_SIGN_DISCORD} Chat with **{spawnedCharacter.CharacterName}** reset successfully";
-        tasks.Add(FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false)));
+        var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
 
-        var user = (IGuildUser)Context.User;
-        tasks.Add(spawnedCharacter.SendGreetingAsync(user.DisplayName));
-
-        Task.WaitAll(tasks.ToArray());
+        await spawnedCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
+        await updateSpawnedCharacterAsync;
+        await followupAsync;
     }
 
 
@@ -265,7 +266,10 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         FreewillFactor,
 
         [ChoiceDisplay("first-message")]
-        FirstMessage
+        FirstMessage,
+
+        [ChoiceDisplay("response-delay")]
+        ResponseDelay,
     }
 
 
@@ -336,6 +340,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             {
                 oldValue = spawnedCharacter.CharacterFirstMessage;
                 spawnedCharacter.CharacterFirstMessage = newValue;
+
+                break;
+            }
+            case EditableProp.ResponseDelay:
+            {
+                oldValue = spawnedCharacter.ResponseDelay.ToString();
+                spawnedCharacter.ResponseDelay = uint.Parse(newValue);
 
                 break;
             }

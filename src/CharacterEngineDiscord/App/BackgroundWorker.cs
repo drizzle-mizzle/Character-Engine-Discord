@@ -31,8 +31,8 @@ public class BackgroundWorker
 
         var worker = new BackgroundWorker();
 
-        RunInLoop(worker.QuickJobs, duration: TimeSpan.FromSeconds(5));
-        RunInLoop(worker.HourlyMetricsReport, TimeSpan.FromMinutes(30));
+        RunInLoop(worker.QuickJobs, duration: TimeSpan.FromSeconds(20));
+        RunInLoop(worker.MetricsReport, TimeSpan.FromHours(1));
     }
 
 
@@ -44,22 +44,19 @@ public class BackgroundWorker
         Task.Run(async () =>
         {
             var sw = new Stopwatch();
-
             while (true)
             {
-                if (sw.IsRunning && sw.Elapsed.TotalNanoseconds < duration.TotalNanoseconds)
+                if (sw.IsRunning)
                 {
-                    continue;
+                    var waitMs = (int)(duration.TotalMilliseconds - sw.Elapsed.TotalMilliseconds);
+                    if (waitMs > 0)
+                    {
+                        await Task.Delay(waitMs);
+                    }
                 }
 
                 var traceId = CommonHelper.NewTraceId();
-
-                if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
-                {
-                    _log.Info($"[{traceId}] JOB START: {jobTask.Method.Name}");
-                }
-
-                sw.Restart();
+                _log.Info($"[{traceId}] JOB START: {jobTask.Method.Name}");
 
                 try
                 {
@@ -70,10 +67,7 @@ public class BackgroundWorker
                     await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId, writeMetric: true);
                 }
 
-                if (!jobTask.Method.Name.StartsWith("QuickJobs", StringComparison.Ordinal))
-                {
-                    _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {(duration.TotalMinutes < 1 ? $"{duration.TotalSeconds}s" : $"{duration.TotalMinutes}min")}");
-                }
+                _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {(duration.TotalMinutes < 1 ? $"{duration.TotalSeconds}s" : $"{duration.TotalMinutes}min")}");
 
                 sw.Restart();
             }
@@ -159,7 +153,7 @@ public class BackgroundWorker
 
 
     private DateTime LastMetricReport;
-    private async Task HourlyMetricsReport(string _)
+    private async Task MetricsReport(string _)
     {
         MetricsWriter.Lock();
         Metric[] metrics;
