@@ -75,7 +75,7 @@ public class SlashCommandsHandler
                     BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
                     BotAdminCommands.blockGuild => throw new NotImplementedException(),
                     BotAdminCommands.unblockGuild => throw new NotImplementedException(),
-                    BotAdminCommands.stats => throw new NotImplementedException()
+                    BotAdminCommands.reportMetrics => botAdminCommandsHandler.ReportMetricsAsync(command)
                 });
             }
             else

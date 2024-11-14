@@ -152,58 +152,30 @@ public class BackgroundWorker
     }
 
 
-    private DateTime LastMetricReport;
     private async Task MetricsReport(string _)
     {
-        MetricsWriter.Lock();
+        MetricsWriter.LockWrite();
         Metric[] metrics;
         try
         {
-            if (LastMetricReport == default)
+            if (MetricsWriter.GetLastMetricReport() == default)
             {
                 return;
             }
 
             await using var db = DatabaseHelper.GetDbContext();
-            metrics = await db.Metrics.Where(m => m.CreatedAt >= LastMetricReport).ToArrayAsync();
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= MetricsWriter.GetLastMetricReport()).ToArrayAsync();
         }
         finally
         {
-            LastMetricReport = DateTime.Now;
-            MetricsWriter.Unlock();
+            MetricsWriter.SetLastMetricReport(DateTime.Now);
+            MetricsWriter.UnlockWrite();
         }
 
-        var guildsJoined = metrics.Count(m => m.MetricType == MetricType.JoinedGuild);
-        var guildsLeft = metrics.Count(m => m.MetricType == MetricType.LeftGuild);
-
-        var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
-        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
-        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
-        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:**{newSakuraIntegrations}** " +
-                               $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
-
-        var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
-
-        var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
-                                             .Select(m =>
-                                              {
-                                                  var ids = m.Payload!.Split(':');
-                                                  return new { CharacterId = m.EntityId, ChannelId = ids[0], GuildId = ids[1] };
-                                              })
-                                             .ToArray();
-
-        var uniqueCharacters = calledCharactersMetrics.Select(m => m.CharacterId).Distinct().ToArray();
-        var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().ToArray();
-        var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().ToArray();
-
-        var message = $"Joined servers: **{guildsJoined}**\n" +
-                      $"Left servers: **{guildsLeft}**\n" +
-                      $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
-                      $"Characters spawned: **{spawnedCharacters}**\n" +
-                      $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters.Length}** character in **{uniqueChannels}** channels in **{uniqueGuilds}** servers\n";
+        var metricsReport = MessagesHelper.GetMetricsReport(metrics);
 
         var client = CharacterEngineBot.DiscordShardedClient;
-        await client.ReportLogAsync("Hourly Metrics Report", message);
+        await client.ReportLogAsync("Hourly Metrics Report", metricsReport);
     }
 
 

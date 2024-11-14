@@ -11,7 +11,7 @@ public enum SpecialCommands
 
 public enum BotAdminCommands
 {
-    shutdown, blockUser, unblockUser, blockGuild, unblockGuild, stats
+    shutdown, blockUser, unblockUser, blockGuild, unblockGuild, reportMetrics
 }
 
 
@@ -50,6 +50,9 @@ public static class ExplicitCommandBuilders
 
         var unblockUserCommand = CreateAdminCommand(BotAdminCommands.unblockUser).AddOption(userOption).Build();
         commands.Add(unblockUserCommand);
+
+        var reportMetricsCommand = CreateAdminCommand(BotAdminCommands.reportMetrics).Build();
+        commands.Add(reportMetricsCommand);
 
         return commands;
     }

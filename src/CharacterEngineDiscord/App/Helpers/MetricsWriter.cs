@@ -1,7 +1,6 @@
 using System.Text;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models.Db;
-using Microsoft.EntityFrameworkCore;
 using NLog;
 
 namespace CharacterEngine.App.Helpers;
@@ -11,11 +10,23 @@ public static class MetricsWriter
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
+    private static DateTime _lastMetricReport;
+
+
+    public static DateTime GetLastMetricReport()
+        => _lastMetricReport;
+
+    public static void SetLastMetricReport(DateTime lastMetricReport)
+    {
+        _lastMetricReport = lastMetricReport;
+    }
+
+
     private static bool _locked;
 
-    public static void Lock() { _locked = true; }
+    public static void LockWrite() { _locked = true; }
 
-    public static void Unlock() { _locked = false; }
+    public static void UnlockWrite() { _locked = false; }
 
 
     public static void Create(MetricType metricType, object? entityId = null, string? payload = null, bool silent = false)
