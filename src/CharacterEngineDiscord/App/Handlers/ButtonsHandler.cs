@@ -30,12 +30,16 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
-                var traceId = CommonHelper.NewTraceId();
-
                 var guild = _discordClient.GetGuild((ulong)component.GuildId!);
-                var owner = guild.Owner ?? await ((IGuild)guild).GetOwnerAsync();
+                if (guild is null)
+                {
+                    return;
+                }
 
-                var content = $"Button: **{component.Data.CustomId}**\n" +
+                var traceId = CommonHelper.NewTraceId();
+                var owner = guild.Owner ?? await ((IGuild)guild).GetOwnerAsync();
+                var content = $"TraceID: **{traceId}**\n" +
+                              $"Button: **{component.Data.CustomId}**\n" +
                               $"User: **{component.User.GlobalName ?? component.User.Username}** ({component.User.Id})\n" +
                               $"Channel: **{component.Channel.Name}** ({component.Channel.Id})\n" +
                               $"Guild: **{guild.Name}** ({guild.Id})\n" +
@@ -43,7 +47,6 @@ public class ButtonsHandler
                               $"Exception:\n{e}";
 
                 await _discordClient.ReportErrorAsync("ButtonsHandler exception", content, traceId, writeMetric: false);
-
                 await InteractionsHelper.RespondWithErrorAsync(component, e, traceId);
             }
         });

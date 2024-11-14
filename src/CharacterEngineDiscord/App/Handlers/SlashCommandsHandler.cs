@@ -45,7 +45,7 @@ public class SlashCommandsHandler
             return;
         }
 
-        var ensureExistInDbAsync = guildChannel.EnsureExistInDbAsync();
+        var ensureChannelExistInDbAsync = guildChannel.EnsureExistInDbAsync();
         try
         {
             InteractionsHelper.ValidateUser(command);
@@ -89,7 +89,7 @@ public class SlashCommandsHandler
         }
         finally
         {
-            await ensureExistInDbAsync;
+            await ensureChannelExistInDbAsync;
         }
     }
 }

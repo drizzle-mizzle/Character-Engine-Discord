@@ -52,6 +52,10 @@ public static class MessagesHelper
         {
             MetricsWriter.Create(MetricType.Error, payload: $"[{traceId} | {title}]\n{content}");
         }
+        else
+        {
+            _log.Error($"[{traceId} | {title}]\n{content}");
+        }
 
         try
         {

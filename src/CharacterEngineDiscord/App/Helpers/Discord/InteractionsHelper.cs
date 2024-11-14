@@ -545,7 +545,7 @@ public static class InteractionsHelper
             return;
         }
 
-        var userIsGuildOwner = user.Id == user.Guild.OwnerId || user.Roles.Any(role => role.Permissions.Administrator);
+        var userIsGuildAdmin = user.Id == user.Guild.OwnerId || user.Roles.Any(role => role.Permissions.Administrator);
 
         switch (requiredAccessLevel)
         {
@@ -555,7 +555,7 @@ public static class InteractionsHelper
             }
             case AccessLevels.GuildAdmin:
             {
-                if (userIsGuildOwner)
+                if (userIsGuildAdmin)
                 {
                     return;
                 }
@@ -564,7 +564,7 @@ public static class InteractionsHelper
             }
             case AccessLevels.Manager:
             {
-                if (userIsGuildOwner || await UserIsManagerAsync(user))
+                if (userIsGuildAdmin || await UserIsManagerAsync(user))
                 {
                     return;
                 }

@@ -266,8 +266,7 @@ public class CharacterEngineBot
         var commands = await guild.GetApplicationCommandsAsync();
         if (commands.Count == 0)
         {
-            var startCommand = ExplicitCommandBuilders.BuildStartCommand();
-            await guild.CreateApplicationCommandAsync(startCommand);
+            await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildStartCommand());
             return;
         }
 
@@ -277,9 +276,14 @@ public class CharacterEngineBot
             return;
         }
 
+        if (!commandNames.Contains($"{SpecialCommands.disable:G}"))
+        {
+            await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildStartCommand());
+            return;
+        }
+
         await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
-        var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
-        await guild.CreateApplicationCommandAsync(disableCommand);
+        await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildDisableCommand());
     }
 
 

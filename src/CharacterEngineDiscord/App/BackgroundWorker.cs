@@ -189,13 +189,24 @@ public class BackgroundWorker
                                $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
 
         var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
-        var calledCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterCalled);
+
+        var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
+                                             .Select(m =>
+                                              {
+                                                  var ids = m.Payload!.Split(':');
+                                                  return new { CharacterId = m.EntityId, ChannelId = ids[0], GuildId = ids[1] };
+                                              })
+                                             .ToArray();
+
+        var uniqueCharacters = calledCharactersMetrics.Select(m => m.CharacterId).Distinct().ToArray();
+        var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().ToArray();
+        var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().ToArray();
 
         var message = $"Joined servers: **{guildsJoined}**\n" +
                       $"Left servers: **{guildsLeft}**\n" +
                       $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                       $"Characters spawned: **{spawnedCharacters}**\n" +
-                      $"Characters called: **{calledCharacters}**";
+                      $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters.Length}** character in **{uniqueChannels}** channels in **{uniqueGuilds}** servers\n";
 
         var client = CharacterEngineBot.DiscordShardedClient;
         await client.ReportLogAsync("Hourly Metrics Report", message);

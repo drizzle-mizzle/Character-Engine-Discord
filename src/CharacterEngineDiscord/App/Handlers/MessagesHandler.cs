@@ -39,14 +39,20 @@ public class MessagesHandler
             }
             catch (Exception e)
             {
-                var channel = (IGuildChannel)socketMessage.Channel;
-                var guild = channel.Guild;
-                var owner = await guild.GetOwnerAsync();
+                var channel = socketMessage.Channel as IGuildChannel;
 
-                var content = $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
-                              $"Channel: **{channel.Name}** ({channel.Id})\n" +
+                var guild = channel?.Guild;
+                if (guild is null)
+                {
+                    return;
+                }
+
+                var owner = await guild.GetOwnerAsync();
+                var content = $"TraceID: **{traceId}**\n" +
+                              $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
+                              $"Channel: **{channel!.Name}** ({channel.Id})\n" +
                               $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                              $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
+                              $"Owned by: **{owner?.DisplayName ?? owner?.Username}** ({owner?.Id})\n\n" +
                               $"Exception:\n{e}";
 
                 await _discordClient.ReportErrorAsync("MessagesHandler exception", content, traceId, writeMetric: false);
@@ -85,8 +91,6 @@ public class MessagesHandler
             return;
         }
 
-        var ensureExistInDbAsync = channel.EnsureExistInDbAsync();
-
         try
         {
             var tasks = new List<Task>();
@@ -114,17 +118,6 @@ public class MessagesHandler
                 await socketUserMessage.ReplyAsync(embed: message.ToInlineEmbed(Color.Orange));
             }
         }
-        finally
-        {
-            try
-            {
-                await ensureExistInDbAsync;
-            }
-            catch (DbUpdateException)
-            {
-                // ok
-            }
-        }
     }
 
 
@@ -145,13 +138,6 @@ public class MessagesHandler
             return;
         }
 
-        var author = socketUserMessage.Author;
-        var responseDelay = author.IsBot || author.IsWebhook ? Math.Max(5, spawnedCharacter.ResponseDelay) : spawnedCharacter.ResponseDelay;
-        if (responseDelay > 0)
-        {
-            await Task.Delay((int)(responseDelay * 1000));
-        }
-
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
         if (cachedCharacter.Queue > 5)
         {
@@ -161,57 +147,59 @@ public class MessagesHandler
         cachedCharacter.QueueIncrement();
         try
         {
-            string message;
-            if (randomCall && spawnedCharacter.FreewillContextSize != 0)
-            {
-                message = "";
-                var messageLength = 0;
-                var downloadedMessages = (await channel.GetMessagesAsync(20).FlattenAsync()).ToList();
-
-                foreach (var downloadedMessage in downloadedMessages.Select(m => m as IUserMessage))
-                {
-                    if (downloadedMessage is null
-                     || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
-                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
-                     || downloadedMessage.Author.Id == spawnedCharacter.WebhookId)
-                    {
-                        continue;
-                    }
-
-                    var content = downloadedMessage.Content.Trim('\n', ' ');
-                    if (content.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
-                    messageLength += messagePartial.Length;
-
-                    if (messageLength > spawnedCharacter.FreewillContextSize)
-                    {
-                        break;
-                    }
-
-                    message = messagePartial + message;
-                }
-
-                cachedCharacter.WideContextLastMessageId = downloadedMessages.FirstOrDefault()?.Id;
-            }
-            else
-            {
-                message = ReformatUserMessage(socketUserMessage, spawnedCharacter);
-                cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
-            }
-
             while (!cachedCharacter.TryLock())
             {
                 await Task.Delay(500);
             }
 
+            var author = socketUserMessage.Author;
+            var responseDelay = author.IsBot || author.IsWebhook ? Math.Max(5, spawnedCharacter.ResponseDelay) : spawnedCharacter.ResponseDelay;
+            if (responseDelay > 0)
+            {
+                await Task.Delay((int)(responseDelay * 1000));
+            }
+
             try
             {
+                string userMessage;
+                if (randomCall && spawnedCharacter.FreewillContextSize != 0)
+                {
+                    userMessage = "";
+                    var messageLength = 0;
+                    var downloadedMessages = (await channel.GetMessagesAsync(20).FlattenAsync()).ToList();
 
-                var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, message);
+                    foreach (var downloadedMessage in downloadedMessages.Select(m => m as IUserMessage))
+                    {
+                        if (downloadedMessage is null
+                         || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
+                         || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
+                         || downloadedMessage.Author.Id == spawnedCharacter.WebhookId
+                         || downloadedMessage.Content.Trim('\n', ' ').Length == 0)
+                        {
+                            continue;
+                        }
+
+                        var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
+                        messageLength += messagePartial.Length;
+
+                        if (messageLength <= spawnedCharacter.FreewillContextSize)
+                        {
+                            userMessage = messagePartial + userMessage;
+                            continue;
+                        }
+
+                        break;
+                    }
+
+                    cachedCharacter.WideContextLastMessageId = downloadedMessages.FirstOrDefault()?.Id; // remember
+                }
+                else
+                {
+                    userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter);
+                    cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
+                }
+
+                var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
                 var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
                 var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
 
@@ -222,7 +210,7 @@ public class MessagesHandler
                 spawnedCharacter.MessagesSent++;
                 await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
-                MetricsWriter.Create(MetricType.CharacterCalled, spawnedCharacter.Id, message);
+                MetricsWriter.Create(MetricType.CharacterCalled, spawnedCharacter.Id, $"{channel.Id}:{channel.Guild.Id}", silent: true);
             }
             finally
             {

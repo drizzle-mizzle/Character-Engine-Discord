@@ -186,7 +186,7 @@ public static class DatabaseHelper
         newSpawnedCharacter.WebhookToken = webhook.Token;
         newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
         newSpawnedCharacter.MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat;
-        newSpawnedCharacter.ResponseDelay = 1;
+        newSpawnedCharacter.ResponseDelay = 5;
         newSpawnedCharacter.FreewillFactor = 5;
         newSpawnedCharacter.EnableSwipes = false;
         newSpawnedCharacter.FreewillContextSize = 3000;

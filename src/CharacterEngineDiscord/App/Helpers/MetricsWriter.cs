@@ -18,7 +18,7 @@ public static class MetricsWriter
     public static void Unlock() { _locked = false; }
 
 
-    public static void Create(MetricType metricType, object? entityId = null, string? payload = null)
+    public static void Create(MetricType metricType, object? entityId = null, string? payload = null, bool silent = false)
     {
         Task.Run(async () =>
         {
@@ -48,7 +48,10 @@ public static class MetricsWriter
                 msg.Append($" | {payload}");
             }
 
-            _log.Info(msg.ToString());
+            if (!silent)
+            {
+                _log.Info(msg.ToString());
+            }
 
             await using var db = DatabaseHelper.GetDbContext();
             await db.Metrics.AddAsync(metric);
