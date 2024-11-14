@@ -41,6 +41,12 @@ namespace CharacterEngine
             };
 
             BotConfig.Initialize();
+
+            await using (var db = DatabaseHelper.GetDbContext())
+            {
+                await db.Database.MigrateAsync();
+            }
+
             MetricsWriter.Create(MetricType.ApplicationLaunch);
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
