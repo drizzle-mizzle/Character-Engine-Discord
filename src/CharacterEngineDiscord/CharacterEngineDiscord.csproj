@@ -40,7 +40,7 @@
     <ItemGroup>
       <Content Include="Settings\**">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       </Content>
     </ItemGroup>
 

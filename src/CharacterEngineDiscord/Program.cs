@@ -41,6 +41,7 @@ namespace CharacterEngine
             };
 
             BotConfig.Initialize();
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
             await using (var db = DatabaseHelper.GetDbContext())
             {
@@ -48,7 +49,6 @@ namespace CharacterEngine
             }
 
             MetricsWriter.Create(MetricType.ApplicationLaunch);
-            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
             await CharacterEngineBot.RunAsync(args.All(arg => arg != "no-update"));
         }
