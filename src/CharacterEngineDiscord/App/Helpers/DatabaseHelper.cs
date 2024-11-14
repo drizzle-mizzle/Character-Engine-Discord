@@ -1,6 +1,6 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -314,6 +314,11 @@ public static class DatabaseHelper
 
     public static async Task EnsureExistInDbAsync(this IGuildChannel channel)
     {
+        if (!MemoryStorage.CachedChannels.TryAdd(channel.Id, null))
+        {
+            return;
+        }
+
         channel.Guild?.EnsureExistInDbAsync().Wait();
 
         await using var db = GetDbContext();

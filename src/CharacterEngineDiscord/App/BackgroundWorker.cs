@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Text;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
@@ -8,7 +7,6 @@ using Discord;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using SakuraAi.Client.Exceptions;
-using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
 namespace CharacterEngine.App;
 

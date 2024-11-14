@@ -5,7 +5,6 @@ using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 

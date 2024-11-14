@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using CharacterEngine.App.Helpers;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;

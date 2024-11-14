@@ -153,15 +153,15 @@ public static class MessagesHelper
                                               })
                                              .ToArray();
 
-        var uniqueCharacters = calledCharactersMetrics.Select(m => m.CharacterId).Distinct().ToArray();
-        var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().ToArray();
-        var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().ToArray();
+        var uniqueCharacters = calledCharactersMetrics.Select(m => m.CharacterId).Distinct().Count();
+        var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
+        var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
         return $"Joined servers: **{guildsJoined}**\n" +
                $"Left servers: **{guildsLeft}**\n" +
                $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                $"Characters spawned: **{spawnedCharacters}**\n" +
-               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters.Length}** character in **{uniqueChannels}** channels in **{uniqueGuilds}** servers\n";
+               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";
     }
 
     #endregion

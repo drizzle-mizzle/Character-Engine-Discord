@@ -131,7 +131,7 @@ public class CharacterEngineBot
 
                 MetricsWriter.Create(MetricType.JoinedGuild, guild.Id);
                 var message = $"Joined server **{guild.Name}** ({guild.Id})\n" +
-                              $"Owner: {GetGuildOwnerNameAsync(guild)}\n" +
+                              $"Owner: {await GetGuildOwnerNameAsync(guild)}\n" +
                               $"Members: {guild.MemberCount}\n" +
                               $"Description: {guild.Description ?? "none"}";
 
@@ -149,7 +149,7 @@ public class CharacterEngineBot
             {
                 MetricsWriter.Create(MetricType.LeftGuild, guild.Id);
                 var message = $"Left server **{guild.Name}** ({guild.Id})\n" +
-                              $"Owner: {GetGuildOwnerNameAsync(guild)}\n" +
+                              $"Owner: {await GetGuildOwnerNameAsync(guild)}\n" +
                               $"Members: {guild.MemberCount}";
 
                 await _discordClient.ReportLogAsync(message, color: Color.DarkGrey, imageUrl: guild.IconUrl);

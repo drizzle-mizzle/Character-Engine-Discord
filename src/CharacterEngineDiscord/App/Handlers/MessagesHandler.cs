@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using CharacterAi.Client;
-using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
@@ -8,11 +6,7 @@ using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
-using Discord.Net;
-using Discord.Rest;
 using Discord.WebSocket;
-using Microsoft.EntityFrameworkCore;
-using SakuraAi.Client.Exceptions;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.Handlers;
@@ -125,6 +119,8 @@ public class MessagesHandler
     private static async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
     {
         var channel = (ITextChannel)socketUserMessage.Channel;
+        await channel.EnsureExistInDbAsync();
+
         if (spawnedCharacter.IsNfsw && !channel.IsNsfw)
         {
             var nsfwMsg = $"**{spawnedCharacter.CharacterName}** is NSFW character and can be called only in channels with age restriction.";

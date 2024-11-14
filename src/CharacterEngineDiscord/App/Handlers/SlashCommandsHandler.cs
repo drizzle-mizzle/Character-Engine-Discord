@@ -2,12 +2,10 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
-using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
-using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -45,7 +43,7 @@ public class SlashCommandsHandler
             return;
         }
 
-        var ensureChannelExistInDbAsync = guildChannel.EnsureExistInDbAsync();
+        await guildChannel.EnsureExistInDbAsync();
         try
         {
             InteractionsHelper.ValidateUser(command);
@@ -87,10 +85,6 @@ public class SlashCommandsHandler
         catch (Exception e)
         {
             await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId(), false);
-        }
-        finally
-        {
-            await ensureChannelExistInDbAsync;
         }
     }
 }

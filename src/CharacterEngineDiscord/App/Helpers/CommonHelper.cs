@@ -1,5 +1,4 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 
 namespace CharacterEngine.App.Helpers;
