@@ -128,14 +128,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         spawnedCharacter.ResetWithNextMessage = true;
 
         var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-
-        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-        MemoryStorage.CachedCharacters.Add(spawnedCharacter);
-
         var message = $"{MT.OK_SIGN_DISCORD} Chat with **{spawnedCharacter.CharacterName}** reset successfully";
-        var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
 
-        await spawnedCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
+        var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
+        var greetingMessageId = await spawnedCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
+
+        var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+        cachedCharacter.WideContextLastMessageId = greetingMessageId;
+
         await updateSpawnedCharacterAsync;
         await followupAsync;
     }
@@ -289,8 +289,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 oldValue = spawnedCharacter.CallPrefix;
                 spawnedCharacter.CallPrefix = newValue;
 
-                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-                MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+                var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+                cachedCharacter.CallPrefix = newValue;
 
                 break;
             }
@@ -332,8 +332,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
                 spawnedCharacter.FreewillFactor = newFreewillFactor;
 
-                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-                MemoryStorage.CachedCharacters.Add(spawnedCharacter);
+                var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+                cachedCharacter.FreewillFactor = newFreewillFactor;
+
                 break;
             }
             case EditableProp.FirstMessage:

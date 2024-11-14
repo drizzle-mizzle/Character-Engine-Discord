@@ -16,11 +16,14 @@ public sealed class CachedCharacerInfoCollection
 
     public void AddRange(ICollection<ISpawnedCharacter> spawnedCharacters)
     {
-        Parallel.ForEach(spawnedCharacters, Add);
+        Parallel.ForEach(spawnedCharacters, JustAdd);
+        return;
+
+        void JustAdd(ISpawnedCharacter sc) { _ = Add(sc); }
     }
 
 
-    public void Add(ISpawnedCharacter spawnedCharacter)
+    public CachedCharacterInfo Add(ISpawnedCharacter spawnedCharacter)
     {
         Remove(spawnedCharacter.Id);
 
@@ -33,10 +36,11 @@ public sealed class CachedCharacerInfoCollection
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
             // CachedUserMessages = new CachedUserMessages(),
-            Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
+            // Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
         };
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
+        return newCachedCharacter;
     }
 
 
@@ -91,18 +95,15 @@ public record CachedCharacterInfo
 
     public required Guid Id { get; init; }
     public required ulong ChannelId { get; init; }
-    public required string CallPrefix { get; init; }
     public required string WebhookId { get; init; }
     public required IntegrationType IntegrationType { get; init; }
 
+    public required string CallPrefix { get; set; }
     public required double FreewillFactor { get; set; }
-
-
-
     public ulong? WideContextLastMessageId { get; set; }
 
     // public required CachedUserMessages CachedUserMessages { get; init; }
-    public required ActiveConversation Conversations { get; init; }
+    // public required ActiveConversation Conversations { get; init; }
 }
 
 

@@ -210,7 +210,6 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
             foreach (var spawnedCharacter in spawnedCharacters.Where(sc => sc.GetIntegrationType() == type))
             {
-                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
 
                 if (removeAssociatedCharacters)
                 {
@@ -229,13 +228,16 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                         // care not
                     }
 
+                    MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
                     MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
                     await deleteSpawnedCharacterAsync;
                 }
                 else
                 {
+                    var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+                    cachedCharacter.FreewillFactor = spawnedCharacter.FreewillFactor;
+
                     spawnedCharacter.FreewillFactor = 0;
-                    MemoryStorage.CachedCharacters.Add(spawnedCharacter);
                     await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
                 }
             }

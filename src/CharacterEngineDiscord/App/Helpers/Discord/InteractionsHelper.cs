@@ -275,18 +275,18 @@ public static class InteractionsHelper
     }
 
 
-    public static async Task SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
+    public static async Task<ulong> SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
     {
         if (string.IsNullOrWhiteSpace(spawnedCharacter.CharacterFirstMessage))
         {
-            return;
+            return 0;
         }
 
         var characterMessage = spawnedCharacter.CharacterFirstMessage
                                                .Replace("{{char}}", spawnedCharacter.CharacterName)
                                                .Replace("{{user}}", $"**{username}**");
 
-        await SendMessageAsync(spawnedCharacter, characterMessage);
+        return await SendMessageAsync(spawnedCharacter, characterMessage);
     }
 
 
