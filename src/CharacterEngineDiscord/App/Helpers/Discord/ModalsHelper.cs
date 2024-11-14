@@ -1,8 +1,4 @@
-﻿using CharacterAi.Client.Exceptions;
-using CharacterEngineDiscord.IntegrationModules;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Db;
-using Discord;
+﻿using Discord;
 using Discord.WebSocket;
 using NLog;
 

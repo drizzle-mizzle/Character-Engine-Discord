@@ -1,5 +1,6 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Common;
@@ -185,7 +186,7 @@ public static class DatabaseHelper
         newSpawnedCharacter.WebhookToken = webhook.Token;
         newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
         newSpawnedCharacter.MessagesFormat = channel.MessagesFormat ?? channel.DiscordGuild?.MessagesFormat;
-        newSpawnedCharacter.ResponseDelay = 1;
+        newSpawnedCharacter.ResponseDelay = 5;
         newSpawnedCharacter.FreewillFactor = 5;
         newSpawnedCharacter.EnableSwipes = false;
         newSpawnedCharacter.FreewillContextSize = 3000;
@@ -313,6 +314,11 @@ public static class DatabaseHelper
 
     public static async Task EnsureExistInDbAsync(this IGuildChannel channel)
     {
+        if (!MemoryStorage.CachedChannels.TryAdd(channel.Id, null))
+        {
+            return;
+        }
+
         channel.Guild?.EnsureExistInDbAsync().Wait();
 
         await using var db = GetDbContext();

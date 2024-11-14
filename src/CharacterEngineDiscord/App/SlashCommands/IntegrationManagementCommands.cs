@@ -3,14 +3,12 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.SlashCommands;
@@ -110,11 +108,13 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             case SakuraAiGuildIntegration sakuraAiGuildIntegration:
             {
                 await _db.SakuraAiIntegrations.AddAsync(sakuraAiGuildIntegration);
+                MetricsWriter.Create(MetricType.IntegrationCreated, sakuraAiGuildIntegration.Id, $"{sakuraAiGuildIntegration.GetIntegrationType():G} | {sakuraAiGuildIntegration.SakuraEmail}");
                 break;
             }
             case CaiGuildIntegration caiGuildIntegration:
             {
                 await _db.CaiIntegrations.AddAsync(caiGuildIntegration);
+                MetricsWriter.Create(MetricType.IntegrationCreated, caiGuildIntegration.Id, $"{caiGuildIntegration.GetIntegrationType():G} | {caiGuildIntegration.CaiEmail}");
                 break;
             }
             default:
@@ -155,6 +155,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                     CaiEmail = caiUser.UserEmail
                 };
 
+                MetricsWriter.Create(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{newCaiIntergration.GetIntegrationType():G} | {newCaiIntergration.CaiEmail}");
                 await _db.CaiIntegrations.AddAsync(newCaiIntergration);
                 await _db.SaveChangesAsync();
 
@@ -206,7 +207,6 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
             foreach (var spawnedCharacter in spawnedCharacters.Where(sc => sc.GetIntegrationType() == type))
             {
-                MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
 
                 if (removeAssociatedCharacters)
                 {
@@ -225,13 +225,16 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                         // care not
                     }
 
+                    MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
                     MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
                     await deleteSpawnedCharacterAsync;
                 }
                 else
                 {
+                    var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+                    cachedCharacter.FreewillFactor = spawnedCharacter.FreewillFactor;
+
                     spawnedCharacter.FreewillFactor = 0;
-                    MemoryStorage.CachedCharacters.Add(spawnedCharacter);
                     await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
                 }
             }

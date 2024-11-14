@@ -10,7 +10,6 @@ using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Microsoft.EntityFrameworkCore;
-using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
 namespace CharacterEngine.App.Helpers;
 
@@ -173,6 +172,7 @@ public static class IntegrationsHelper
                 CreatedAt = DateTime.Now
             };
 
+            MetricsWriter.Create(MetricType.IntegrationCreated, newSakuraIntegration.Id, $"{newSakuraIntegration.GetIntegrationType():G} | {newSakuraIntegration.SakuraEmail}");
             await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
         }
 

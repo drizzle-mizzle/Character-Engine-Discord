@@ -6,7 +6,6 @@ using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.SlashCommands;

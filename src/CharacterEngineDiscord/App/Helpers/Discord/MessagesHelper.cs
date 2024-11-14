@@ -5,9 +5,11 @@ using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Helpers.Mappings;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -37,68 +39,129 @@ public static class MessagesHelper
 
     #region Reports
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId)
-        => discordClient.ReportErrorAsync("Unknown exception", $"{e}", traceId);
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync("Unknown exception", e.ToString(), traceId, writeMetric);
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId)
-        => discordClient.ReportErrorAsync(title, $"{e}", traceId);
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync(title, e.ToString(), traceId, writeMetric);
 
 
     private const int MSG_LIMIT = 1990;
-    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool consoleLog = true)
+    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool writeMetric)
     {
-        if (consoleLog)
+        if (writeMetric)
         {
-            _log.Error($"[{traceId}] Error report:\n[ {title} ]\n{content}");
+            MetricsWriter.Create(MetricType.Error, payload: $"[{traceId} | {title}]\n{content}");
+        }
+        else
+        {
+            _log.Error($"[{traceId} | {title}]\n{content}");
         }
 
-        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
-        var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
-
-        var count = 0;
-        while (content.Length > 0)
+        try
         {
-            if (count == 5)
-            {
-                break;
-            }
+            var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
+            var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
 
-            count++;
-            if (content.Length <= MSG_LIMIT)
+            var count = 0;
+            while (content.Length > 0)
             {
-                await thread.SendMessageAsync($"```js\n{content}```");
-                break;
-            }
+                if (count == 5)
+                {
+                    break;
+                }
 
-            await thread.SendMessageAsync(text: $"```js\n{content[..(MSG_LIMIT-1)]}```");
-            content = content[MSG_LIMIT..];
+                count++;
+                if (content.Length <= MSG_LIMIT)
+                {
+                    await thread.SendMessageAsync($"```js\n{content}```");
+                    break;
+                }
+
+                await thread.SendMessageAsync(text: $"```js\n{content[..(MSG_LIMIT-1)]}```");
+                content = content[MSG_LIMIT..];
+            }
+        }
+        catch (Exception e)
+        {
+            _log.Error($"[ FAILIED TO REPORT ERROR IN DISCORD! ]\n{e}");
         }
     }
 
 
-    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content = null, string? imageUrl = null, Color? color = null)
+    public static async Task ReportLogAsync(this IDiscordClient discordClient, string title, string? content = null, string? imageUrl = null, Color? color = null, bool logToConsole = false)
     {
-        _log.Info($"[ {title} ] {content}");
-
-        var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
-        var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
-        if (content is null)
+        if (logToConsole)
         {
-            return;
+            _log.Info(content is null ? title : $"[ {title} ] {content}");
         }
 
-        var thread = await channel.CreateThreadAsync("Info", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
-        while (content.Length > 0)
+        try
         {
-            if (content.Length <= MSG_LIMIT)
+            var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.LOGS_CHANNEL_ID);
+            if (content is null)
             {
-                await thread.SendMessageAsync(content);
-                break;
+                await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
+                return;
             }
 
-            await thread.SendMessageAsync(content[..(MSG_LIMIT-1)]);
-            content = content[MSG_LIMIT..];
+            if (content.Length < 1000)
+            {
+                await channel.SendMessageAsync(embeds: [title.ToInlineEmbed(color ?? Color.Green, false), content.ToInlineEmbed(Color.LightGrey, false, imageUrl, imageAsThumb: true)]);
+                return;
+            }
+
+            var message = await channel.SendMessageAsync(embed: title.ToInlineEmbed(color ?? Color.Green, false, imageUrl, imageAsThumb: true));
+            var thread = await channel.CreateThreadAsync("[ Details ]", autoArchiveDuration: ThreadArchiveDuration.ThreeDays, message: message);
+            while (content.Length > 0)
+            {
+                if (content.Length <= MSG_LIMIT)
+                {
+                    await thread.SendMessageAsync(content);
+                    break;
+                }
+
+                await thread.SendMessageAsync(content[..(MSG_LIMIT - 1)]);
+                content = content[MSG_LIMIT..];
+            }
         }
+        catch (Exception e)
+        {
+            _log.Error($"[ FAILIED TO REPORT LOG IN DISCORD! ]\n{e}");
+        }
+    }
+
+
+    public static string GetMetricsReport(Metric[] metrics)
+    {
+        var guildsJoined = metrics.Count(m => m.MetricType == MetricType.JoinedGuild);
+        var guildsLeft = metrics.Count(m => m.MetricType == MetricType.LeftGuild);
+
+        var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
+        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
+        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
+        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:**{newSakuraIntegrations}** " +
+                               $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
+
+        var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
+
+        var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
+                                             .Select(m =>
+                                              {
+                                                  var ids = m.Payload!.Split(':');
+                                                  return new { CharacterId = m.EntityId, ChannelId = ids[0], GuildId = ids[1] };
+                                              })
+                                             .ToArray();
+
+        var uniqueCharacters = calledCharactersMetrics.Select(m => m.CharacterId).Distinct().Count();
+        var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
+        var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
+
+        return $"Joined servers: **{guildsJoined}**\n" +
+               $"Left servers: **{guildsLeft}**\n" +
+               $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
+               $"Characters spawned: **{spawnedCharacters}**\n" +
+               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";
     }
 
     #endregion
@@ -407,6 +470,10 @@ public static class MessagesHelper
 
         return string.Concat(result);
     }
+
+
+    public static string CapitalizeFirst(this string source)
+        => char.ToUpper(source[0]) + source[1..];
 
 
     public static string HumanizeDateTime(this DateTime dateTime)

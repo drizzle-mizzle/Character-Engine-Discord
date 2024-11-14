@@ -2,12 +2,10 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
-using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
-using NLog;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -45,14 +43,15 @@ public class SlashCommandsHandler
             return;
         }
 
-        var ensureExistInDbAsync = guildChannel.EnsureExistInDbAsync();
+        await guildChannel.EnsureExistInDbAsync();
         try
         {
             InteractionsHelper.ValidateUser(command);
 
             var context = new InteractionContext(_discordClient, command, command.Channel);
 
-            if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
+            var commandName = command.CommandName.Replace("-", "");
+            if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
             {
                 await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
@@ -63,7 +62,7 @@ public class SlashCommandsHandler
                     SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
                 });
             }
-            else if (Enum.TryParse<BotAdminCommands>(command.CommandName, ignoreCase: false, out var botAdminCommand))
+            else if (Enum.TryParse<BotAdminCommands>(commandName, ignoreCase: true, out var botAdminCommand))
             {
                 await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
 
@@ -75,7 +74,7 @@ public class SlashCommandsHandler
                     BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
                     BotAdminCommands.blockGuild => throw new NotImplementedException(),
                     BotAdminCommands.unblockGuild => throw new NotImplementedException(),
-                    BotAdminCommands.stats => throw new NotImplementedException()
+                    BotAdminCommands.reportMetrics => botAdminCommandsHandler.ReportMetricsAsync(command)
                 });
             }
             else
@@ -85,11 +84,7 @@ public class SlashCommandsHandler
         }
         catch (Exception e)
         {
-            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId());
-        }
-        finally
-        {
-            await ensureExistInDbAsync;
+            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId(), false);
         }
     }
 }

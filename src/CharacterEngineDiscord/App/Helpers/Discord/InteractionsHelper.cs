@@ -1,5 +1,4 @@
-﻿using System.ComponentModel;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
@@ -49,7 +48,7 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentOutOfRangeException or ArgumentException or FormatException;
+            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentException or InvalidOperationException or FormatException;
     }
 
 
@@ -208,6 +207,8 @@ public static class InteractionsHelper
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
         MemoryStorage.CachedCharacters.Add(newSpawnedCharacter);
 
+        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()} | {newSpawnedCharacter.CharacterName}");
+
         return newSpawnedCharacter;
     }
 
@@ -273,18 +274,18 @@ public static class InteractionsHelper
     }
 
 
-    public static async Task SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
+    public static async Task<ulong> SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
     {
         if (string.IsNullOrWhiteSpace(spawnedCharacter.CharacterFirstMessage))
         {
-            return;
+            return 0;
         }
 
         var characterMessage = spawnedCharacter.CharacterFirstMessage
                                                .Replace("{{char}}", spawnedCharacter.CharacterName)
                                                .Replace("{{user}}", $"**{username}**");
 
-        await SendMessageAsync(spawnedCharacter, characterMessage);
+        return await SendMessageAsync(spawnedCharacter, characterMessage);
     }
 
 
@@ -543,7 +544,7 @@ public static class InteractionsHelper
             return;
         }
 
-        var userIsGuildOwner = user.Id == user.Guild.OwnerId || user.Roles.Any(role => role.Permissions.Administrator);
+        var userIsGuildAdmin = user.Id == user.Guild.OwnerId || user.Roles.Any(role => role.Permissions.Administrator);
 
         switch (requiredAccessLevel)
         {
@@ -553,7 +554,7 @@ public static class InteractionsHelper
             }
             case AccessLevels.GuildAdmin:
             {
-                if (userIsGuildOwner)
+                if (userIsGuildAdmin)
                 {
                     return;
                 }
@@ -562,7 +563,7 @@ public static class InteractionsHelper
             }
             case AccessLevels.Manager:
             {
-                if (userIsGuildOwner || await UserIsManagerAsync(user))
+                if (userIsGuildAdmin || await UserIsManagerAsync(user))
                 {
                     return;
                 }

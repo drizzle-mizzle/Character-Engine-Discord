@@ -11,7 +11,7 @@ public enum SpecialCommands
 
 public enum BotAdminCommands
 {
-    shutdown, blockUser, unblockUser, blockGuild, unblockGuild, stats
+    shutdown, blockUser, unblockUser, blockGuild, unblockGuild, reportMetrics
 }
 
 
@@ -42,7 +42,7 @@ public static class ExplicitCommandBuilders
         {
             Name = "user-id",
             Description = "-",
-            Type = ApplicationCommandOptionType.Integer
+            Type = ApplicationCommandOptionType.String
         };
 
         var blockUserCommand = CreateAdminCommand(BotAdminCommands.blockUser).AddOption(userOption).Build();
@@ -50,6 +50,9 @@ public static class ExplicitCommandBuilders
 
         var unblockUserCommand = CreateAdminCommand(BotAdminCommands.unblockUser).AddOption(userOption).Build();
         commands.Add(unblockUserCommand);
+
+        var reportMetricsCommand = CreateAdminCommand(BotAdminCommands.reportMetrics).Build();
+        commands.Add(reportMetricsCommand);
 
         return commands;
     }
@@ -61,6 +64,6 @@ public static class ExplicitCommandBuilders
 
     private static SlashCommandBuilder CreateAdminCommand(BotAdminCommands command)
         => new SlashCommandBuilder().WithName(command.ToString("G").SplitWordsBySep('-').ToLowerInvariant())
-                                    .WithDescription("-")
+                                    .WithDescription(command.ToString("G").SplitWordsBySep(' ').CapitalizeFirst())
                                     .WithDefaultMemberPermissions(GuildPermission.Administrator);
 }

@@ -29,7 +29,7 @@ public class ModalsHandler
             catch (Exception e)
             {
                 var traceId = CommonHelper.NewTraceId();
-                await _discordClient.ReportErrorAsync(e, traceId);
+                await _discordClient.ReportErrorAsync(e, traceId, writeMetric: true);
                 await InteractionsHelper.RespondWithErrorAsync(modal, e, traceId);
             }
         });

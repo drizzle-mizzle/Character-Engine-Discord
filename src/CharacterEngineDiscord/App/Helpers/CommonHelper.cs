@@ -1,5 +1,4 @@
 ﻿using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 
 namespace CharacterEngine.App.Helpers;
@@ -22,7 +21,7 @@ public static class CommonHelper
         }
         catch (Exception e)
         {
-            await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync(e, NewTraceId());
+            await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync(e, NewTraceId(), false);
             return null;
         }
     }
