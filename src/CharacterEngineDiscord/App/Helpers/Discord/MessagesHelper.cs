@@ -472,6 +472,10 @@ public static class MessagesHelper
     }
 
 
+    public static string CapitalizeFirst(this string source)
+        => char.ToUpper(source[0]) + source[1..];
+
+
     public static string HumanizeDateTime(this DateTime dateTime)
         => dateTime.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US"));
 

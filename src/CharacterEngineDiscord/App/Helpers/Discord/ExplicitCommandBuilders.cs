@@ -42,7 +42,7 @@ public static class ExplicitCommandBuilders
         {
             Name = "user-id",
             Description = "-",
-            Type = ApplicationCommandOptionType.Integer
+            Type = ApplicationCommandOptionType.String
         };
 
         var blockUserCommand = CreateAdminCommand(BotAdminCommands.blockUser).AddOption(userOption).Build();
@@ -64,6 +64,6 @@ public static class ExplicitCommandBuilders
 
     private static SlashCommandBuilder CreateAdminCommand(BotAdminCommands command)
         => new SlashCommandBuilder().WithName(command.ToString("G").SplitWordsBySep('-').ToLowerInvariant())
-                                    .WithDescription("-")
+                                    .WithDescription(command.ToString("G").SplitWordsBySep(' ').CapitalizeFirst())
                                     .WithDefaultMemberPermissions(GuildPermission.Administrator);
 }

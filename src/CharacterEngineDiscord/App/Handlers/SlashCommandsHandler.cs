@@ -52,7 +52,8 @@ public class SlashCommandsHandler
 
             var context = new InteractionContext(_discordClient, command, command.Channel);
 
-            if (Enum.TryParse<SpecialCommands>(command.CommandName, ignoreCase: false, out var specialCommand))
+            var commandName = command.CommandName.Replace("-", "");
+            if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
             {
                 await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
@@ -63,7 +64,7 @@ public class SlashCommandsHandler
                     SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
                 });
             }
-            else if (Enum.TryParse<BotAdminCommands>(command.CommandName, ignoreCase: false, out var botAdminCommand))
+            else if (Enum.TryParse<BotAdminCommands>(commandName, ignoreCase: true, out var botAdminCommand))
             {
                 await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
 
