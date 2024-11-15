@@ -53,7 +53,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
         {
-            throw new UserFriendlyException($"You have to setup a {integrationType.GetIcon()}{integrationType:G} intergration for this server first!");
+            throw new UserFriendlyException($"You have to setup a {integrationType:G}{integrationType.GetIcon()} intergration for this server first!");
         }
 
         var module = integrationType.GetIntegrationModule();
@@ -279,8 +279,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
         await DeferAsync(ephemeral: hide);
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, spawnedCharacter, newFormat);
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, scc.spawnedCharacter, newFormat);
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
     }

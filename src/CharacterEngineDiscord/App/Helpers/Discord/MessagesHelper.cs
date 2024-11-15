@@ -61,7 +61,7 @@ public static class MessagesHelper
 
             if (header is not null)
             {
-                await thread.SendMessageAsync(embed: header.ToInlineEmbed(Color.Red));
+                await thread.SendMessageAsync(embed: header.ToInlineEmbed(Color.Red, false));
             }
 
             var count = 0;

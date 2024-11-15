@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
@@ -31,7 +32,7 @@ public class MessagesHandler
             var traceId = CommonHelper.NewTraceId();
             try
             {
-                await HandleMessageAsync(socketMessage, traceId);
+                await HandleMessageAsync(socketMessage);
             }
             catch (Exception e)
             {
@@ -58,13 +59,8 @@ public class MessagesHandler
     }
 
 
-    private async Task HandleMessageAsync(SocketMessage socketMessage, string traceId)
+    private async Task HandleMessageAsync(SocketMessage socketMessage)
     {
-        if (socketMessage.Channel is not ITextChannel channel)
-        {
-            return;
-        }
-
         if (socketMessage is not SocketUserMessage socketUserMessage)
         {
             return;
@@ -75,16 +71,24 @@ public class MessagesHandler
             return;
         }
 
+        if (socketUserMessage.Content.StartsWith("~ignore", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var textChannel = socketUserMessage.Channel switch
+        {
+            SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
+            ITextChannel cTextChannel => cTextChannel,
+            _ => throw new UserFriendlyException("Bot can operatein only in text channels")
+        };
+
         var validationResult = WatchDog.ValidateUser(guildUser);
         if (validationResult is not WatchDogValidationResult.Passed)
         {
             return;
         }
 
-        if (socketUserMessage.Content.StartsWith("~ignore", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
 
         try
         {
@@ -97,7 +101,7 @@ public class MessagesHandler
             }
 
             var cachedCharacters = MemoryStorage.CachedCharacters
-                                                .ToList(socketUserMessage.Channel.Id)
+                                                .ToList(textChannel.Id)
                                                 .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
                                                 .ToList();
 

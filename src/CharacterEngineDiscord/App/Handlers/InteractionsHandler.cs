@@ -75,26 +75,26 @@ public class InteractionsHandler
         if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommand))
         {
             var subCommand = interaction.Data.Options.First();
-            header = $"Command: {interaction.Data.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}/{subCommand.Name}** [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
         else if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommandGroup))
         {
             var subCommandGroup = interaction.Data.Options.First();
             var subCommand = subCommandGroup.Options.First();
-            header = $"Command: {interaction.Data.Name}/{subCommandGroup.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}/{subCommandGroup.Name}/{subCommand.Name}** [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
         else
         {
-            header = $"Command: {interaction.Data.Name} [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}** [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
 
         var guild = interactionContext.Guild ?? _discordClient.GetGuild((ulong)interactionContext.Interaction.GuildId!);
         var owner = await guild.GetOwnerAsync();
 
-        header += $"User: **{interactionContext.User.Username}** ({interactionContext.User.Id})\n" +
-                  $"Channel: **{interactionContext.Channel.Name}** ({interactionContext.Channel.Id})\n" +
+        header += $"User: **{interactionContext.User?.Username}** ({interactionContext.User?.Id})\n" +
+                  $"Channel: **{interactionContext.Channel?.Name}** ({interactionContext.Channel?.Id})\n" +
                   $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                  $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})";
+                  $"Owned by: **{owner?.DisplayName ?? owner?.Username ?? "???"}** ({guild.OwnerId})";
 
         await _discordClient.ReportErrorAsync("Interaction exception", header, exception, traceId, writeMetric: false);
     }

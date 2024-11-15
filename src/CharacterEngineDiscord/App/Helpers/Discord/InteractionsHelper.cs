@@ -595,10 +595,12 @@ public static class InteractionsHelper
 
     public static async Task ValidateChannelPermissionsAsync(IChannel channel)
     {
-        if (channel is not ITextChannel textChannel)
+        var textChannel = channel switch
         {
-            throw new UserFriendlyException("Bot can operatein only in text channels");
-        }
+            SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
+            ITextChannel cTextChannel => cTextChannel,
+            _ => throw new UserFriendlyException("Bot can operatein only in text channels")
+        };
 
         var guild = (SocketGuild)textChannel.Guild;
 
