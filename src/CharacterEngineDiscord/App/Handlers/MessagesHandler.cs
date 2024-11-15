@@ -3,6 +3,7 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
+using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
@@ -43,14 +44,13 @@ public class MessagesHandler
                 }
 
                 var owner = await guild.GetOwnerAsync();
-                var content = $"TraceID: **{traceId}**\n" +
-                              $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
-                              $"Channel: **{channel!.Name}** ({channel.Id})\n" +
-                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                              $"Owned by: **{owner?.DisplayName ?? owner?.Username}** ({owner?.Id})\n\n" +
-                              $"Exception:\n{e}";
+                var header = $"TraceID: **{traceId}**\n" +
+                             $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
+                             $"Channel: **{channel!.Name}** ({channel.Id})\n" +
+                             $"Guild: **{guild.Name}** ({guild.Id})\n" +
+                             $"Owned by: **{owner?.DisplayName ?? owner?.Username}** ({owner?.Id})";
 
-                await _discordClient.ReportErrorAsync("MessagesHandler exception", content, traceId, writeMetric: false);
+                await _discordClient.ReportErrorAsync("MessagesHandler exception", header, e, traceId, writeMetric: false);
             }
         });
 
@@ -96,11 +96,19 @@ public class MessagesHandler
                 tasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
-            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage);
+            var cachedCharacters = MemoryStorage.CachedCharacters
+                                                .ToList(socketUserMessage.Channel.Id)
+                                                .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
+                                                .ToList();
+
+            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
                 tasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
             }
+
+            var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
+            tasks.AddRange(hunterCharacters.Select(hunterCharacter => CallCharacterAsync(hunterCharacter, socketUserMessage, false)));
 
             Task.WaitAll(tasks.ToArray());
         }
@@ -296,9 +304,8 @@ public class MessagesHandler
 
 
     private static readonly Random _random = new();
-    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage)
+    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
     {
-        var cachedCharacters = MemoryStorage.CachedCharacters.ToList(socketUserMessage.Channel.Id).Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString()).ToList();
         if (cachedCharacters.Count == 0)
         {
             return null;
@@ -314,10 +321,7 @@ public class MessagesHandler
             }
 
             var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
-            if (spawnedCharacter is not null)
-            {
-                spawnedCharacters.Add(spawnedCharacter);
-            }
+            spawnedCharacters.Add(spawnedCharacter!);
         }
 
         if (spawnedCharacters.Count == 0)
@@ -341,5 +345,26 @@ public class MessagesHandler
         }
 
         return spawnedCharacters.OrderBy(c => c.MessagesSent).First(); // return less active one
+    }
+
+
+    private static async Task<List<ISpawnedCharacter>> FindHunterCharactersAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
+    {
+        if (cachedCharacters.Count == 0)
+        {
+            return [];
+        }
+
+        var spawnedCharacters = new List<ISpawnedCharacter>();
+        foreach (var cachedCharacter in cachedCharacters)
+        {
+            if (cachedCharacter.HuntedUsers.Contains(socketUserMessage.Author.Id))
+            {
+                var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+                spawnedCharacters.Add(spawnedCharacter!);
+            }
+        }
+
+        return spawnedCharacters;
     }
 }

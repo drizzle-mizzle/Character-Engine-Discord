@@ -43,7 +43,7 @@ public class CharacterEngineBot
         _ = Task.Run(async () =>
         {
             var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
-            MemoryStorage.CachedCharacters.AddRange(allCharacters);
+            await MemoryStorage.CachedCharacters.AddRangeAsync(allCharacters);
             _log.Info($"Cached {allCharacters.Count} characters");
         });
 
@@ -109,7 +109,7 @@ public class CharacterEngineBot
     {
         AppDomain.CurrentDomain.UnhandledException += async (sender, e) =>
         {
-            await _discordClient.ReportErrorAsync("UnhandledException", $"Sender: {sender}\n{e.ExceptionObject}", "?", false);
+            await _discordClient.ReportErrorAsync("UnhandledException", null, $"Sender: {sender}\n{e.ExceptionObject}", "?", false);
         };
 
         TaskScheduler.UnobservedTaskException += async (sender, e) =>
@@ -119,7 +119,7 @@ public class CharacterEngineBot
                 return;
             }
 
-            await _discordClient.ReportErrorAsync("UnobservedTaskException", $"Sender: {sender}\n{e.Exception}", "?", false);
+            await _discordClient.ReportErrorAsync("UnobservedTaskException", null, $"Sender: {sender}\n{e.Exception}", "?", false);
         };
 
         _discordClient.JoinedGuild += guild =>
@@ -243,7 +243,7 @@ public class CharacterEngineBot
         }
         catch (Exception e)
         {
-            await _discordClient.ReportErrorAsync("UnhandledException", e, _discordClient.ShardId.ToString(), writeMetric: false);
+            await _discordClient.ReportErrorAsync("UnhandledException", null, e, _discordClient.ShardId.ToString(), writeMetric: false);
         }
     }
 

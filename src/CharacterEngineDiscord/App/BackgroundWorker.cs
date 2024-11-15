@@ -62,7 +62,7 @@ public class BackgroundWorker
                 }
                 catch (Exception e)
                 {
-                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}: {e}", e, traceId, writeMetric: true);
+                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}", null, e, traceId, writeMetric: true);
                 }
 
                 _log.Info($"[{traceId}] JOB END: {jobTask.Method.Name} | Elapsed: {sw.Elapsed.TotalSeconds}s | Next run in: {(duration.TotalMinutes < 1 ? $"{duration.TotalSeconds}s" : $"{duration.TotalMinutes}min")}");
@@ -88,7 +88,7 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", e, traceId, writeMetric: true);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", null, e, traceId, writeMetric: true);
             }
         });
     }
@@ -139,7 +139,7 @@ public class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", e, traceId, writeMetric: true);
+                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", null, e, traceId, writeMetric: true);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;

@@ -18,15 +18,6 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     // private readonly DiscordSocketClient _discordClient;
 
 
-    public enum UserAction
-    {
-        show, add, remove,
-
-        [ChoiceDisplay("clear-all")]
-        clearAll
-    }
-
-
     public GuildAdminCommands(AppDbContext db)
     {
         _db = db;

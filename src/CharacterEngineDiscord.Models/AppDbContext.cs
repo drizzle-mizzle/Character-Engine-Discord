@@ -44,6 +44,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<BlockedGuildUser> GuildBlockedUsers { get; init; }
     public DbSet<BlockedUser> BlockedUsers { get; init; }
     public DbSet<GuildBotManager> GuildBotManagers { get; init; }
+    public DbSet<HuntedUser> HuntedUsers { get; init; }
 
     #endregion
 

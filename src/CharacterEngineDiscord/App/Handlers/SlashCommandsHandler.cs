@@ -84,7 +84,7 @@ public class SlashCommandsHandler
         }
         catch (Exception e)
         {
-            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId(), false);
+            await _discordClient.ReportErrorAsync("HandleSlashCommand", null, e, CommonHelper.NewTraceId(), false);
         }
     }
 }

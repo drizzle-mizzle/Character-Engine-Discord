@@ -7,10 +7,12 @@ using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -111,8 +113,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync(ephemeral: hide);
 
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var infoEmbed = await MH.BuildCharacterDescriptionCardAsync(spawnedCharacter, justSpawned: false);
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var infoEmbed = await MH.BuildCharacterDescriptionCardAsync(scc.spawnedCharacter, justSpawned: false);
 
         await FollowupAsync(embed: infoEmbed);
     }
@@ -123,11 +125,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var spawnedCharacter = scc.spawnedCharacter;
+
         spawnedCharacter.ResetWithNextMessage = true;
 
         var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
-        var message = $"{MT.OK_SIGN_DISCORD} Chat with **{spawnedCharacter.CharacterName}** reset successfully";
+        var message = $"{MT.OK_SIGN_DISCORD} Chat with {spawnedCharacter.GetMention()} reset successfully";
 
         var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
         var greetingMessageId = await spawnedCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
@@ -145,7 +149,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var spawnedCharacter = scc.spawnedCharacter;
 
         var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
 
@@ -162,12 +167,109 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        var message = $"{MT.OK_SIGN_DISCORD} Character **{spawnedCharacter.CharacterName}** removed successfully";
+        var message = $"{MT.OK_SIGN_DISCORD} Character {spawnedCharacter.GetMention()} removed successfully";
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
 
         MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
         MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
         await deleteSpawnedCharacterAsync;
+    }
+
+
+    [SlashCommand("hunt", "Make character hunt certain user or another character")]
+    public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userId = null)
+    {
+        await DeferAsync();
+
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var spawnedCharacter = scc.spawnedCharacter;
+        var cahcedCharacter = scc.cachedCharacter;
+
+        var huntedUsers = await _db.HuntedUsers.Where(hu => hu.SpawnedCharacterId == spawnedCharacter.Id).ToListAsync();
+
+        switch (action)
+        {
+            case UserAction.show:
+            {
+                var list = new StringBuilder();
+
+                foreach (var huntedUser in huntedUsers)
+                {
+                    var huntedGuilduser = await Context.Guild.GetUserAsync(huntedUser.DiscordUserId);
+
+                    list.AppendLine($"**{huntedGuilduser.DisplayName ?? huntedGuilduser.Username}**");
+                }
+
+                var embed = new EmbedBuilder().WithColor(Color.LighterGrey)
+                                              .WithTitle($"Hunted users of {spawnedCharacter.GetMention()} ({huntedUsers.Count})")
+                                              .WithDescription(list.ToString());
+
+                await FollowupAsync(embed: embed.Build());
+                return;
+            }
+            case UserAction.clearAll:
+            {
+                _db.HuntedUsers.RemoveRange(huntedUsers);
+                await _db.SaveChangesAsync();
+
+                cahcedCharacter.HuntedUsers.Clear();
+
+                await FollowupAsync(embed: $"Hunted users list for {spawnedCharacter.GetMention()} has been cleared".ToInlineEmbed(Color.Green, bold: true));
+                return;
+            }
+        }
+
+        if (user is null && userId is null)
+        {
+            throw new UserFriendlyException($"Specify the user to {action:G}");
+        }
+
+        var huntedUserId = user?.Id ?? ulong.Parse(userId!);
+        var guildUser = user ?? await Context.Guild.GetUserAsync(huntedUserId);
+        var mention = guildUser?.Mention ?? $"User `{huntedUserId}`";
+
+        string message = default!;
+
+        switch (action)
+        {
+            case UserAction.add when huntedUsers.Any(hu => hu.DiscordUserId == huntedUserId):
+            {
+                throw new UserFriendlyException($"{mention} is already hunted by {spawnedCharacter.GetMention()}");
+            }
+            case UserAction.add:
+            {
+                var newHuntedUser = new HuntedUser
+                {
+                    DiscordUserId = huntedUserId,
+                    SpawnedCharacterId = spawnedCharacter.Id
+                };
+
+                await _db.HuntedUsers.AddAsync(newHuntedUser);
+                cahcedCharacter.HuntedUsers.Add(huntedUserId);
+
+                message = $":ghost: {mention} now hunted by {spawnedCharacter.GetMention()}";
+
+                break;
+            }
+            case UserAction.remove:
+            {
+                var huntedUser = huntedUsers.First(hu => hu.DiscordUserId == huntedUserId);
+
+                if (huntedUser is null)
+                {
+                    throw new UserFriendlyException($"{mention} is not a not hunted by {spawnedCharacter.GetMention()}");
+                }
+
+                _db.HuntedUsers.Remove(huntedUser);
+                cahcedCharacter.HuntedUsers.Remove(huntedUserId);
+
+                message = $"{mention} is not hunted by {spawnedCharacter.GetMention()} anymore :ghost:";
+                break;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.LighterGrey, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
     }
 
 
@@ -203,8 +305,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var characterName = spawnedCharacter.CharacterName;
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var spawnedCharacter = scc.spawnedCharacter;
+
         var featureName = feature.ToString("G").SplitWordsBySep(' ');
 
         bool newValue = default;
@@ -227,7 +330,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        var message = $"{MT.OK_SIGN_DISCORD} **{featureName}** for character **{characterName}** was successfully changed to **{newValue}**";
+        var message = $"{MT.OK_SIGN_DISCORD} **{featureName}** for character {spawnedCharacter.GetMention()} was successfully changed to **{newValue}**";
         var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
@@ -277,8 +380,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var spawnedCharacter = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var characterName = spawnedCharacter.CharacterName;
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+        var spawnedCharacter = scc.spawnedCharacter;
+        var cachedCharacter = scc.cachedCharacter;
 
         string? oldValue = null;
         switch (property)
@@ -287,8 +391,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             {
                 oldValue = spawnedCharacter.CallPrefix;
                 spawnedCharacter.CallPrefix = newValue;
-
-                var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
                 cachedCharacter.CallPrefix = newValue;
 
                 break;
@@ -330,8 +432,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 }
 
                 spawnedCharacter.FreewillFactor = newFreewillFactor;
-
-                var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
                 cachedCharacter.FreewillFactor = newFreewillFactor;
 
                 break;
@@ -356,7 +456,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var message = new StringBuilder();
         var propertyName = property.ToString("G").SplitWordsBySep(' ');
-        message.Append($"{MT.OK_SIGN_DISCORD} **{propertyName}** for character **{characterName}** was successfully changed ");
+        message.Append($"{MT.OK_SIGN_DISCORD} **{propertyName}** for character {spawnedCharacter.GetMention()} was successfully changed ");
 
         if (oldValue is not null)
         {
@@ -422,20 +522,20 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     #endregion
 
 
-    private static async Task<ISpawnedCharacter> FindCharacterAsync(string anyIdentifier, ulong channelId)
+    private static async Task<(ISpawnedCharacter spawnedCharacter, CachedCharacterInfo cachedCharacter)> FindCharacterAsync(string anyIdentifier, ulong channelId)
     {
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, channelId);
         if (cachedCharacter is null)
         {
-            throw new UserFriendlyException("Character not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
         }
 
         var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
         {
-            throw new UserFriendlyException("Character not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
         }
 
-        return spawnedCharacter;
+        return (spawnedCharacter, cachedCharacter);
     }
 }

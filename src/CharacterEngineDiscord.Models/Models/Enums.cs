@@ -1,4 +1,6 @@
-﻿namespace CharacterEngineDiscord.Models;
+﻿using Discord.Interactions;
+
+namespace CharacterEngineDiscord.Models;
 
 
 public enum IntegrationType
@@ -19,6 +21,21 @@ public enum ButtonActionType
     SearchQuery = 1,
 }
 
-public enum MessagesFormatAction { show, update, resetDefault }
+
+public enum MessagesFormatAction
+{
+    show, update,
+
+    [ChoiceDisplay("reset-default")]
+    resetDefault
+}
 
 public enum MessagesFormatTarget { guild, channel, character }
+
+public enum UserAction
+{
+    show, add, remove,
+
+    [ChoiceDisplay("clear-all")]
+    clearAll
+}

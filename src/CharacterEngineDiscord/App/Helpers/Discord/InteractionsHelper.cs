@@ -131,9 +131,9 @@ public static class InteractionsHelper
         // Respond to user
         var msg = $"{IntegrationType.SakuraAI.GetIcon()} **SakuraAI**\n\n" +
                   $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
+                  $"- *It's **highly recommended** to open an [Incognito Tab](https://support.google.com/chrome/answer/95464), before you open the link in mail.*\n" +
                   $"- *It may take up to a minute for the bot to react on successful confirmation.*\n" +
-                  $"- *It's highly recommended to log out of your SakuraAI account in the browser first, before you open a link in the mail, as SakuraAI doesn't allow multiple active user sessions. " +
-                  $"Also, bot will be logged out of your account if you log in it in the browser again. You will be able to log in back with `/integration re-login` command.*";
+                  $"- *If you're willing to put this account into several integrations on different servers, **DO NOT USE `/integration create` command again**, it will break existing integration; use `/integration copy` command instead.*";
 
         await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green), ephemeral: true);
 
@@ -205,7 +205,7 @@ public static class InteractionsHelper
         MemoryStorage.CachedWebhookClients.Add(webhook.Id, webhookClient);
 
         var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
-        MemoryStorage.CachedCharacters.Add(newSpawnedCharacter);
+        MemoryStorage.CachedCharacters.Add(newSpawnedCharacter, []);
 
         MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()} | {newSpawnedCharacter.CharacterName}");
 

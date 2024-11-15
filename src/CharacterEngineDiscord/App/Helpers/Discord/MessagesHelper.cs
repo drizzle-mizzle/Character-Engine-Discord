@@ -39,15 +39,11 @@ public static class MessagesHelper
 
     #region Reports
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId, bool writeMetric)
-        => discordClient.ReportErrorAsync("Unknown exception", e.ToString(), traceId, writeMetric);
-
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId, bool writeMetric)
-        => discordClient.ReportErrorAsync(title, e.ToString(), traceId, writeMetric);
-
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync(title, header, $"Exception:\n{e}", traceId, writeMetric);
 
     private const int MSG_LIMIT = 1990;
-    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool writeMetric)
+    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, string content, string traceId, bool writeMetric)
     {
         if (writeMetric)
         {
@@ -62,6 +58,11 @@ public static class MessagesHelper
         {
             var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
             var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
+
+            if (header is not null)
+            {
+                await thread.SendMessageAsync(embed: header.ToInlineEmbed(Color.Red));
+            }
 
             var count = 0;
             while (content.Length > 0)
@@ -234,6 +235,8 @@ public static class MessagesHelper
                $"Result (what character will see):\n```{formated}```";
     }
 
+    public static string GetMention(this ISpawnedCharacter spawnedCharacter)
+        => $"<@{spawnedCharacter.WebhookId}>";
 
     #region Description cards
 

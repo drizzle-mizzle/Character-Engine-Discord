@@ -48,7 +48,7 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
-    public string? CaiChatId { get; set; }
+    public string? CaiChatId { get; set; } = "empty";
 
     public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
 
