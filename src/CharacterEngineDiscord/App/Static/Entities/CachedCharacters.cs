@@ -17,18 +17,18 @@ public sealed class CachedCharacerInfoCollection
     public async Task AddRangeAsync(ICollection<ISpawnedCharacter> spawnedCharacters)
     {
         await using var db = DatabaseHelper.GetDbContext();
+        var allHuntedUsers = await db.HuntedUsers.ToArrayAsync();
+
         Parallel.ForEach(spawnedCharacters, AddNew);
 
         return;
 
-        async void AddNew(ISpawnedCharacter sc)
+        void AddNew(ISpawnedCharacter sc)
         {
-            var huntedUsersIds = await db.HuntedUsers
-                                         .Where(hu => hu.SpawnedCharacterId == sc.Id)
-                                         .Select(hu => hu.DiscordUserId)
-                                         .ToListAsync();
-
-            var cachedCharacterInfo = Add(sc, huntedUsersIds);
+            var huntedUsersIds = allHuntedUsers.Where(hu => hu.SpawnedCharacterId == sc.Id)
+                                               .Select(hu => hu.DiscordUserId)
+                                               .ToList();
+            Add(sc, huntedUsersIds);
         }
     }
 
