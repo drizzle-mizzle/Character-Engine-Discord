@@ -148,8 +148,8 @@ public static class MessagesHelper
         var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
                                              .Select(m =>
                                               {
-                                                  var ids = m.Payload!.Split(':');
-                                                  return new { CharacterId = m.EntityId, ChannelId = ids[0], GuildId = ids[1] };
+                                                  var ids = m.Payload?.Split(':');
+                                                  return new { CharacterId = m.EntityId, ChannelId = ids?.ElementAtOrDefault(0), GuildId = ids?.ElementAtOrDefault(1) };
                                               })
                                              .ToArray();
 
