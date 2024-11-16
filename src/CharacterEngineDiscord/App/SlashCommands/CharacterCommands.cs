@@ -92,7 +92,12 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             characterId = characterId.Split('/').Last();
         }
 
-        var character = await module.GetCharacterAsync(characterId, guildIntegration);
+        if (characterId.Contains('?'))
+        {
+            characterId = characterId.Split('?').First();
+        }
+
+        var character = await module.GetCharacterAsync(characterId.Trim(), guildIntegration);
         if (character.IsNfsw && !channel.IsNsfw)
         {
             await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
@@ -253,7 +258,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
             case UserAction.remove:
             {
-                var huntedUser = huntedUsers.First(hu => hu.DiscordUserId == huntedUserId);
+                var huntedUser = huntedUsers.FirstOrDefault(hu => hu.DiscordUserId == huntedUserId);
 
                 if (huntedUser is null)
                 {

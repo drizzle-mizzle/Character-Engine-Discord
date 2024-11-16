@@ -83,11 +83,11 @@ public class MessagesHandler
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
 
-        var validationResult = WatchDog.ValidateUser(guildUser);
-        if (validationResult is not WatchDogValidationResult.Passed)
-        {
-            return;
-        }
+        // var validationResult = WatchDog.ValidateUser(guildUser);
+        // if (validationResult is not WatchDogValidationResult.Passed)
+        // {
+        //     return;
+        // }
 
 
         try

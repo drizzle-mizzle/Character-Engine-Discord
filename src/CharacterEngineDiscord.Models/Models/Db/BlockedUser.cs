@@ -10,4 +10,6 @@ public class BlockedUser
 
     public required DateTime BlockedAt { get; set; }
 
+    public required DateTime BlockedUntil { get; set; }
+
 }

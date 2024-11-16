@@ -18,9 +18,9 @@ ERRORS_CHANNEL_ID:
 
 DEFAULT_MESSAGES_FORMAT: {{ref_begin}}((In response to '{{ref_msg}}' from '{{ref_user}}')){{ref_end}}\n[{{date}}] [discord_id:{{mention_hint}}] {{user}}:\n{{msg}}
 
-# Max interactions per minute for a single user
-USER_RATE_LIMIT: 20
-USER_FIRST_BLOCK_MINUTES: 60 # one hour
+# Max interactions per 30sec for a single user
+USER_RATE_LIMIT: 15
+USER_FIRST_BLOCK_MINUTES: 30
 USER_SECOND_BLOCK_HOURS: 24
 
 # Image or GIF file from /img/ directory that will be sent when user tries to execute a command he has no access to. Leave empty to disable.

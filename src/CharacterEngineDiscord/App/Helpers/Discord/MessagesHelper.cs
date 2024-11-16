@@ -135,17 +135,16 @@ public static class MessagesHelper
 
     public static string GetMetricsReport(Metric[] metrics)
     {
-        var guildsJoined = metrics.Count(m => m.MetricType == MetricType.JoinedGuild);
-        var guildsLeft = metrics.Count(m => m.MetricType == MetricType.LeftGuild);
+        var guildsJoined = metrics.Where(m => m.MetricType == MetricType.JoinedGuild).ToArray();
+        var guildsLeft = metrics.Where(m => m.MetricType == MetricType.LeftGuild).ToArray();
 
         var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
-        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
-        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
-        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:**{newSakuraIntegrations}** " +
-                               $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
+        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.SakuraAI:G}"));
+        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.CharacterAI:G}"));
+        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}: **{newSakuraIntegrations}** | " +
+                               $"{IntegrationType.CharacterAI.GetIcon()}: **{newCaiIntegrations}**";
 
         var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
-
         var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
                                              .Select(m =>
                                               {
@@ -158,8 +157,8 @@ public static class MessagesHelper
         var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
         var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
-        return $"Joined servers: **{guildsJoined}**\n" +
-               $"Left servers: **{guildsLeft}**\n" +
+        return $"Joined servers: **{guildsJoined.Length} ({guildsJoined.DistinctBy(g => g.EntityId).Count()})**\n" +
+               $"Left servers: **{guildsLeft.Length} ({guildsLeft.DistinctBy(g => g.EntityId).Count()})**\n" +
                $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                $"Characters spawned: **{spawnedCharacters}**\n" +
                $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";

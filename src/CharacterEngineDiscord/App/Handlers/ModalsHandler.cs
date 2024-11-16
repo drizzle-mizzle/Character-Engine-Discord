@@ -40,7 +40,7 @@ public class ModalsHandler
 
     private async Task HandleModalAsync(SocketModal modal)
     {
-        await modal.DeferAsync();
+        await modal.DeferAsync(ephemeral: true);
 
         var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
 

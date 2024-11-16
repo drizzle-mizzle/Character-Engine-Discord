@@ -152,7 +152,7 @@ public class CharacterEngineBot
                               $"Owner: {await GetGuildOwnerNameAsync(guild)}\n" +
                               $"Members: {guild.MemberCount}";
 
-                await _discordClient.ReportLogAsync(message, color: Color.DarkGrey, imageUrl: guild.IconUrl);
+                await _discordClient.ReportLogAsync(message, color: Color.DarkOrange, imageUrl: guild.IconUrl);
                 await guild.MarkAsLeftAsync();
             });
 

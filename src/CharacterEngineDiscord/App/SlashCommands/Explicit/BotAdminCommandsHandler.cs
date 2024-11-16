@@ -1,6 +1,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -31,7 +32,7 @@ public class BotAdminCommandsHandler
         await command.DeferAsync();
 
         var userId = (ulong)command.Data.Options.First().Value;
-        await WatchDog.BlockUserGloballyAsync(userId);
+        // await WatchDog.BlockUserGloballyAsync(userId); TODO: Fix
 
         await command.FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} User {userId} blocked");
     }
@@ -52,8 +53,28 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
+        var range = (int)command.Data.Options.First(o => o.Name == "range").Value;
+        var rangeType = (string)command.Data.Options.First(o => o.Name == "range-type").Value;
+
+        Metric[] metrics;
         await using var db = DatabaseHelper.GetDbContext();
-        var metrics = await db.Metrics.Where(m => m.CreatedAt >= MetricsWriter.GetLastMetricReport()).ToArrayAsync();
+        
+        if (rangeType == "all-time")
+        {
+            metrics = await db.Metrics.ToArrayAsync();
+        }
+        else
+        {
+            var dt = DateTime.Now - rangeType switch
+            {
+                "minutes" => new TimeSpan(0, minutes: range, 0),
+                "hours" => new TimeSpan(hours: range, 0, 0),
+                "days" => new TimeSpan(days: range, 0, 0, 0),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= dt).ToArrayAsync();
+        }
 
         var metricsReport = MessagesHelper.GetMetricsReport(metrics);
 

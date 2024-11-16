@@ -57,7 +57,7 @@ public class ButtonsHandler
     {
         await component.DeferAsync();
 
-        InteractionsHelper.ValidateUser(component);
+        // InteractionsHelper.ValidateUser(component); TODO: Fix
 
         var actionType = GetActionType(component.Data.CustomId);
 

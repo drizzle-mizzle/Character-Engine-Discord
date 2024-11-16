@@ -9,6 +9,7 @@ using CharacterEngineDiscord.Models.Db;
 using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.SlashCommands;
@@ -20,11 +21,13 @@ namespace CharacterEngine.App.SlashCommands;
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
+    private readonly DiscordSocketClient _discordClient;
 
 
-    public IntegrationManagementCommands(AppDbContext db)
+    public IntegrationManagementCommands(AppDbContext db, DiscordSocketClient discordClient)
     {
         _db = db;
+        _discordClient = discordClient;
     }
 
 

@@ -48,7 +48,7 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException or ArgumentException or InvalidOperationException or FormatException;
+            => e is UserFriendlyException or SakuraException or CharacterAiException or FormatException;
     }
 
 
@@ -525,7 +525,7 @@ public static class InteractionsHelper
         {
             case WatchDogValidationResult.Blocked:
             {
-                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: ":rage:".ToInlineEmbed(Color.Red));
+                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: "Your were blocked from interacting with the bot for {}".ToInlineEmbed(Color.Red));
                 throw new UnauthorizedAccessException();
             }
             case WatchDogValidationResult.Warning:
