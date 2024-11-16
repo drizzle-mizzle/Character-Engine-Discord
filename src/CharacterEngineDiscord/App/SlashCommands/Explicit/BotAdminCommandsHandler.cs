@@ -53,23 +53,23 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
-        var range = (int)command.Data.Options.First(o => o.Name == "range").Value;
-        var rangeType = (string)command.Data.Options.First(o => o.Name == "range-type").Value;
+        var rangeType = (int)(long)command.Data.Options.First(o => o.Name == "range-type").Value;
 
         Metric[] metrics;
         await using var db = DatabaseHelper.GetDbContext();
-        
-        if (rangeType == "all-time")
+
+        if (rangeType == 0) // all-time
         {
             metrics = await db.Metrics.ToArrayAsync();
         }
         else
         {
+            var range = (int)(long)command.Data.Options.First(o => o.Name == "range").Value;
             var dt = DateTime.Now - rangeType switch
             {
-                "minutes" => new TimeSpan(0, minutes: range, 0),
-                "hours" => new TimeSpan(hours: range, 0, 0),
-                "days" => new TimeSpan(days: range, 0, 0, 0),
+                1 => new TimeSpan(0, minutes: range, 0), // minutes
+                2 => new TimeSpan(hours: range, 0, 0), // hours
+                3 => new TimeSpan(days: range, 0, 0, 0), // days
                 _ => throw new ArgumentOutOfRangeException()
             };
 

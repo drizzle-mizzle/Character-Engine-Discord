@@ -47,10 +47,10 @@ public static class ExplicitCommandBuilders
                             .WithName("range-type")
                             .WithRequired(true)
                             .WithDescription("range type")
+                            .AddChoice("all-time", 0)
                             .AddChoice("minutes", 1)
                             .AddChoice("hours", 2)
                             .AddChoice("days", 3)
-                            .AddChoice("all-time", 4)
                             .WithType(ApplicationCommandOptionType.Integer));
 
     public static SlashCommandProperties[] BuildAdminCommands()
