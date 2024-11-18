@@ -182,7 +182,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("hunt", "Make character hunt certain user or another character")]
-    public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userId = null)
+    public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userIdOrCharacterCallPrefix = null)
     {
         await DeferAsync();
 
@@ -224,12 +224,22 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        if (user is null && userId is null)
+        if (user is null && userIdOrCharacterCallPrefix is null)
         {
             throw new UserFriendlyException($"Specify the user to {action:G}");
         }
 
-        var huntedUserId = user?.Id ?? ulong.Parse(userId!);
+        ulong huntedUserId;
+        if (user is null)
+        {
+            var otherCharacter = MemoryStorage.CachedCharacters.Find(userIdOrCharacterCallPrefix!, Context.Channel.Id);
+            huntedUserId = ulong.Parse(otherCharacter?.WebhookId ?? userIdOrCharacterCallPrefix!);
+        }
+        else
+        {
+            huntedUserId = user.Id;
+        }
+
         var guildUser = user ?? await Context.Guild.GetUserAsync(huntedUserId);
         var mention = guildUser?.Mention ?? $"User `{huntedUserId}`";
 
