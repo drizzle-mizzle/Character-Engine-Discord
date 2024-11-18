@@ -46,7 +46,7 @@ public class SlashCommandsHandler
         await guildChannel.EnsureExistInDbAsync();
         try
         {
-            // InteractionsHelper.ValidateUser(command); // TODO: fix
+            InteractionsHelper.ValidateUser((IGuildUser)command.User, command.Channel);
 
             var context = new InteractionContext(_discordClient, command, command.Channel);
 

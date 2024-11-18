@@ -28,8 +28,10 @@ public class SpecialCommandsHandler
                                           "based on [Discord Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) and LLM chatbots to help you bring some life and joy on your server!\n\n" +
                                           "**List of supported platforms:**\n" +
                                           $"{string.Join('\n', _integrationsList)}\n- *more soon...*" +
-                                          "\n\nUse *`/integration create`* command to begin. *Please note that you need to have an existing account on chosen platform in order to create a server integration for it.*\n\n" +
-                                          $"Questions, bug reports, suggestions and any other feedback: {BotConfig.ADMIN_GUILD_INVITE_LINK}"; // TODO: banner
+                                          "\n\n" +
+                                          "Use *`/integration create`* command to begin. *Please note that you need to have an existing account on chosen platform in order to create a server integration for it.*\n\n" +
+                                          $"Questions, bug reports, suggestions and any other feedback: {BotConfig.ADMIN_GUILD_INVITE_LINK}";
+
     public async Task HandleStartCommandAsync(SocketSlashCommand command)
     {
         await command.RespondAsync(embed: MessagesTemplates.WAIT_MESSAGE);
@@ -37,12 +39,17 @@ public class SpecialCommandsHandler
         var guild = _discordClient.Guilds.First(g => g.Id == command.GuildId);
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();
 
-        await _interactions.RegisterCommandsToGuildAsync(guild.Id);
+        var registerCommandsToGuildAsync = _interactions.RegisterCommandsToGuildAsync(guild.Id);
+
+        // var banner =
+
+        await registerCommandsToGuildAsync;
         await guild.CreateApplicationCommandAsync(disableCommand);
 
         await command.ModifyOriginalResponseAsync(msg =>
         {
             msg.Embed = HELLO_MESSAGE.ToInlineEmbed(Color.Gold, bold: false);
+            // msg.Attachments = new FileAttachment[] { new () } TODO: banner?
         });
     }
 

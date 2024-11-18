@@ -76,6 +76,7 @@ public class MessagesHandler
             return;
         }
 
+
         var textChannel = socketUserMessage.Channel switch
         {
             SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
@@ -83,12 +84,11 @@ public class MessagesHandler
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
 
-        // var validationResult = WatchDog.ValidateUser(guildUser);
-        // if (validationResult is not WatchDogValidationResult.Passed)
-        // {
-        //     return;
-        // }
-
+        var validation = WatchDog.ValidateUser(guildUser);
+        if (validation.Result is not WatchDogValidationResult.Passed)
+        {
+            return;
+        }
 
         try
         {

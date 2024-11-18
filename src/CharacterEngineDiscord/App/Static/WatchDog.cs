@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
@@ -18,53 +19,48 @@ public enum WatchDogValidationResult
 
 public static class WatchDog
 {
-    private static readonly ConcurrentDictionary<ulong, WatchedUser> _watchedUsers = [];
+    private static readonly ConcurrentDictionary<ulong, CachedWatchedUser> _watchedUsers = [];
     private static readonly ConcurrentDictionary<ulong, DateTime> _blockedUsers = [];
-    private static readonly ConcurrentDictionary<(ulong, ulong), object?> _blockedGuildUsers = [];
+    private static readonly ConcurrentDictionary<(ulong UserId, ulong GuildId), object?> _blockedGuildUsers = [];
 
-    private static readonly int WARN_THRESHOLD = BotConfig.USER_RATE_LIMIT - 2;
+    private static readonly int WARN_THRESHOLD = BotConfig.USER_RATE_LIMIT - 3;
     private static readonly int BLOCK_THRESHOLD = BotConfig.USER_RATE_LIMIT;
 
 
-    static WatchDog()
+    public static async Task RunAsync()
     {
-        // using var db = DatabaseHelper.GetDbContext();
-        //
-        // var blockedUsers = db.BlockedUsers.ToList();
-        // foreach (var user in blockedUsers)
-        // {
-        //     _blockedUsers.TryAdd(user.Id, user.BlockedUntil);
-        // }
-        //
-        // var blockedGuildUsers = db.GuildBlockedUsers.ToList();
-        // foreach (var user in blockedGuildUsers)
-        // {
-        //     _blockedGuildUsers.TryAdd((user.UserId, user.DiscordGuildId), null);
-        // }
+        await using var db = DatabaseHelper.GetDbContext();
+
+        var blockedUsers = await db.BlockedUsers.ToArrayAsync();
+        foreach (var user in blockedUsers)
+        {
+            _blockedUsers.TryAdd(user.Id, user.BlockedUntil);
+        }
+
+        var blockedGuildUsers = await db.GuildBlockedUsers.ToArrayAsync();
+        foreach (var user in blockedGuildUsers)
+        {
+            _blockedGuildUsers.TryAdd((user.UserId, user.DiscordGuildId), null);
+        }
     }
 
 
-    public static WatchDogValidationResult ValidateUser(IGuildUser user)
+    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user)
     {
-        if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.Guild.Id)))
+        if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.GuildId)))
         {
-            return WatchDogValidationResult.Blocked;
+            return (WatchDogValidationResult.Blocked, null);
         }
 
-        var watchedUser = _watchedUsers.GetOrAdd(user.Id, uid => new WatchedUser
-        {
-            UserId = uid,
-            InteractionsCount = 0,
-            LastInteractionWindowStartedAt = DateTime.Now
-        });
+        var watchedUser = _watchedUsers.GetOrAdd(user.Id, _ => new CachedWatchedUser(0, DateTime.Now, false));
 
-        var validationResult = Validate(watchedUser);
-        if (validationResult is WatchDogValidationResult.Blocked)
+        var validation = Validate(watchedUser);
+        if (validation.Result is WatchDogValidationResult.Blocked)
         {
-            _ = BlockUserGloballyAsync(user.Id, DateTime.Now.AddMinutes(30)); // TODO: first block, second...
+            _ = BlockUserGloballyAsync(user.Id, (DateTime)validation.BlockedUntil!);
         }
 
-        return validationResult;
+        return validation;
     }
 
 
@@ -77,6 +73,8 @@ public static class WatchDog
 
         _watchedUsers.TryRemove(userId, out _);
 
+        MetricsWriter.Create(MetricType.UserBlocked, userId, blockedUntil.HumanizeDateTime());
+
         await using var db = DatabaseHelper.GetDbContext();
         await db.BlockedUsers.AddAsync(new BlockedUser
         {
@@ -86,6 +84,14 @@ public static class WatchDog
         });
 
         await db.SaveChangesAsync();
+
+        var user = CharacterEngineBot.DiscordShardedClient.GetUser(userId);
+        var message = "**User blocked**\n" + (user is null
+                    ? $"User: **{userId}**"
+                    : $"User: **{user.Username}** ({userId})")
+                    + $"\nBlocked until: **{blockedUntil.HumanizeDateTime()}**";
+
+        await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(message);
     }
 
 
@@ -112,6 +118,7 @@ public static class WatchDog
     public static async Task<bool> UnblockUserGloballyAsync(ulong userId)
     {
         _blockedUsers.TryRemove(userId, out _);
+        _watchedUsers.TryAdd(userId, new CachedWatchedUser(0, DateTime.Now, true));
 
         await using var db = DatabaseHelper.GetDbContext();
         var blockedUser = await db.BlockedUsers.FindAsync(userId);
@@ -119,6 +126,9 @@ public static class WatchDog
         {
             return false;
         }
+
+
+        MetricsWriter.Create(MetricType.UserUnblocked, userId);
 
         db.BlockedUsers.Remove(blockedUser);
         await db.SaveChangesAsync();
@@ -144,14 +154,14 @@ public static class WatchDog
     }
 
 
-    private static WatchDogValidationResult Validate(WatchedUser user)
+    private static (WatchDogValidationResult Result, DateTime? BlockedUntil) Validate(CachedWatchedUser user)
     {
         lock (user)
         {
             user.InteractionsCount++;
             if (user.InteractionsCount < WARN_THRESHOLD)
             {
-                return WatchDogValidationResult.Passed;
+                return (WatchDogValidationResult.Passed, null);
             }
 
             var sec30HasPassed = (DateTime.Now - user.LastInteractionWindowStartedAt) > TimeSpan.FromSeconds(30);
@@ -159,29 +169,29 @@ public static class WatchDog
             {
                 user.LastInteractionWindowStartedAt = DateTime.Now;
                 user.InteractionsCount = 1;
-                return WatchDogValidationResult.Passed;
+                return (WatchDogValidationResult.Passed, null);
             }
 
             if (user.InteractionsCount == WARN_THRESHOLD)
             {
-                return WatchDogValidationResult.Warning;
+                return (WatchDogValidationResult.Warning, null);
             }
 
             if (user.InteractionsCount < BLOCK_THRESHOLD)
             {
-                return WatchDogValidationResult.Warning;
+                return (WatchDogValidationResult.Warning, null);
             }
         }
 
-        return WatchDogValidationResult.Blocked;
+        var blockedUntil = user.WasBlockedBefore ? DateTime.Now.AddMinutes(BotConfig.USER_FIRST_BLOCK_MINUTES) : DateTime.Now.AddHours(BotConfig.USER_SECOND_BLOCK_HOURS);
+        return (WatchDogValidationResult.Blocked, blockedUntil);
     }
 
 
-    private record WatchedUser
+    private class CachedWatchedUser(int InteractionsCount, DateTime LastInteractionWindowStartedAt, bool WasBlockedBefore)
     {
-        public ulong UserId { get; set; }
-        public int InteractionsCount { get; set; }
-        public DateTime LastInteractionWindowStartedAt { get; set; }
+        public int InteractionsCount { get; set; } = InteractionsCount;
+        public DateTime LastInteractionWindowStartedAt { get; set; } = LastInteractionWindowStartedAt;
+        public bool WasBlockedBefore { get; init; } = WasBlockedBefore;
     }
-
 }

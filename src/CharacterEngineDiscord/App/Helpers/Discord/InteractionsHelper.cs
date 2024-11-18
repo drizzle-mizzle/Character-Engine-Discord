@@ -517,20 +517,27 @@ public static class InteractionsHelper
 
     #region Validations
 
-    public static void ValidateUser(SocketInteraction interaction)
+    public static void ValidateUser(IGuildUser user, ISocketMessageChannel channel)
     {
-        var validationResult = WatchDog.ValidateUser((IGuildUser)interaction.User);
+        var validation = WatchDog.ValidateUser(user);
 
-        switch (validationResult)
+        switch (validation.Result)
         {
             case WatchDogValidationResult.Blocked:
             {
-                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: "Your were blocked from interacting with the bot for {}".ToInlineEmbed(Color.Red));
+                if (validation.BlockedUntil.HasValue)
+                {
+                    var time = validation.BlockedUntil.Value - DateTime.Now;
+                    var message = $"Your were blocked from interacting with the bot for {(time.TotalHours >= 1 ? $"{time.TotalHours} hour(s)" : $"{time.TotalMinutes} minute(s)")}";
+                    _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Red));
+                }
+
                 throw new UnauthorizedAccessException();
             }
             case WatchDogValidationResult.Warning:
             {
-                _ = interaction.Channel.SendMessageAsync(interaction.User.Mention, embed: $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down".ToInlineEmbed(Color.Orange));
+                const string message = $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down or you may result being temporarily blocked";
+                _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Orange));
                 break;
             }
         }
@@ -582,7 +589,7 @@ public static class InteractionsHelper
     {
         await using var db = DatabaseHelper.GetDbContext();
         return await db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
-                                                    && manager.UserId == user.Id);
+                                                          && manager.UserId == user.Id);
     }
 
 

@@ -19,5 +19,7 @@ public enum MetricType
     LeftGuild = 3,
     IntegrationCreated = 4,
     CharacterSpawned = 5,
-    CharacterCalled = 6
+    CharacterCalled = 6,
+    UserBlocked = 7,
+    UserUnblocked = 8,
 }
