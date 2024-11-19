@@ -519,7 +519,7 @@ public static class InteractionsHelper
 
     public static void ValidateUser(IGuildUser user, ISocketMessageChannel channel)
     {
-        var validation = WatchDog.ValidateUser(user);
+        var validation = WatchDog.ValidateUser(user, channel);
 
         switch (validation.Result)
         {

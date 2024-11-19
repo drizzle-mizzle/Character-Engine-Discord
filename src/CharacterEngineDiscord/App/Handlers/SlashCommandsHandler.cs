@@ -84,6 +84,11 @@ public class SlashCommandsHandler
         }
         catch (Exception e)
         {
+            if (e is UnauthorizedAccessException)
+            {
+                return;
+            }
+
             await _discordClient.ReportErrorAsync("HandleSlashCommand", null, e, CommonHelper.NewTraceId(), false);
         }
     }

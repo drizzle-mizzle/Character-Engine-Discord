@@ -12,14 +12,6 @@ namespace CharacterEngine.App.SlashCommands.Explicit;
 public class BotAdminCommandsHandler
 {
 
-    // public BotAdminCommandsHandler(AppDbContext db, DiscordShardedClient discordClient, InteractionService interactions)
-    // {
-    //     _db = db;
-    //     _discordClient = discordClient;
-    //     _interactions = interactions;
-    // }
-
-
     public async Task ShutdownAsync(SocketSlashCommand command)
     {
         await command.RespondAsync(embed: "T_T".ToInlineEmbed(Color.Green));
@@ -31,8 +23,8 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
-        var userId = (ulong)command.Data.Options.First().Value;
-        // await WatchDog.BlockUserGloballyAsync(userId); TODO: Fix
+        var userId = ulong.Parse(command.Data.Options.First().Value.ToString()!);
+        await WatchDog.BlockUserGloballyAsync(userId, null, DateTime.Now.AddHours(1));
 
         await command.FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} User {userId} blocked");
     }
@@ -42,7 +34,7 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
-        var userId = (ulong)command.Data.Options.First().Value;
+        var userId = ulong.Parse(command.Data.Options.First().Value.ToString()!);
         var result = await WatchDog.UnblockUserGloballyAsync(userId);
 
         await command.FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} User {userId} {(result ? "was removed from" : "is not in")} the blacklist");

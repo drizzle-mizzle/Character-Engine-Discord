@@ -30,6 +30,11 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
+                if (e is UnauthorizedAccessException)
+                {
+                    return;
+                }
+
                 var guild = _discordClient.GetGuild((ulong)component.GuildId!);
                 if (guild is null)
                 {

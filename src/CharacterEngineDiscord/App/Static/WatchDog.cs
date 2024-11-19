@@ -4,6 +4,7 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.Static;
@@ -45,7 +46,7 @@ public static class WatchDog
     }
 
 
-    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user)
+    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ISocketMessageChannel channel)
     {
         if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.GuildId)))
         {
@@ -57,14 +58,14 @@ public static class WatchDog
         var validation = Validate(watchedUser);
         if (validation.Result is WatchDogValidationResult.Blocked)
         {
-            _ = BlockUserGloballyAsync(user.Id, (DateTime)validation.BlockedUntil!);
+            _ = BlockUserGloballyAsync(user.Id, channel, (DateTime)validation.BlockedUntil!);
         }
 
         return validation;
     }
 
 
-    public static async Task BlockUserGloballyAsync(ulong userId, DateTime blockedUntil)
+    public static async Task BlockUserGloballyAsync(ulong userId, ISocketMessageChannel? channel, DateTime blockedUntil)
     {
         if (_blockedUsers.TryAdd(userId, blockedUntil) == false)
         {
@@ -88,10 +89,29 @@ public static class WatchDog
         var user = CharacterEngineBot.DiscordShardedClient.GetUser(userId);
         var message = "**User blocked**\n" + (user is null
                     ? $"User: **{userId}**"
-                    : $"User: **{user.Username}** ({userId})")
+                    : $"User: **{user.Username}** ({userId}) {(user.IsBot ? "(bot)" : user.IsWebhook ? "(webhook)" : "")}")
                     + $"\nBlocked until: **{blockedUntil.HumanizeDateTime()}**";
 
-        await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(message);
+        string? content = null;
+        if (channel is not null)
+        {
+            var last20Messages = await channel.GetMessagesAsync(20).FlattenAsync();
+            content = string.Join("\n", last20Messages.Select(FormattedMessages));
+        }
+
+        await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(message, content);
+    }
+
+
+    private static string FormattedMessages(IMessage message)
+    {
+        var result = $"[{message.Id}] ({(message.Author.IsBot ? "bot" : message.Author.IsWebhook ? "webhook" : "user")}) **{message.Author.Username}**: {message.Content}";
+        if (message.Reference is MessageReference messageReference)
+        {
+            result = $"[to: {messageReference.MessageId}] {result}";
+        }
+
+        return result;
     }
 
 

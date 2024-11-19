@@ -36,6 +36,11 @@ public class MessagesHandler
             }
             catch (Exception e)
             {
+                if (e is UnauthorizedAccessException)
+                {
+                    return;
+                }
+
                 var channel = socketMessage.Channel as IGuildChannel;
 
                 var guild = channel?.Guild;
