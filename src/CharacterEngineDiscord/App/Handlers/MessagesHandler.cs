@@ -49,7 +49,7 @@ public class MessagesHandler
                              $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
                              $"Channel: **{channel!.Name}** ({channel.Id})\n" +
                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                             $"Owned by: **{owner?.DisplayName ?? owner?.Username}** ({owner?.Id})";
+                             $"Owned by: **{owner?.Username}** ({owner?.Id})";
 
                 await _discordClient.ReportErrorAsync("MessagesHandler exception", header, e, traceId, writeMetric: false);
             }
@@ -84,11 +84,7 @@ public class MessagesHandler
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
 
-        var validation = WatchDog.ValidateUser(guildUser);
-        if (validation.Result is not WatchDogValidationResult.Passed)
-        {
-            return;
-        }
+        InteractionsHelper.ValidateUser(guildUser, socketUserMessage.Channel);
 
         try
         {

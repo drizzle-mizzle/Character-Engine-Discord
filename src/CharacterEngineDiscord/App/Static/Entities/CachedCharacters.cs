@@ -175,7 +175,7 @@ public sealed class CachedUserMessages
         {
             MessageId = message.Id,
             UserId = author.Id,
-            Username = author.DisplayName ?? author.Username,
+            Username = author.Username,
             UserMention = author.Mention,
             CreatedAt = message.CreatedAt.LocalDateTime
         };

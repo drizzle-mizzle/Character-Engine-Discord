@@ -94,7 +94,7 @@ public class InteractionsHandler
         header += $"User: **{interactionContext.User?.Username}** ({interactionContext.User?.Id})\n" +
                   $"Channel: **{interactionContext.Channel?.Name}** ({interactionContext.Channel?.Id})\n" +
                   $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                  $"Owned by: **{owner?.DisplayName ?? owner?.Username ?? "???"}** ({guild.OwnerId})";
+                  $"Owned by: **{owner?.Username ?? "???"}** ({guild.OwnerId})";
 
         await _discordClient.ReportErrorAsync("Interaction exception", header, exception, traceId, writeMetric: false);
     }

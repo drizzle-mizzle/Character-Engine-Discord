@@ -202,7 +202,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 {
                     var huntedGuilduser = await Context.Guild.GetUserAsync(huntedUser.DiscordUserId);
 
-                    list.AppendLine($"**{huntedGuilduser.DisplayName ?? huntedGuilduser.Username}**");
+                    list.AppendLine($"**{huntedGuilduser.Username}**");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.LighterGrey)
