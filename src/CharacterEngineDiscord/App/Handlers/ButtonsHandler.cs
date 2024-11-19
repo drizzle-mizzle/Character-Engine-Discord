@@ -30,6 +30,11 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
+                if (e is UnauthorizedAccessException)
+                {
+                    return;
+                }
+
                 var guild = _discordClient.GetGuild((ulong)component.GuildId!);
                 if (guild is null)
                 {
@@ -38,15 +43,13 @@ public class ButtonsHandler
 
                 var traceId = CommonHelper.NewTraceId();
                 var owner = guild.Owner ?? await ((IGuild)guild).GetOwnerAsync();
-                var content = $"TraceID: **{traceId}**\n" +
-                              $"Button: **{component.Data.CustomId}**\n" +
-                              $"User: **{component.User.GlobalName ?? component.User.Username}** ({component.User.Id})\n" +
-                              $"Channel: **{component.Channel.Name}** ({component.Channel.Id})\n" +
-                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                              $"Owned by: **{owner?.DisplayName ?? owner?.Username}** ({owner?.Id})\n\n" +
-                              $"Exception:\n{e}";
+                var header = $"Button: **{component.Data.CustomId}**\n" +
+                             $"User: **{component.User.Username}** ({component.User.Id})\n" +
+                             $"Channel: **{component.Channel.Name}** ({component.Channel.Id})\n" +
+                             $"Guild: **{guild.Name}** ({guild.Id})\n" +
+                             $"Owned by: **{owner?.Username}** ({owner?.Id})";
 
-                await _discordClient.ReportErrorAsync("ButtonsHandler exception", content, traceId, writeMetric: false);
+                await _discordClient.ReportErrorAsync("ButtonsHandler exception", header, e, traceId, writeMetric: false);
                 await InteractionsHelper.RespondWithErrorAsync(component, e, traceId);
             }
         });
@@ -59,7 +62,7 @@ public class ButtonsHandler
     {
         await component.DeferAsync();
 
-        InteractionsHelper.ValidateUser(component);
+        InteractionsHelper.ValidateUser((IGuildUser)component.User, component.Channel);
 
         var actionType = GetActionType(component.Data.CustomId);
 

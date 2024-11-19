@@ -2,6 +2,7 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models.Db;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -40,17 +41,19 @@ namespace CharacterEngine
                 _log.Error($"Unobserved task exception: {sender}\n{e.Exception}");
             };
 
-            BotConfig.Initialize();
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+            BotConfig.Initialize();
 
-            await using (var db = DatabaseHelper.GetDbContext())
+            if (args.Contains("--migrate"))
             {
+                await using var db = DatabaseHelper.GetDbContext();
                 await db.Database.MigrateAsync();
             }
 
             MetricsWriter.Create(MetricType.ApplicationLaunch);
 
-            await CharacterEngineBot.RunAsync(args.All(arg => arg != "no-update"));
+            await WatchDog.RunAsync();
+            await CharacterEngineBot.RunAsync();
         }
 
     }

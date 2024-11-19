@@ -46,7 +46,7 @@ public class SlashCommandsHandler
         await guildChannel.EnsureExistInDbAsync();
         try
         {
-            InteractionsHelper.ValidateUser(command);
+            InteractionsHelper.ValidateUser((IGuildUser)command.User, command.Channel);
 
             var context = new InteractionContext(_discordClient, command, command.Channel);
 
@@ -84,7 +84,12 @@ public class SlashCommandsHandler
         }
         catch (Exception e)
         {
-            await _discordClient.ReportErrorAsync(e, CommonHelper.NewTraceId(), false);
+            if (e is UnauthorizedAccessException)
+            {
+                return;
+            }
+
+            await _discordClient.ReportErrorAsync("HandleSlashCommand", null, e, CommonHelper.NewTraceId(), false);
         }
     }
 }

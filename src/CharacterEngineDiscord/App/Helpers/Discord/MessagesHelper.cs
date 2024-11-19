@@ -39,15 +39,11 @@ public static class MessagesHelper
 
     #region Reports
 
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, Exception e, string traceId, bool writeMetric)
-        => discordClient.ReportErrorAsync("Unknown exception", e.ToString(), traceId, writeMetric);
-
-    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, Exception e, string traceId, bool writeMetric)
-        => discordClient.ReportErrorAsync(title, e.ToString(), traceId, writeMetric);
-
+    public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, Exception e, string traceId, bool writeMetric)
+        => discordClient.ReportErrorAsync(title, header, $"Exception:\n{e}", traceId, writeMetric);
 
     private const int MSG_LIMIT = 1990;
-    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string content, string traceId, bool writeMetric)
+    public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, string content, string traceId, bool writeMetric)
     {
         if (writeMetric)
         {
@@ -62,6 +58,11 @@ public static class MessagesHelper
         {
             var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
             var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
+
+            if (header is not null)
+            {
+                await thread.SendMessageAsync(embed: header.ToInlineEmbed(Color.Red, false));
+            }
 
             var count = 0;
             while (content.Length > 0)
@@ -134,22 +135,21 @@ public static class MessagesHelper
 
     public static string GetMetricsReport(Metric[] metrics)
     {
-        var guildsJoined = metrics.Count(m => m.MetricType == MetricType.JoinedGuild);
-        var guildsLeft = metrics.Count(m => m.MetricType == MetricType.LeftGuild);
+        var guildsJoined = metrics.Where(m => m.MetricType == MetricType.JoinedGuild).ToArray();
+        var guildsLeft = metrics.Where(m => m.MetricType == MetricType.LeftGuild).ToArray();
 
         var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
-        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.SakuraAI.ToString("G")));
-        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith(IntegrationType.CharacterAI.ToString("G")));
-        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}:**{newSakuraIntegrations}** " +
-                               $"{IntegrationType.CharacterAI.GetIcon()}:**{newCaiIntegrations}**";
+        var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.SakuraAI:G}"));
+        var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.CharacterAI:G}"));
+        var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}: **{newSakuraIntegrations}** | " +
+                               $"{IntegrationType.CharacterAI.GetIcon()}: **{newCaiIntegrations}**";
 
         var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
-
         var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)
                                              .Select(m =>
                                               {
-                                                  var ids = m.Payload!.Split(':');
-                                                  return new { CharacterId = m.EntityId, ChannelId = ids[0], GuildId = ids[1] };
+                                                  var ids = m.Payload?.Split(':');
+                                                  return new { CharacterId = m.EntityId, ChannelId = ids?.ElementAtOrDefault(0), GuildId = ids?.ElementAtOrDefault(1) };
                                               })
                                              .ToArray();
 
@@ -157,8 +157,8 @@ public static class MessagesHelper
         var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
         var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
-        return $"Joined servers: **{guildsJoined}**\n" +
-               $"Left servers: **{guildsLeft}**\n" +
+        return $"Joined servers: **{guildsJoined.Length} ({guildsJoined.DistinctBy(g => g.EntityId).Count()})**\n" +
+               $"Left servers: **{guildsLeft.Length} ({guildsLeft.DistinctBy(g => g.EntityId).Count()})**\n" +
                $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                $"Characters spawned: **{spawnedCharacters}**\n" +
                $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";
@@ -234,6 +234,8 @@ public static class MessagesHelper
                $"Result (what character will see):\n```{formated}```";
     }
 
+    public static string GetMention(this ISpawnedCharacter spawnedCharacter)
+        => $"<@{spawnedCharacter.WebhookId}>";
 
     #region Description cards
 

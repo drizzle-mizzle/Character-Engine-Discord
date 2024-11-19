@@ -35,7 +35,7 @@ public class InteractionsHandler
             }
             catch (Exception e)
             {
-                await _discordClient.ReportErrorAsync(e, traceId, false);
+                await _discordClient.ReportErrorAsync("HandleInteraction", null, e, traceId, false);
                 await InteractionsHelper.RespondWithErrorAsync(interactionContext.Interaction, e, traceId);
             }
         });
@@ -70,34 +70,33 @@ public class InteractionsHandler
             return;
         }
 
-        string content;
+        string header;
 
         if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommand))
         {
             var subCommand = interaction.Data.Options.First();
-            content = $"Command: {interaction.Data.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}/{subCommand.Name}** [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
         else if (interaction.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommandGroup))
         {
             var subCommandGroup = interaction.Data.Options.First();
             var subCommand = subCommandGroup.Options.First();
-            content = $"Command: {interaction.Data.Name}/{subCommandGroup.Name}/{subCommand.Name} [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}/{subCommandGroup.Name}/{subCommand.Name}** [ {string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
         else
         {
-            content = $"Command: {interaction.Data.Name} [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
+            header = $"Command: **{interaction.Data.Name}** [ {string.Join(" | ", interaction.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"))} ]\n";
         }
 
         var guild = interactionContext.Guild ?? _discordClient.GetGuild((ulong)interactionContext.Interaction.GuildId!);
         var owner = await guild.GetOwnerAsync();
 
-        content += $"User: **{interactionContext.User.Username}** ({interactionContext.User.Id})\n" +
-                   $"Channel: **{interactionContext.Channel.Name}** ({interactionContext.Channel.Id})\n" +
-                   $"Guild: **{guild.Name}** ({guild.Id})\n" +
-                   $"Owned by: **{owner.DisplayName ?? owner.Username}** ({owner.Id})\n\n" +
-                   $"Exception:\n{exception}";
+        header += $"User: **{interactionContext.User?.Username}** ({interactionContext.User?.Id})\n" +
+                  $"Channel: **{interactionContext.Channel?.Name}** ({interactionContext.Channel?.Id})\n" +
+                  $"Guild: **{guild.Name}** ({guild.Id})\n" +
+                  $"Owned by: **{owner?.Username ?? "???"}** ({guild.OwnerId})";
 
-        await _discordClient.ReportErrorAsync("Interaction exception", content, traceId, writeMetric: false);
+        await _discordClient.ReportErrorAsync("Interaction exception", header, exception, traceId, writeMetric: false);
     }
 
 }

@@ -29,7 +29,7 @@ public class ModalsHandler
             catch (Exception e)
             {
                 var traceId = CommonHelper.NewTraceId();
-                await _discordClient.ReportErrorAsync(e, traceId, writeMetric: true);
+                await _discordClient.ReportErrorAsync("HandleModal", null, e, traceId, writeMetric: true);
                 await InteractionsHelper.RespondWithErrorAsync(modal, e, traceId);
             }
         });
@@ -40,7 +40,7 @@ public class ModalsHandler
 
     private async Task HandleModalAsync(SocketModal modal)
     {
-        await modal.DeferAsync();
+        await modal.DeferAsync(ephemeral: true);
 
         var parsedModal = InteractionsHelper.ParseCustomId(modal.Data.CustomId);
 

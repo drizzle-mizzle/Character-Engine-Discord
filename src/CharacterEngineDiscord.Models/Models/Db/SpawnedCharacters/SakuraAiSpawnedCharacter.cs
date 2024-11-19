@@ -46,7 +46,7 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public string SakuraPersona { get; set; } = string.Empty;
     public string SakuraScenario { get; set; } = string.Empty;
     public int SakuraMessagesCount { get; set; }
-    public string? SakuraChatId { get; set; }
+    public string? SakuraChatId { get; set; } = "empty";
 
     public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
 }

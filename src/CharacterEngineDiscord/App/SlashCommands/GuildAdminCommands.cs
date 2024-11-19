@@ -18,15 +18,6 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     // private readonly DiscordSocketClient _discordClient;
 
 
-    public enum UserAction
-    {
-        show, add, remove,
-
-        [ChoiceDisplay("clear-all")]
-        clearAll
-    }
-
-
     public GuildAdminCommands(AppDbContext db)
     {
         _db = db;
@@ -53,7 +44,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                     var managerUser = await Context.Guild.GetUserAsync(manager.UserId);
                     var addedByUser = await Context.Guild.GetUserAsync(manager.AddedBy);
 
-                    list.AppendLine($"**{managerUser.DisplayName ?? managerUser.Username}** | Added by **{addedByUser.DisplayName ?? addedByUser.Username}**");
+                    list.AppendLine($"**{managerUser.Username}** | Added by **{addedByUser.Username}**");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)
@@ -140,9 +131,9 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                 foreach (var blockedUser in blockedUsers)
                 {
                     var guildBlockedUser = await Context.Guild.GetUserAsync(blockedUser.UserId);
-                    var blockedUserName = guildBlockedUser.DisplayName ?? guildBlockedUser.Username;
+                    var blockedUserName = guildBlockedUser.Username;
                     var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
-                    var managerUserName = managerUser.DisplayName ?? managerUser.Username;
+                    var managerUserName = managerUser.Username;
 
                     list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.HumanizeDateTime()}`");
                 }

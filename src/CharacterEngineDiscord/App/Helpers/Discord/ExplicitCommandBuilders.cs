@@ -31,30 +31,38 @@ public static class ExplicitCommandBuilders
                                     .Build();
 
 
-    public static List<SlashCommandProperties> BuildAdminCommands()
+    public static SlashCommandBuilder AddUserOption(this SlashCommandBuilder builder)
+        => builder.AddOption(new SlashCommandOptionBuilder()
+                            .WithName("user-id")
+                            .WithDescription("User ID")
+                            .WithType(ApplicationCommandOptionType.String));
+
+    public static SlashCommandBuilder AddDtRangeOptions(this SlashCommandBuilder builder)
+        => builder.AddOption(new SlashCommandOptionBuilder()
+                            .WithName("range")
+                            .WithRequired(false)
+                            .WithDescription("range")
+                            .WithType(ApplicationCommandOptionType.Integer))
+                  .AddOption(new SlashCommandOptionBuilder()
+                            .WithName("range-type")
+                            .WithRequired(true)
+                            .WithDescription("range type")
+                            .AddChoice("all-time", 0)
+                            .AddChoice("minutes", 1)
+                            .AddChoice("hours", 2)
+                            .AddChoice("days", 3)
+                            .WithType(ApplicationCommandOptionType.Integer));
+
+    public static SlashCommandProperties[] BuildAdminCommands()
     {
-        var commands = new List<SlashCommandProperties>();
+        var commands = new List<SlashCommandBuilder>();
 
-        var shutdownCommand = CreateAdminCommand(BotAdminCommands.shutdown).Build();
-        commands.Add(shutdownCommand);
+        commands.Add(CreateAdminCommand(BotAdminCommands.shutdown));
+        commands.Add(CreateAdminCommand(BotAdminCommands.blockUser).AddUserOption());
+        commands.Add(CreateAdminCommand(BotAdminCommands.unblockUser).AddUserOption());
+        commands.Add(CreateAdminCommand(BotAdminCommands.reportMetrics).AddDtRangeOptions());
 
-        var userOption = new SlashCommandOptionBuilder
-        {
-            Name = "user-id",
-            Description = "-",
-            Type = ApplicationCommandOptionType.String
-        };
-
-        var blockUserCommand = CreateAdminCommand(BotAdminCommands.blockUser).AddOption(userOption).Build();
-        commands.Add(blockUserCommand);
-
-        var unblockUserCommand = CreateAdminCommand(BotAdminCommands.unblockUser).AddOption(userOption).Build();
-        commands.Add(unblockUserCommand);
-
-        var reportMetricsCommand = CreateAdminCommand(BotAdminCommands.reportMetrics).Build();
-        commands.Add(reportMetricsCommand);
-
-        return commands;
+        return commands.Select(c => c.Build()).ToArray();
     }
 
 

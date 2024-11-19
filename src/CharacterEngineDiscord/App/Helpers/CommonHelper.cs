@@ -21,7 +21,7 @@ public static class CommonHelper
         }
         catch (Exception e)
         {
-            await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync(e, NewTraceId(), false);
+            await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("DownloadFileAsync", null, e, NewTraceId(), false);
             return null;
         }
     }

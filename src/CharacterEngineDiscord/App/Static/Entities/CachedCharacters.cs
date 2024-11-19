@@ -4,6 +4,7 @@ using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using Discord;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.Static.Entities;
 
@@ -13,16 +14,26 @@ public sealed class CachedCharacerInfoCollection
     private readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
 
 
-    public void AddRange(ICollection<ISpawnedCharacter> spawnedCharacters)
+    public async Task AddRangeAsync(ICollection<ISpawnedCharacter> spawnedCharacters)
     {
-        Parallel.ForEach(spawnedCharacters, JustAdd);
+        await using var db = DatabaseHelper.GetDbContext();
+        var allHuntedUsers = await db.HuntedUsers.ToArrayAsync();
+
+        Parallel.ForEach(spawnedCharacters, AddNew);
+
         return;
 
-        void JustAdd(ISpawnedCharacter sc) { _ = Add(sc); }
+        void AddNew(ISpawnedCharacter sc)
+        {
+            var huntedUsersIds = allHuntedUsers.Where(hu => hu.SpawnedCharacterId == sc.Id)
+                                               .Select(hu => hu.DiscordUserId)
+                                               .ToList();
+            Add(sc, huntedUsersIds);
+        }
     }
 
 
-    public CachedCharacterInfo Add(ISpawnedCharacter spawnedCharacter)
+    public CachedCharacterInfo Add(ISpawnedCharacter spawnedCharacter, List<ulong> huntedUserIds)
     {
         Remove(spawnedCharacter.Id);
 
@@ -34,6 +45,7 @@ public sealed class CachedCharacerInfoCollection
             WebhookId = spawnedCharacter.WebhookId.ToString(),
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
+            HuntedUsers = huntedUserIds
             // CachedUserMessages = new CachedUserMessages(),
             // Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
         };
@@ -101,6 +113,8 @@ public record CachedCharacterInfo
     public required double FreewillFactor { get; set; }
     public ulong? WideContextLastMessageId { get; set; }
 
+    public required List<ulong> HuntedUsers { get; set; }
+
     // public required CachedUserMessages CachedUserMessages { get; init; }
     // public required ActiveConversation Conversations { get; init; }
 }
@@ -161,7 +175,7 @@ public sealed class CachedUserMessages
         {
             MessageId = message.Id,
             UserId = author.Id,
-            Username = author.DisplayName ?? author.Username,
+            Username = author.Username,
             UserMention = author.Mention,
             CreatedAt = message.CreatedAt.LocalDateTime
         };

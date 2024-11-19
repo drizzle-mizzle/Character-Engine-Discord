@@ -1,6 +1,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -10,14 +11,6 @@ namespace CharacterEngine.App.SlashCommands.Explicit;
 
 public class BotAdminCommandsHandler
 {
-
-    // public BotAdminCommandsHandler(AppDbContext db, DiscordShardedClient discordClient, InteractionService interactions)
-    // {
-    //     _db = db;
-    //     _discordClient = discordClient;
-    //     _interactions = interactions;
-    // }
-
 
     public async Task ShutdownAsync(SocketSlashCommand command)
     {
@@ -30,8 +23,8 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
-        var userId = (ulong)command.Data.Options.First().Value;
-        await WatchDog.BlockUserGloballyAsync(userId);
+        var userId = ulong.Parse(command.Data.Options.First().Value.ToString()!);
+        await WatchDog.BlockUserGloballyAsync(userId, null, DateTime.Now.AddHours(1));
 
         await command.FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} User {userId} blocked");
     }
@@ -41,7 +34,7 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
-        var userId = (ulong)command.Data.Options.First().Value;
+        var userId = ulong.Parse(command.Data.Options.First().Value.ToString()!);
         var result = await WatchDog.UnblockUserGloballyAsync(userId);
 
         await command.FollowupAsync($"{MessagesTemplates.OK_SIGN_DISCORD} User {userId} {(result ? "was removed from" : "is not in")} the blacklist");
@@ -52,8 +45,28 @@ public class BotAdminCommandsHandler
     {
         await command.DeferAsync();
 
+        var rangeType = (int)(long)command.Data.Options.First(o => o.Name == "range-type").Value;
+
+        Metric[] metrics;
         await using var db = DatabaseHelper.GetDbContext();
-        var metrics = await db.Metrics.Where(m => m.CreatedAt >= MetricsWriter.GetLastMetricReport()).ToArrayAsync();
+
+        if (rangeType == 0) // all-time
+        {
+            metrics = await db.Metrics.ToArrayAsync();
+        }
+        else
+        {
+            var range = (int)(long)command.Data.Options.First(o => o.Name == "range").Value;
+            var dt = DateTime.Now - rangeType switch
+            {
+                1 => new TimeSpan(0, minutes: range, 0), // minutes
+                2 => new TimeSpan(hours: range, 0, 0), // hours
+                3 => new TimeSpan(days: range, 0, 0, 0), // days
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= dt).ToArrayAsync();
+        }
 
         var metricsReport = MessagesHelper.GetMetricsReport(metrics);
 
