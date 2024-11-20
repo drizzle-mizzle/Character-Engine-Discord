@@ -46,11 +46,16 @@ public static class WatchDog
     }
 
 
-    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ISocketMessageChannel channel)
+    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ISocketMessageChannel? channel, bool justCheck = false)
     {
         if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.GuildId)))
         {
             return (WatchDogValidationResult.Blocked, null);
+        }
+
+        if (justCheck)
+        {
+            return (WatchDogValidationResult.Passed, null);
         }
 
         var watchedUser = _watchedUsers.GetOrAdd(user.Id, _ => new CachedWatchedUser(0, DateTime.Now, false));

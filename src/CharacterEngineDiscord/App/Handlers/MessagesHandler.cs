@@ -89,12 +89,11 @@ public class MessagesHandler
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
 
-        var validation = WatchDog.ValidateUser(guildUser, socketUserMessage.Channel);
+        var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
         if (validation.Result is not WatchDogValidationResult.Passed)
         {
             return;
         }
-
 
         try
         {
