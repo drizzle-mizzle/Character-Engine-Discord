@@ -22,4 +22,5 @@ public enum MetricType
     CharacterCalled = 6,
     UserBlocked = 7,
     UserUnblocked = 8,
+    NewUserObserved = 9
 }

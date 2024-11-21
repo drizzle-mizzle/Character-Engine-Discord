@@ -2,6 +2,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -38,17 +39,19 @@ public class SlashCommandsHandler
 
     private async Task HandleSlashCommandAsync(SocketSlashCommand command)
     {
-        if (command.Channel is not IGuildChannel guildChannel)
+        if (command.Channel is not ITextChannel textChannel)
         {
             return;
         }
 
-        await guildChannel.EnsureExistInDbAsync();
         try
         {
-            InteractionsHelper.ValidateUser((IGuildUser)command.User, command.Channel);
+            var guilUser = (IGuildUser)command.User;
 
-            var context = new InteractionContext(_discordClient, command, command.Channel);
+            textChannel.EnsureCached();
+            guilUser.EnsureCached(textChannel, MetricUserSource.SlashCommand);
+
+            InteractionsHelper.ValidateUser(guilUser, textChannel);
 
             var commandName = command.CommandName.Replace("-", "");
             if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
@@ -79,6 +82,7 @@ public class SlashCommandsHandler
             }
             else
             {
+                var context = new InteractionContext(_discordClient, command, textChannel);
                 await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
             }
         }

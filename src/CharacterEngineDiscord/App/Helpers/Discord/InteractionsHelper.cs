@@ -517,12 +517,22 @@ public static class InteractionsHelper
 
     #region Validations
 
-    public static void ValidateUser(IGuildUser user, ISocketMessageChannel channel)
+    public static void ValidateUser(IGuildUser user, ITextChannel channel)
     {
         var validation = WatchDog.ValidateUser(user, channel);
 
         switch (validation.Result)
         {
+            case WatchDogValidationResult.Passed:
+            {
+                return;
+            }
+            case WatchDogValidationResult.Warning:
+            {
+                const string message = $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down or you may result being temporarily blocked";
+                _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Orange));
+                break;
+            }
             case WatchDogValidationResult.Blocked:
             {
                 if (validation.BlockedUntil.HasValue)
@@ -533,12 +543,6 @@ public static class InteractionsHelper
                 }
 
                 throw new UnauthorizedAccessException();
-            }
-            case WatchDogValidationResult.Warning:
-            {
-                const string message = $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down or you may result being temporarily blocked";
-                _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Orange));
-                break;
             }
         }
     }

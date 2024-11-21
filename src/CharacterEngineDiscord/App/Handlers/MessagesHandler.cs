@@ -5,6 +5,7 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
@@ -81,13 +82,14 @@ public class MessagesHandler
             return;
         }
 
-
         var textChannel = socketUserMessage.Channel switch
         {
             SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
             ITextChannel cTextChannel => cTextChannel,
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
+
+        textChannel.EnsureCached();
 
         var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
         if (validation.Result is not WatchDogValidationResult.Passed)
@@ -102,6 +104,7 @@ public class MessagesHandler
             var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage) ?? await FindCharacterByPrefixAsync(socketUserMessage);
             if (taggedCharacter is not null)
             {
+                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
                 tasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
@@ -113,11 +116,17 @@ public class MessagesHandler
             var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
+                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
                 tasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
             }
 
             var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
-            tasks.AddRange(hunterCharacters.Select(hunterCharacter => CallCharacterAsync(hunterCharacter, socketUserMessage, false)));
+            if (hunterCharacters.Count != 0)
+            {
+                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
+                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, false));
+                tasks.AddRange(callCharactersByHuntedUsersAsync);
+            }
 
             Task.WaitAll(tasks.ToArray());
         }
@@ -136,7 +145,6 @@ public class MessagesHandler
     private static async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
     {
         var channel = (ITextChannel)socketUserMessage.Channel;
-        await channel.EnsureExistInDbAsync();
 
         if (spawnedCharacter.IsNfsw && !channel.IsNsfw)
         {

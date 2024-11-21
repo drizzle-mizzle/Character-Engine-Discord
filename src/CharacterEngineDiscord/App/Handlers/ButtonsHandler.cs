@@ -62,7 +62,11 @@ public class ButtonsHandler
     {
         await component.DeferAsync();
 
-        InteractionsHelper.ValidateUser((IGuildUser)component.User, component.Channel);
+        var guildUser = (IGuildUser)component.User;
+        var textChannel = (ITextChannel)component.Channel;
+
+        guildUser.EnsureCached(textChannel, MetricUserSource.Button);
+        InteractionsHelper.ValidateUser(guildUser, textChannel);
 
         var actionType = GetActionType(component.Data.CustomId);
 

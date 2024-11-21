@@ -7,14 +7,15 @@ namespace CharacterEngine.App.Static;
 
 public static class MemoryStorage
 {
-    public static ConcurrentDictionary<ulong, object?> CachedChannels { get; } = [];
     public static HttpClient CommonHttpClient { get; } = new() { MaxResponseContentBufferSize = 5_242_880 };
 
-    public static SearchQueryCollection SearchQueries { get; } = new();
-
+    public static ConcurrentDictionary<ulong, object?> CachedChannels { get; } = [];
+    public static ConcurrentDictionary<ulong, object?> CachedGuilds { get; } = [];
+    public static ConcurrentDictionary<ulong, object?> CachedUsers { get; } = [];
     public static CachedCharacerInfoCollection CachedCharacters { get; } = new();
-
     public static CachedWebhookClientCollection CachedWebhookClients { get; } = new();
+
+    public static SearchQueryCollection SearchQueries { get; } = new();
 
     public static IntegrationModulesCollection IntegrationModules { get; } = new();
 }

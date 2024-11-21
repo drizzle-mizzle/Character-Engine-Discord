@@ -46,7 +46,7 @@ public static class WatchDog
     }
 
 
-    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ISocketMessageChannel? channel, bool justCheck = false)
+    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ITextChannel? channel, bool justCheck = false)
     {
         if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.GuildId)))
         {
@@ -70,7 +70,7 @@ public static class WatchDog
     }
 
 
-    public static async Task BlockUserGloballyAsync(ulong userId, ISocketMessageChannel? channel, DateTime blockedUntil)
+    public static async Task BlockUserGloballyAsync(ulong userId, ITextChannel? channel, DateTime blockedUntil)
     {
         if (_blockedUsers.TryAdd(userId, blockedUntil) == false)
         {

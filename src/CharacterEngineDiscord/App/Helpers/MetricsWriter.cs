@@ -1,6 +1,9 @@
 using System.Text;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
+using Discord;
 using NLog;
 
 namespace CharacterEngine.App.Helpers;

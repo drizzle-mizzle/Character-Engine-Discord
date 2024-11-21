@@ -17,6 +17,7 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<DiscordChannel> DiscordChannels { get; init; }
     public DbSet<DiscordGuild> DiscordGuilds { get; init; }
+    public DbSet<DiscordUser> DiscordUsers { get; init; }
 
     #endregion
 
