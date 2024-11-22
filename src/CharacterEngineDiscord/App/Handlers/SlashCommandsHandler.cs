@@ -3,6 +3,7 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -46,12 +47,13 @@ public class SlashCommandsHandler
 
         try
         {
-            var guilUser = (IGuildUser)command.User;
+            var guildUser = (IGuildUser)command.User;
 
             textChannel.EnsureCached();
-            guilUser.EnsureCached(textChannel, MetricUserSource.SlashCommand);
+            guildUser.EnsureCached();
+            MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
-            InteractionsHelper.ValidateUser(guilUser, textChannel);
+            InteractionsHelper.ValidateUser(guildUser, textChannel);
 
             var commandName = command.CommandName.Replace("-", "");
             if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))

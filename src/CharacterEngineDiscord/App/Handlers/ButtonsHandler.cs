@@ -2,6 +2,7 @@
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
@@ -65,7 +66,9 @@ public class ButtonsHandler
         var guildUser = (IGuildUser)component.User;
         var textChannel = (ITextChannel)component.Channel;
 
-        guildUser.EnsureCached(textChannel, MetricUserSource.Button);
+        guildUser.EnsureCached();
+        MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+
         InteractionsHelper.ValidateUser(guildUser, textChannel);
 
         var actionType = GetActionType(component.Data.CustomId);
@@ -99,18 +102,12 @@ public class ButtonsHandler
 
         if (sq is null)
         {
-            try
+            await component.ModifyOriginalResponseAsync(msg =>
             {
-                await component.ModifyOriginalResponseAsync(msg =>
-                {
-                    var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
-                    msg.Embeds = msg.Embeds.IsSpecified ? [msg.Embeds.Value!.First(), newEmbed] : new[] { newEmbed };
-                });
-            }
-            catch
-            {
-                //
-            }
+                var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
+                msg.Embeds = new[] { newEmbed };
+                msg.Components = null;
+            });
 
             return;
         }

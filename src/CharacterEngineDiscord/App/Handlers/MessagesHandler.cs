@@ -99,13 +99,12 @@ public class MessagesHandler
 
         try
         {
-            var tasks = new List<Task>();
+            var callTasks = new List<Task>();
 
             var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage) ?? await FindCharacterByPrefixAsync(socketUserMessage);
             if (taggedCharacter is not null)
             {
-                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
-                tasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
+                callTasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
             var cachedCharacters = MemoryStorage.CachedCharacters
@@ -116,19 +115,23 @@ public class MessagesHandler
             var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
-                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
-                tasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
+                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
             }
 
             var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
             if (hunterCharacters.Count != 0)
             {
-                guildUser.EnsureCached(textChannel, MetricUserSource.CharacterCall);
                 var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, false));
-                tasks.AddRange(callCharactersByHuntedUsersAsync);
+                callTasks.AddRange(callCharactersByHuntedUsersAsync);
             }
 
-            Task.WaitAll(tasks.ToArray());
+            if (callTasks.Count != 0)
+            {
+                guildUser.EnsureCached();
+                MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+            }
+
+            Task.WaitAll(callTasks.ToArray());
         }
         catch (Exception e)
         {

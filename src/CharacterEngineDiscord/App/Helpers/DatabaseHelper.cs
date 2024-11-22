@@ -403,7 +403,7 @@ public static class DatabaseHelper
     }
 
 
-    public static void EnsureCached(this IGuildUser guildUser, IGuildChannel channel, MetricUserSource source)
+    public static void EnsureCached(this IGuildUser guildUser)
     {
         if (!MemoryStorage.CachedUsers.TryAdd(guildUser.Id, null))
         {
@@ -422,8 +422,6 @@ public static class DatabaseHelper
             });
 
             await db.SaveChangesAsync();
-
-            MetricsWriter.Create(MetricType.NewUserObserved, guildUser.Id, $"{source:G}:{channel.Id}:{channel.GuildId}", true);
         });
     }
 

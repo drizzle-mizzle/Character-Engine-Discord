@@ -157,11 +157,14 @@ public static class MessagesHelper
         var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
         var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
+        var interactedUsers = metrics.Count(m => m.MetricType == MetricType.UserInteracted);
+
         return $"Joined servers: **{guildsJoined.Length} ({guildsJoined.DistinctBy(g => g.EntityId).Count()})**\n" +
                $"Left servers: **{guildsLeft.Length} ({guildsLeft.DistinctBy(g => g.EntityId).Count()})**\n" +
                $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                $"Characters spawned: **{spawnedCharacters}**\n" +
-               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";
+               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n" +
+               $"Users interacted: **{interactedUsers}**";
     }
 
     #endregion
