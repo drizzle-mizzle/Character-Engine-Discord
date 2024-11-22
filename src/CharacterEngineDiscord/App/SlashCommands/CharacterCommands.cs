@@ -47,6 +47,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
+        var originalResponse = await GetOriginalResponseAsync();
 
         var channel = (ITextChannel)Context.Channel;
 
@@ -75,7 +76,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 return;
             }
 
-            var newSq = new SearchQuery(Context.Channel.Id, Context.User.Id, searchQuery!, characters, integrationType);
+
+            var newSq = new SearchQuery(originalResponse.Id, Context.User.Id, searchQuery!, characters, integrationType);
             MemoryStorage.SearchQueries.Add(newSq);
 
             await ModifyOriginalResponseAsync(msg =>

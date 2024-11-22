@@ -231,7 +231,7 @@ public static class InteractionsHelper
 
         if (avatar is null)
         {
-            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
             await avatarOutput.WriteAsync(defaultAvatar);
         }
         else
@@ -263,7 +263,7 @@ public static class InteractionsHelper
 
         if (avatarOutput.Length >= 10240000)
         {
-            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
 
             avatarOutput.SetLength(0);
             await avatarOutput.WriteAsync(defaultAvatar);

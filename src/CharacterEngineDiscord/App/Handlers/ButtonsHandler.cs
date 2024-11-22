@@ -95,7 +95,7 @@ public class ButtonsHandler
 
     private static async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = MemoryStorage.SearchQueries.GetByChannelId(component.ChannelId!.Value);
+        var sq = MemoryStorage.SearchQueries.Find(component.Message.Id);
 
         if (sq is null)
         {
@@ -145,7 +145,7 @@ public class ButtonsHandler
                     msg.Components = null;
                 });
 
-                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
+                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync((ulong)component.ChannelId!, sq.SelectedCharacter);
 
                 var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
@@ -154,7 +154,7 @@ public class ButtonsHandler
                 await modifyOriginalResponseAsync1;
                 await modifyOriginalResponseAsync2;
 
-                MemoryStorage.SearchQueries.Remove(sq.ChannelId);
+                MemoryStorage.SearchQueries.Remove(sq.MessageId);
                 return;
             }
         }
