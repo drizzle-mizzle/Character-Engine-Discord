@@ -99,11 +99,19 @@ public class ButtonsHandler
 
         if (sq is null)
         {
-            await component.ModifyOriginalResponseAsync(msg =>
+            try
             {
-                var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
-                msg.Embeds = !msg.Embeds.IsSpecified ? [msg.Embeds.Value!.First(), newEmbed] : new[] { newEmbed };
-            });
+                await component.ModifyOriginalResponseAsync(msg =>
+                {
+                    var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
+                    msg.Embeds = msg.Embeds.IsSpecified ? [msg.Embeds.Value!.First(), newEmbed] : new[] { newEmbed };
+                });
+            }
+            catch
+            {
+                //
+            }
+
             return;
         }
 
