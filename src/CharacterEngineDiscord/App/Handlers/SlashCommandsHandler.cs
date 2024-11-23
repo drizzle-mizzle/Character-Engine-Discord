@@ -1,4 +1,5 @@
 ﻿using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.SlashCommands.Explicit;
@@ -31,7 +32,19 @@ public class SlashCommandsHandler
     {
         Task.Run(async () =>
         {
-            await HandleSlashCommandAsync(command);
+            try
+            {
+                await HandleSlashCommandAsync(command);
+            }
+            catch (Exception e)
+            {
+                if (e is UnauthorizedAccessException or UserFriendlyException)
+                {
+                    return;
+                }
+
+                await _discordClient.ReportErrorAsync("HandleSlashCommand", null, e, CommonHelper.NewTraceId(), false);
+            }
         });
 
         return Task.CompletedTask;
@@ -45,57 +58,45 @@ public class SlashCommandsHandler
             return;
         }
 
-        try
+        var guildUser = (IGuildUser)command.User;
+
+        textChannel.EnsureCached();
+        guildUser.EnsureCached();
+        MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+
+        InteractionsHelper.ValidateUser(guildUser, textChannel);
+
+        var commandName = command.CommandName.Replace("-", "");
+        if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
         {
-            var guildUser = (IGuildUser)command.User;
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
-            textChannel.EnsureCached();
-            guildUser.EnsureCached();
-            MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
-
-            InteractionsHelper.ValidateUser(guildUser, textChannel);
-
-            var commandName = command.CommandName.Replace("-", "");
-            if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
+            var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
+            await (specialCommand switch
             {
-                await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
-
-                var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
-                await (specialCommand switch
-                {
-                    SpecialCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
-                    SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
-                });
-            }
-            else if (Enum.TryParse<BotAdminCommands>(commandName, ignoreCase: true, out var botAdminCommand))
-            {
-                await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
-
-                var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
-                await (botAdminCommand switch
-                {
-                    BotAdminCommands.shutdown => botAdminCommandsHandler.ShutdownAsync(command),
-                    BotAdminCommands.blockUser => botAdminCommandsHandler.BlockUserAsync(command),
-                    BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
-                    BotAdminCommands.blockGuild => throw new NotImplementedException(),
-                    BotAdminCommands.unblockGuild => throw new NotImplementedException(),
-                    BotAdminCommands.reportMetrics => botAdminCommandsHandler.ReportMetricsAsync(command)
-                });
-            }
-            else
-            {
-                var context = new InteractionContext(_discordClient, command, textChannel);
-                await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
-            }
+                SpecialCommands.start => specialCommandsHandler.HandleStartCommandAsync(command),
+                SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
+            });
         }
-        catch (Exception e)
+        else if (Enum.TryParse<BotAdminCommands>(commandName, ignoreCase: true, out var botAdminCommand))
         {
-            if (e is UnauthorizedAccessException)
-            {
-                return;
-            }
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
 
-            await _discordClient.ReportErrorAsync("HandleSlashCommand", null, e, CommonHelper.NewTraceId(), false);
+            var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
+            await (botAdminCommand switch
+            {
+                BotAdminCommands.shutdown => botAdminCommandsHandler.ShutdownAsync(command),
+                BotAdminCommands.blockUser => botAdminCommandsHandler.BlockUserAsync(command),
+                BotAdminCommands.unblockUser => botAdminCommandsHandler.UnblockUserAsync(command),
+                BotAdminCommands.blockGuild => throw new NotImplementedException(),
+                BotAdminCommands.unblockGuild => throw new NotImplementedException(),
+                BotAdminCommands.reportMetrics => botAdminCommandsHandler.ReportMetricsAsync(command)
+            });
+        }
+        else
+        {
+            var context = new InteractionContext(_discordClient, command, textChannel);
+            await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
         }
     }
 }

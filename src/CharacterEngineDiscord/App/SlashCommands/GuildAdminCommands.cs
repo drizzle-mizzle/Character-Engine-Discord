@@ -6,12 +6,12 @@ using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.SlashCommands;
 
 
-[ValidateAccessLevel(AccessLevels.GuildAdmin)]
 public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
@@ -26,9 +26,13 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
 
     [SlashCommand("managers", "Add or remove managers")]
-    [ValidateAccessLevel(AccessLevels.GuildAdmin)]
     public async Task ManagersCommand(UserAction action, IGuildUser? user = null, string? userId = null)
     {
+        if (action is not UserAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync();
 
         var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
@@ -118,6 +122,11 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("ignored-users", "Add or remove ignored users")]
     public async Task BlockedUserCommand(UserAction action, IGuildUser? user = null, string? userId = null)
     {
+        if (action is not UserAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync();
 
         var blockedUsers = await _db.GuildBlockedUsers.Where(u => u.DiscordGuildId == Context.Guild.Id).ToListAsync();

@@ -84,23 +84,38 @@ public record CachedCharacterInfo
 {
     private readonly List<ulong> _queue = [];
 
-    public bool QueueIsFull
-        => _queue.Count >= 5;
+    public bool QueueIsFullFor(ulong userId)
+    {
+        lock (_queue)
+        {
+            return _queue.Count >= 5 || _queue.Count(id => id == userId) > 1;
+        }
+    }
+
 
     public bool QueueIsTurnOf(ulong userId)
-        => _queue.Count < 2 || _queue[0] == userId;
+    {
+        lock (_queue)
+        {
+            return _queue.Count < 2 || _queue[0] == userId;
+        }
+    }
 
-    public bool QueueContains(ulong userId)
-        => _queue.Contains(userId);
 
     public void QueueAdd(ulong userId)
     {
-        _queue.Add(userId);
+        lock (_queue)
+        {
+            _queue.Add(userId);
+        }
     }
 
     public void QueueRemove(ulong userId)
     {
-        _queue.Remove(userId);
+        lock (_queue)
+        {
+            _queue.Remove(userId);
+        }
     }
 
 

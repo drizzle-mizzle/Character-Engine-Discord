@@ -19,7 +19,6 @@ using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 namespace CharacterEngine.App.SlashCommands;
 
 
-[ValidateAccessLevel(AccessLevels.Manager)]
 [ValidateChannelPermissions]
 [Group("character", "Basic characters commands")]
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
@@ -34,6 +33,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("spawn", "Spawn new character!")]
     public async Task SpawnCharacter(IntegrationType integrationType,
                                      [Summary(description: "Query to perform character search")] string? searchQuery = null,
@@ -127,6 +127,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("reset", "Start new chat")]
     public async Task ResetCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -151,6 +152,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("remove", "Remove character")]
     public async Task RemoveCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -186,6 +188,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("hunt", "Make character hunt certain user or another character")]
     public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userIdOrCharacterCallPrefix = null)
     {
+        if (action is not UserAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync();
 
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
@@ -295,6 +302,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
+        if (action is not MessagesFormatAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync(ephemeral: hide);
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, scc.spawnedCharacter, newFormat);
@@ -317,6 +329,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("toggle", "Enable/disable feature")]
     public async Task Toggle([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, TogglableSettings feature)
     {
@@ -392,6 +405,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("edit", "Update character's info, call prefix, etc")]
     public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp property, string newValue)
     {
@@ -472,7 +486,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         var message = new StringBuilder();
-        var propertyName = property.ToString("G").SplitWordsBySep(' ');
+        var propertyName = property.ToString("G").SplitWordsBySep(' ').ToLower().CapitalizeFirst();
         message.Append($"{MT.OK_SIGN_DISCORD} **{propertyName}** for character {spawnedCharacter.GetMention()} was successfully changed ");
 
         if (oldValue is not null)

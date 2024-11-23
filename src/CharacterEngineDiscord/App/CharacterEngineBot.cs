@@ -141,7 +141,7 @@ public class CharacterEngineBot
         {
             MessageCacheSize = 10,
             GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent,
-            ConnectionTimeout = 20_000,
+            ConnectionTimeout = 30_000,
             DefaultRetryMode = RetryMode.RetryRatelimit,
             AlwaysDownloadDefaultStickers = true,
             MaxWaitBetweenGuildAvailablesBeforeReady = (int)TimeSpan.FromMinutes(5).TotalSeconds,

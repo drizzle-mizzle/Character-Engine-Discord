@@ -1,4 +1,5 @@
-﻿using CharacterEngine.App.Helpers;
+﻿using CharacterEngine.App.Exceptions;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
@@ -31,7 +32,7 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
-                if (e is UnauthorizedAccessException)
+                if (e is UnauthorizedAccessException or UserFriendlyException)
                 {
                     return;
                 }

@@ -5,6 +5,7 @@ using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -12,7 +13,6 @@ namespace CharacterEngine.App.SlashCommands;
 
 
 [ValidateChannelPermissions]
-[ValidateAccessLevel(AccessLevels.Manager)]
 [Group("channel", "Configure per-channel settings")]
 public class ChannelCommands : InteractionModuleBase<InteractionContext>
 {
@@ -28,6 +28,11 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
+        if (action is not MessagesFormatAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync(ephemeral: hide);
 
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.channel, action, Context.Channel.Id, newFormat);
@@ -36,6 +41,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("no-warn", "Disable/enable permissions warning")]
     public async Task NoWarn(bool toggle)
     {
@@ -68,6 +74,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("clear-characters", "Remove all characters from the current channel")]
     public async Task ClearCharacters()
     {

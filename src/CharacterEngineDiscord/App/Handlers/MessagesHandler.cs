@@ -37,7 +37,7 @@ public class MessagesHandler
             }
             catch (Exception e)
             {
-                if (e is UnauthorizedAccessException)
+                if (e is UnauthorizedAccessException or UserFriendlyException)
                 {
                     return;
                 }
@@ -165,7 +165,7 @@ public class MessagesHandler
 
         var author = socketUserMessage.Author;
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
-        if (cachedCharacter.QueueIsFull || cachedCharacter.QueueContains(author.Id))
+        if (cachedCharacter.QueueIsFullFor(author.Id))
         {
             return;
         }
