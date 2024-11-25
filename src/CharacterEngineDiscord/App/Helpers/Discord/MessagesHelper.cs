@@ -167,7 +167,14 @@ public static class MessagesHelper
         else
         {
             var ts = (DateTime.Now - sinceDt).Value;
-            timespanLine = $"{ts.Days}d {ts.Hours}h {ts.Minutes}min";
+            timespanLine = "past";
+
+            if (ts.Days > 0)
+            {
+                timespanLine += $" {ts.Days}d";
+            }
+
+            timespanLine += $" {ts.Hours}h {ts.Minutes}min";
         }
 
         return $"Metrics for **{timespanLine}**\n" +
