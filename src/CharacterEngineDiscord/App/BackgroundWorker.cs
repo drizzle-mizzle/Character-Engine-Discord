@@ -158,7 +158,10 @@ public static class BackgroundWorker
     private static async Task MetricsReport(string traceId)
     {
         MetricsWriter.LockWrite();
+
         Metric[] metrics;
+        var sinceDt = MetricsWriter.GetLastMetricReport();
+
         try
         {
             if (MetricsWriter.GetLastMetricReport() == default)
@@ -167,7 +170,7 @@ public static class BackgroundWorker
             }
 
             await using var db = DatabaseHelper.GetDbContext();
-            metrics = await db.Metrics.Where(m => m.CreatedAt >= MetricsWriter.GetLastMetricReport()).ToArrayAsync();
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
         }
         finally
         {
@@ -175,7 +178,7 @@ public static class BackgroundWorker
             MetricsWriter.UnlockWrite();
         }
 
-        var metricsReport = MessagesHelper.GetMetricsReport(metrics);
+        var metricsReport = MessagesHelper.BuildMetricsReport(metrics, sinceDt);
 
         var client = CharacterEngineBot.DiscordShardedClient;
         await client.ReportLogAsync($"[{traceId}] Hourly Metrics Report", metricsReport);

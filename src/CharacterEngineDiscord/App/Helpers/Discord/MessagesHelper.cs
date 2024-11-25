@@ -133,7 +133,7 @@ public static class MessagesHelper
     }
 
 
-    public static string GetMetricsReport(Metric[] metrics)
+    public static string BuildMetricsReport(Metric[] metrics, DateTime? sinceDt)
     {
         var guildsJoined = metrics.Where(m => m.MetricType == MetricType.JoinedGuild).ToArray();
         var guildsLeft = metrics.Where(m => m.MetricType == MetricType.LeftGuild).ToArray();
@@ -159,7 +159,19 @@ public static class MessagesHelper
 
         var interactedUsers = metrics.Where(m => m.MetricType == MetricType.NewInteraction).ToArray();
 
-        return $"Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
+        string timespanLine;
+        if (sinceDt is null)
+        {
+            timespanLine = "all time";
+        }
+        else
+        {
+            var ts = (DateTime.Now - sinceDt).Value;
+            timespanLine = $"{ts.Days}d {ts.Hours}h {ts.Minutes}min";
+        }
+
+        return $"Metrics for **{timespanLine}**\n" +
+               $"Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
                $"Left servers: **{guildsLeft.Length}** ({guildsLeft.UniqueCount()})\n" +
                $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
                $"Characters spawned: **{spawnedCharacters}**\n" +
