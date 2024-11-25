@@ -62,7 +62,7 @@ public class SlashCommandsHandler
 
         textChannel.EnsureCached();
         guildUser.EnsureCached();
-        MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+        MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
         InteractionsHelper.ValidateUser(guildUser, textChannel);
 

@@ -157,7 +157,7 @@ public static class MessagesHelper
         var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
         var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
-        var interactedUsers = metrics.Where(m => m.MetricType == MetricType.UserInteracted).ToArray();
+        var interactedUsers = metrics.Where(m => m.MetricType == MetricType.NewInteraction).ToArray();
 
         return $"Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
                $"Left servers: **{guildsLeft.Length}** ({guildsLeft.UniqueCount()})\n" +

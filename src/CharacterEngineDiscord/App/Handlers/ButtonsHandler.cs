@@ -68,7 +68,7 @@ public class ButtonsHandler
         var textChannel = (ITextChannel)component.Channel;
 
         guildUser.EnsureCached();
-        MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+        MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
         InteractionsHelper.ValidateUser(guildUser, textChannel);
 
@@ -145,6 +145,8 @@ public class ButtonsHandler
             }
             case "select":
             {
+                await InteractionsHelper.ValidateChannelPermissionsAsync(component.Channel);
+
                 var modifyOriginalResponseAsync1 = component.ModifyOriginalResponseAsync(msg =>
                 {
                     msg.Embed = MessagesTemplates.WAIT_MESSAGE;

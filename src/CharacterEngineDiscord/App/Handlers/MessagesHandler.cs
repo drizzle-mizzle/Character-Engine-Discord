@@ -35,6 +35,10 @@ public class MessagesHandler
             {
                 await HandleMessageAsync(socketMessage);
             }
+            catch (Discord.Net.HttpException)
+            {
+                // ignore
+            }
             catch (Exception e)
             {
                 if (e is UnauthorizedAccessException or UserFriendlyException)
@@ -125,10 +129,10 @@ public class MessagesHandler
                 callTasks.AddRange(callCharactersByHuntedUsersAsync);
             }
 
-            if (callTasks.Count != 0)
+            if (callTasks.Count != 0 && !(guildUser.IsBot || guildUser.IsWebhook))
             {
                 guildUser.EnsureCached();
-                MetricsWriter.Create(MetricType.UserInteracted, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+                MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
             }
 
             Task.WaitAll(callTasks.ToArray());
