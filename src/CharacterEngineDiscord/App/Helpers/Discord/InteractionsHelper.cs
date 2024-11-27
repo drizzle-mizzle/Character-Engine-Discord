@@ -628,8 +628,8 @@ public static class InteractionsHelper
         }
 
         await using var db = DatabaseHelper.GetDbContext();
-        var noWarn = await db.DiscordChannels.Where(c => c.Id == textChannel.Id).Select(c => c.NoWarn).FirstAsync();
-        if (noWarn)
+        var dbChannel = await db.DiscordChannels.FirstOrDefaultAsync(c => c.Id == textChannel.Id);
+        if (dbChannel?.NoWarn ?? false)
         {
             return;
         }
