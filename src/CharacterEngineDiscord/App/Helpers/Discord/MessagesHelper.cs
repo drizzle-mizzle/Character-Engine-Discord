@@ -177,13 +177,13 @@ public static class MessagesHelper
             timespanLine += $" {ts.Hours}h {ts.Minutes}min";
         }
 
-        return $"Metrics for **{timespanLine}**\n" +
-               $"Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
-               $"Left servers: **{guildsLeft.Length}** ({guildsLeft.UniqueCount()})\n" +
-               $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
-               $"Characters spawned: **{spawnedCharacters}**\n" +
-               $"Characters called: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** characters, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n" +
-               $"Users interacted: **{interactedUsers.Length}** ({interactedUsers.UniqueCount()})";
+        return $"## `Metrics for {timespanLine}:`\n" +
+               $"> Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
+               $"> Left servers: **{guildsLeft.Length}** ({guildsLeft.UniqueCount()})\n" +
+               $"> Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
+               $"> Characters spawned: **{spawnedCharacters}**\n" +
+               $"> Characters called: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** characters, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n" +
+               $"> Users interacted: **{interactedUsers.Length}** ({interactedUsers.UniqueCount()})";
     }
 
 

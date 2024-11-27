@@ -22,6 +22,8 @@ namespace CharacterEngine.App;
 public class CharacterEngineBot
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
+    private static readonly List<int> _initShards = [];
+
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactionService;
     private readonly ButtonsHandler _buttonsHandler;
@@ -149,7 +151,14 @@ public class CharacterEngineBot
 
         DiscordShardedClient.ShardReady += (discordSocketClient) =>
         {
+            if (_initShards.Contains(discordSocketClient.ShardId))
+            {
+                return Task.CompletedTask;
+            }
+
             var botInstance = new CharacterEngineBot(discordSocketClient);
+            _initShards.Add(discordSocketClient.ShardId);
+
             return botInstance.Run();
         };
 
