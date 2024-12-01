@@ -91,7 +91,7 @@ public static class WatchDog
 
         await db.SaveChangesAsync();
 
-        var user = CharacterEngineBot.DiscordShardedClient.GetUser(userId);
+        var user = CharacterEngineBot.DiscordClient.GetUser(userId);
         var message = "**User blocked**\n" + (user is null
                     ? $"User: **{userId}**"
                     : $"User: **{user.Username}** ({userId}) {(user.IsBot ? "(bot)" : user.IsWebhook ? "(webhook)" : "")}")
@@ -104,7 +104,7 @@ public static class WatchDog
             content = string.Join("\n", last20Messages.Select(FormattedMessages));
         }
 
-        await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(message, content);
+        await CharacterEngineBot.DiscordClient.ReportLogAsync(message, content);
     }
 
 
@@ -217,6 +217,6 @@ public static class WatchDog
     {
         public int InteractionsCount { get; set; } = InteractionsCount;
         public DateTime LastInteractionWindowStartedAt { get; set; } = LastInteractionWindowStartedAt;
-        public bool WasBlockedBefore { get; init; } = WasBlockedBefore;
+        public bool WasBlockedBefore { get; } = WasBlockedBefore;
     }
 }

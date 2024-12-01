@@ -109,7 +109,7 @@ public static class InteractionsHelper
                 {
                     try
                     {
-                        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel((ulong)interaction.ChannelId!);
+                        var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel((ulong)interaction.ChannelId!);
                         await channel.SendMessageAsync(embed: embed);
                     }
                     catch
@@ -195,7 +195,7 @@ public static class InteractionsHelper
 
     public static async Task<ISpawnedCharacter> SpawnCharacterAsync(ulong channelId, CommonCharacter commonCharacter)
     {
-        if (CharacterEngineBot.DiscordShardedClient.GetChannel(channelId) is not ITextChannel channel)
+        if (CharacterEngineBot.DiscordClient.GetChannel(channelId) is not ITextChannel channel)
         {
             throw new Exception($"Failed to get channel {channelId}");
         }
@@ -305,7 +305,7 @@ public static class InteractionsHelper
 
             var messageId = await webhookClient.SendMessageAsync(chunks[0]);
 
-            var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(spawnedCharacter.DiscordChannelId);
+            var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(spawnedCharacter.DiscordChannelId);
             var message = await channel.GetMessageAsync(messageId);
             var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
 

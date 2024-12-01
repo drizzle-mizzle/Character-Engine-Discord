@@ -19,21 +19,16 @@ using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 namespace CharacterEngine.App;
 
 
-public class CharacterEngineBot
+public sealed class CharacterEngineBot
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
-
-    /// <summary>
-    /// ShardId : Bot
-    /// </summary>
-    private static readonly Dictionary<int, CharacterEngineBot> _botInstatnces = [];
+    private static readonly Dictionary<int, CharacterEngineBot> _instatnces = []; // int = ShardId
 
     private readonly DiscordSocketClient _discordClient;
     private readonly ServiceProvider _serviceProvider;
     private readonly InteractionService _interactionService;
 
-
-    public static DiscordShardedClient DiscordShardedClient { get; private set; } = null!;
+    public static DiscordShardedClient DiscordClient { get; private set; } = null!;
 
 
     private CharacterEngineBot(DiscordSocketClient discordSocketClient)
@@ -45,19 +40,6 @@ public class CharacterEngineBot
         _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).Wait();
 
         Congifure();
-
-        Task.Run(async () =>
-        {
-            var adminGuild = _discordClient.Guilds.FirstOrDefault(g => g.Id == BotConfig.ADMIN_GUILD_ID);
-            if (adminGuild is not null)
-            {
-                await RegisterCommandsToAdminGuildAsync(adminGuild, _interactionService);
-                await _discordClient.ReportLogAsync($"[ {DiscordShardedClient.CurrentUser.Username} - Online ]", logToConsole: true);
-                BackgroundWorker.Run();
-            }
-
-            await RegisterCommandsToAllGuildsAsync();
-        });
     }
 
 
@@ -70,6 +52,21 @@ public class CharacterEngineBot
         _discordClient.MessageReceived += _serviceProvider.GetRequiredService<MessagesHandler>().HandleMessage;
         _discordClient.ModalSubmitted += _serviceProvider.GetRequiredService<ModalsHandler>().HandleModal;
         _discordClient.SlashCommandExecuted += _serviceProvider.GetRequiredService<SlashCommandsHandler>().HandleSlashCommand;
+
+        Task.Run(async () =>
+        {
+            // Process admin guild
+            var adminGuild = _discordClient.Guilds.FirstOrDefault(g => g.Id == BotConfig.ADMIN_GUILD_ID);
+            if (adminGuild is not null)
+            {
+                await RegisterCommandsToAdminGuildAsync(adminGuild, _interactionService);
+                await _discordClient.ReportLogAsync($"[ {DiscordClient.CurrentUser.Username} - Online ]", logToConsole: true);
+                BackgroundWorker.Run();
+            }
+
+            // Process all other guilds in the shard
+            await RegisterCommandsToAllGuildsAsync();
+        });
     }
 
 
@@ -106,33 +103,15 @@ public class CharacterEngineBot
     }
 
 
-    private async Task<string> GetGuildOwnerNameAsync(IGuild guild)
-        => await _discordClient.GetUserAsync(guild.OwnerId) is IUser gowner
-                ? $"**{gowner.GlobalName ?? gowner.Username}** ({guild.OwnerId})"
-                : guild.OwnerId.ToString();
+    private async Task<string> GetGuildOwnerNameAsync(IGuild g)
+        => await _discordClient.GetUserAsync(g.OwnerId) is IUser o ? $"**{o.Username}** ({g.OwnerId})" : g.OwnerId.ToString();
 
-
-    #region Static
 
     public static async Task RunAsync()
     {
-        var cacheTask = Task.Run(async () =>
-        {
-            var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
-            await MemoryStorage.CachedCharacters.AddRangeAsync(allCharacters);
-            _log.Info($"Cached {allCharacters.Count} characters");
+        var cacheTask = CacheUsersAndCharacters();
 
-            await using var db = DatabaseHelper.GetDbContext();
-            var allCachedUserIds = await db.DiscordUsers.Select(u => u.Id).ToArrayAsync();
-            Parallel.ForEach(allCachedUserIds, (userId, _) =>
-            {
-                MemoryStorage.CachedUsers.TryAdd(userId, null);
-            });
-
-            _log.Info($"Cached {allCachedUserIds.Length} users");
-        });
-
-        DiscordShardedClient = new DiscordShardedClient(new DiscordSocketConfig
+        DiscordClient = new DiscordShardedClient(new DiscordSocketConfig
         {
             MessageCacheSize = 10,
             GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent,
@@ -142,35 +121,62 @@ public class CharacterEngineBot
             MaxWaitBetweenGuildAvailablesBeforeReady = (int)TimeSpan.FromMinutes(5).TotalMilliseconds,
         });
 
-        DiscordShardedClient.ShardReady += (discordSocketClient) =>
+        DiscordClient.Log += OnShardLog;
+        AppDomain.CurrentDomain.UnhandledException += HandleExceptionAsync;
+        TaskScheduler.UnobservedTaskException += HandleUnobservedTaskException;
+
+        DiscordClient.ShardReady += (discordSocketClient) =>
         {
-            if (!_botInstatnces.ContainsKey(discordSocketClient.ShardId))
+            if (!_instatnces.ContainsKey(discordSocketClient.ShardId))
             {
-                _botInstatnces.Add(discordSocketClient.ShardId, new CharacterEngineBot(discordSocketClient));
+                _instatnces.Add(discordSocketClient.ShardId, new CharacterEngineBot(discordSocketClient));
             }
 
             return Task.CompletedTask;
         };
 
-        DiscordShardedClient.Log += OnShardLog;
-
-        AppDomain.CurrentDomain.UnhandledException += HandleExceptionAsync;
-        TaskScheduler.UnobservedTaskException += HandleUnobservedTaskException;
-
-        await DiscordShardedClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN);
+        await DiscordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN);
 
         await cacheTask; // Don't start until caching complete
 
-        await DiscordShardedClient.StartAsync();
+        await DiscordClient.StartAsync();
 
         if (BotConfig.PLAYING_STATUS.Length != 0)
         {
-            await DiscordShardedClient.SetGameAsync(BotConfig.PLAYING_STATUS);
+            await DiscordClient.SetGameAsync(BotConfig.PLAYING_STATUS);
             _log.Info($"[ Playing status - {BotConfig.PLAYING_STATUS} ]");
         }
 
         // Prevent application from closing
         await Task.Delay(-1);
+    }
+
+
+    private static Task CacheUsersAndCharacters()
+    {
+        var users = Task.Run(async () =>
+        {
+            await using var db = DatabaseHelper.GetDbContext();
+            var allCachedUserIds = await db.DiscordUsers.Select(u => u.Id).ToArrayAsync();
+
+            Parallel.ForEach(allCachedUserIds, (userId, _) =>
+            {
+                MemoryStorage.CachedUsers.TryAdd(userId, null);
+            });
+
+            _log.Info($"Cached {allCachedUserIds.Length} users");
+        });
+
+        var characters = Task.Run(async () =>
+        {
+            var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
+
+            await MemoryStorage.CachedCharacters.AddRangeAsync(allCharacters);
+            _log.Info($"Cached {allCharacters.Count} characters");
+        });
+
+        Task.WaitAll(users, characters);
+        return Task.CompletedTask;
     }
 
 
@@ -234,14 +240,15 @@ public class CharacterEngineBot
             return;
         }
 
-        if (!commandNames.Contains($"{SpecialCommands.disable:G}"))
+        if (commandNames.Contains($"{SpecialCommands.disable:G}"))
+        {
+            await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
+            await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildDisableCommand());
+        }
+        else
         {
             await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildStartCommand());
-            return;
         }
-
-        await _interactionService.RegisterCommandsToGuildAsync(guild.Id);
-        await guild.CreateApplicationCommandAsync(ExplicitCommandBuilders.BuildDisableCommand());
     }
 
 
@@ -279,7 +286,7 @@ public class CharacterEngineBot
 
 
     private static void HandleExceptionAsync(object sender, UnhandledExceptionEventArgs e)
-        => Task.Run(async () => await DiscordShardedClient.ReportErrorAsync("UnhandledException", null, $"Sender: {sender}\n{e.ExceptionObject}", "?", false));
+        => Task.Run(async () => await DiscordClient.ReportErrorAsync("UnhandledException", null, $"Sender: {sender}\n{e.ExceptionObject}", "?", false));
 
 
     // ReSharper disable once AsyncVoidMethod
@@ -290,9 +297,6 @@ public class CharacterEngineBot
             return;
         }
 
-        await DiscordShardedClient.ReportErrorAsync("UnobservedTaskException", null, $"Sender: {sender}\n{e.Exception}", "?", false);
+        await DiscordClient.ReportErrorAsync("UnobservedTaskException", null, $"Sender: {sender}\n{e.Exception}", "?", false);
     }
-
-    #endregion
-
 }

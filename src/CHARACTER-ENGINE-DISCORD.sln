@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord", "CharacterEngineDiscord\CharacterEngineDiscord.csproj", "{32B4C9D2-8D9A-4223-BF10-FBE73694C21C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Models", "CharacterEngineDiscord.Models\CharacterEngineDiscord.Models.csproj", "{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Domain", "CharacterEngineDiscord.Domain\CharacterEngineDiscord.Domain.csproj", "{8A758307-9D8A-4264-B7B5-F9FA3848CBA9}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libs", "Libs", "{B0D15590-D06A-4AFF-937F-D955F46A7322}"
 EndProject
@@ -10,7 +10,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterAi.Client", "..\su
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SakuraAi.Client", "..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj", "{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.IntegrationModules", "CharacterEngineDiscord.IntegrationModules\CharacterEngineDiscord.IntegrationModules.csproj", "{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Integrations", "CharacterEngineDiscord.Integrations\CharacterEngineDiscord.Integrations.csproj", "{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -208,7 +208,7 @@ public class MessagesHandler
                 {
                     if (downloadedMessage is null
                      || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
-                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
+                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordClient.CurrentUser.Id
                      || downloadedMessage.Author.Id == spawnedCharacter.WebhookId
                      || downloadedMessage.Content.Trim('\n', ' ').Length == 0)
                     {
