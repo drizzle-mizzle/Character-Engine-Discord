@@ -558,13 +558,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, channelId);
         if (cachedCharacter is null)
         {
-            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
         var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
         {
-            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
         return (spawnedCharacter, cachedCharacter);

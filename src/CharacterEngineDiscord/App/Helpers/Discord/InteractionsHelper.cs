@@ -78,7 +78,7 @@ public static class InteractionsHelper
                 message = $"{MT.X_SIGN_DISCORD} {message}";
             }
 
-            embed = new EmbedBuilder().WithColor(Color.Magenta).WithDescription(message).Build();
+            embed = new EmbedBuilder().WithColor(Color.LightOrange).WithDescription(message).Build();
         }
         else
         {
