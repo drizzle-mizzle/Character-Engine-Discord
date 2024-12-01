@@ -46,10 +46,16 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException("search-query or character-id is required");
         }
 
+
         await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
         var originalResponse = await GetOriginalResponseAsync();
 
         var channel = (ITextChannel)Context.Channel;
+        var webhooks = await channel.GetWebhooksAsync();
+        if (webhooks.Count == 15)
+        {
+            throw new UserFriendlyException("This channel already has 15 webhooks, which is the Discord limit. To create a new character, you will need to remove an existing one from this channel; this can be done with `/character remove` command.");
+        }
 
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
@@ -62,20 +68,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         {
             if (showNsfw && !channel.IsNsfw)
             {
-                await ModifyOriginalResponseAsync(msg => { msg.Embed = NSFW_REQUIRED.ToInlineEmbed(Color.Purple); });
-
-                return;
+                throw new UserFriendlyException(NSFW_REQUIRED);
             }
 
             var characters = await module.SearchAsync(searchQuery!, showNsfw, guildIntegration);
-
             if (characters.Count == 0)
             {
-                var message = $"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**";
-                await ModifyOriginalResponseAsync(msg => { msg.Embed = message.ToInlineEmbed(Color.Orange, false); });
-                return;
+                throw new UserFriendlyException($"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**", bold: false);
             }
-
 
             var newSq = new SearchQuery(originalResponse.Id, Context.User.Id, searchQuery!, characters, integrationType);
             MemoryStorage.SearchQueries.Add(newSq);

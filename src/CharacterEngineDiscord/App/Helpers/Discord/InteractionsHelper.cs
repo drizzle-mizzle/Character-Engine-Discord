@@ -33,12 +33,6 @@ public static class InteractionsHelper
 
     public static (bool valid, string? message) IsUserFriendlyException(this Exception exception)
     {
-        var webhookExceptionCheck = exception.CheckForWebhookException();
-        if (webhookExceptionCheck.valid)
-        {
-            return webhookExceptionCheck;
-        }
-
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
         {
@@ -48,11 +42,11 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException or FormatException;
+            => e is UserFriendlyException or SakuraException or CharacterAiException;
     }
 
 
-    public static (bool valid, string? message) CheckForWebhookException(this Exception exception)
+    public static (bool valid, string? message) IsWebhookException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -60,7 +54,7 @@ public static class InteractionsHelper
             return (true, ie.Message);
         }
 
-        return Check(exception) ? (false, exception.Message) : (false, null);
+        return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
             => (e is HttpException or InvalidOperationException)
@@ -70,25 +64,30 @@ public static class InteractionsHelper
 
     public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
-        var isBold = (e as UserFriendlyException)?.Bold ?? true;
-
         var userFriendlyExceptionCheck = e.IsUserFriendlyException();
-        var message = userFriendlyExceptionCheck.valid ? userFriendlyExceptionCheck.message! : $"{MT.X_SIGN_DISCORD} Something went wrong!";
 
-        if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
+        Embed embed;
+
+        if (userFriendlyExceptionCheck.valid)
         {
-            message = $"{MT.X_SIGN_DISCORD} {message}";
-        }
+            var bold = (e as UserFriendlyException)?.Bold ?? (e.InnerException as UserFriendlyException)?.Bold ?? true;
 
-        if (isBold)
+            var message = bold ? $"**{userFriendlyExceptionCheck.message}**" : userFriendlyExceptionCheck.message!;
+            if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
+            {
+                message = $"{MT.X_SIGN_DISCORD} {message}";
+            }
+
+            embed = new EmbedBuilder().WithColor(Color.Magenta).WithDescription(message).Build();
+        }
+        else
         {
-            message = $"**{message}**";
-        }
-
-        var embed = new EmbedBuilder().WithColor(Color.Red)
-                                      .WithDescription(message)
+            embed = new EmbedBuilder().WithColor(Color.Red)
+                                      .WithDescription($"{MT.X_SIGN_DISCORD} Something went wrong!")
                                       .WithFooter($"ERROR TRACE ID: {traceId}")
                                       .Build();
+        }
+
         try
         {
             await interaction.RespondAsync(embed: embed);
@@ -320,7 +319,7 @@ public static class InteractionsHelper
         }
         catch (Exception e)
         {
-            var webhookExceptionCheck = e.CheckForWebhookException();
+            var webhookExceptionCheck = e.IsWebhookException();
             if (webhookExceptionCheck.valid)
             {
                 MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
