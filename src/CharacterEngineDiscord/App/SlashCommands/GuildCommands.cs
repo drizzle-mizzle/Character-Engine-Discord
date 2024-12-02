@@ -5,6 +5,7 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -12,7 +13,6 @@ namespace CharacterEngine.App.SlashCommands;
 
 
 [Group("server", "Server-wide settings configuration")]
-[ValidateAccessLevel(AccessLevels.Manager)]
 [ValidateChannelPermissions]
 public class GuildCommands : InteractionModuleBase<InteractionContext>
 {
@@ -28,6 +28,11 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null)
     {
+        if (action is not MessagesFormatAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync();
 
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.guild, action, Context.Guild.Id, newFormat);
@@ -36,6 +41,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("no-warn", "Disable/enable permissions warning")]
     public async Task NoWarn(bool toggle)
     {

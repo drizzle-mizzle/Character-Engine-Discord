@@ -151,7 +151,7 @@ public static class IntegrationsHelper
         }
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
-        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(sourceInfo.ChannelId);
+        var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(sourceInfo.ChannelId);
 
         var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (integration is not null)

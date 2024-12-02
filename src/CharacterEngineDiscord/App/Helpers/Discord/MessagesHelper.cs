@@ -133,7 +133,7 @@ public static class MessagesHelper
     }
 
 
-    public static string GetMetricsReport(Metric[] metrics)
+    public static string BuildMetricsReport(Metric[] metrics, DateTime? sinceDt)
     {
         var guildsJoined = metrics.Where(m => m.MetricType == MetricType.JoinedGuild).ToArray();
         var guildsLeft = metrics.Where(m => m.MetricType == MetricType.LeftGuild).ToArray();
@@ -157,12 +157,39 @@ public static class MessagesHelper
         var uniqueChannels = calledCharactersMetrics.Select(m => m.ChannelId).Distinct().Count();
         var uniqueGuilds = calledCharactersMetrics.Select(m => m.GuildId).Distinct().Count();
 
-        return $"Joined servers: **{guildsJoined.Length} ({guildsJoined.DistinctBy(g => g.EntityId).Count()})**\n" +
-               $"Left servers: **{guildsLeft.Length} ({guildsLeft.DistinctBy(g => g.EntityId).Count()})**\n" +
-               $"Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
-               $"Characters spawned: **{spawnedCharacters}**\n" +
-               $"Characters calls: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** character, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n";
+        var interactedUsers = metrics.Where(m => m.MetricType == MetricType.NewInteraction).ToArray();
+
+        string timespanLine;
+        if (sinceDt is null)
+        {
+            timespanLine = "all time";
+        }
+        else
+        {
+            var ts = (DateTime.Now - sinceDt).Value;
+            timespanLine = "past";
+
+            if (ts.Days > 0)
+            {
+                timespanLine += $" {ts.Days}d";
+            }
+
+            timespanLine += $" {ts.Hours}h {ts.Minutes}min";
+        }
+
+        return $"## `Metrics for {timespanLine}:`\n" +
+               $"> Joined servers: **{guildsJoined.Length}** ({guildsJoined.UniqueCount()})\n" +
+               $"> Left servers: **{guildsLeft.Length}** ({guildsLeft.UniqueCount()})\n" +
+               $"> Integrations created: **{newIntegrations.Length}** ({integrationsLine})\n" +
+               $"> Characters spawned: **{spawnedCharacters}**\n" +
+               $"> Characters called: **{calledCharactersMetrics.Length}** | Distinct: **{uniqueCharacters}** characters, in **{uniqueChannels}** channels, on **{uniqueGuilds}** servers\n" +
+               $"> Users interacted: **{interactedUsers.Length}** ({interactedUsers.UniqueCount()})";
     }
+
+
+    private static int UniqueCount(this Metric[] metrics)
+        => metrics.DistinctBy(m => m.EntityId).Count();
+
 
     #endregion
 

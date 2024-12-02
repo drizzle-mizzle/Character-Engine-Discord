@@ -48,6 +48,8 @@ public class BotAdminCommandsHandler
         var rangeType = (int)(long)command.Data.Options.First(o => o.Name == "range-type").Value;
 
         Metric[] metrics;
+        DateTime? sinceDt = null;
+
         await using var db = DatabaseHelper.GetDbContext();
 
         if (rangeType == 0) // all-time
@@ -57,7 +59,7 @@ public class BotAdminCommandsHandler
         else
         {
             var range = (int)(long)command.Data.Options.First(o => o.Name == "range").Value;
-            var dt = DateTime.Now - rangeType switch
+            sinceDt = DateTime.Now - rangeType switch
             {
                 1 => new TimeSpan(0, minutes: range, 0), // minutes
                 2 => new TimeSpan(hours: range, 0, 0), // hours
@@ -65,10 +67,10 @@ public class BotAdminCommandsHandler
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            metrics = await db.Metrics.Where(m => m.CreatedAt >= dt).ToArrayAsync();
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
         }
 
-        var metricsReport = MessagesHelper.GetMetricsReport(metrics);
+        var metricsReport = MessagesHelper.BuildMetricsReport(metrics, sinceDt);
 
         await command.FollowupAsync(embed: metricsReport.ToInlineEmbed(Color.LighterGrey, false));
     }

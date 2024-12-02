@@ -4,7 +4,6 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngine.App.Static;
@@ -46,11 +45,16 @@ public static class WatchDog
     }
 
 
-    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ISocketMessageChannel channel)
+    public static (WatchDogValidationResult Result, DateTime? BlockedUntil) ValidateUser(IGuildUser user, ITextChannel? channel, bool justCheck = false)
     {
         if (_blockedUsers.ContainsKey(user.Id) || _blockedGuildUsers.ContainsKey((user.Id, user.GuildId)))
         {
             return (WatchDogValidationResult.Blocked, null);
+        }
+
+        if (justCheck)
+        {
+            return (WatchDogValidationResult.Passed, null);
         }
 
         var watchedUser = _watchedUsers.GetOrAdd(user.Id, _ => new CachedWatchedUser(0, DateTime.Now, false));
@@ -65,7 +69,7 @@ public static class WatchDog
     }
 
 
-    public static async Task BlockUserGloballyAsync(ulong userId, ISocketMessageChannel? channel, DateTime blockedUntil)
+    public static async Task BlockUserGloballyAsync(ulong userId, ITextChannel? channel, DateTime blockedUntil)
     {
         if (_blockedUsers.TryAdd(userId, blockedUntil) == false)
         {
@@ -86,7 +90,7 @@ public static class WatchDog
 
         await db.SaveChangesAsync();
 
-        var user = CharacterEngineBot.DiscordShardedClient.GetUser(userId);
+        var user = CharacterEngineBot.DiscordClient.GetUser(userId);
         var message = "**User blocked**\n" + (user is null
                     ? $"User: **{userId}**"
                     : $"User: **{user.Username}** ({userId}) {(user.IsBot ? "(bot)" : user.IsWebhook ? "(webhook)" : "")}")
@@ -99,7 +103,7 @@ public static class WatchDog
             content = string.Join("\n", last20Messages.Select(FormattedMessages));
         }
 
-        await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(message, content);
+        await CharacterEngineBot.DiscordClient.ReportLogAsync(message, content);
     }
 
 
@@ -212,6 +216,6 @@ public static class WatchDog
     {
         public int InteractionsCount { get; set; } = InteractionsCount;
         public DateTime LastInteractionWindowStartedAt { get; set; } = LastInteractionWindowStartedAt;
-        public bool WasBlockedBefore { get; init; } = WasBlockedBefore;
+        public bool WasBlockedBefore { get; } = WasBlockedBefore;
     }
 }

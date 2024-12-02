@@ -58,15 +58,14 @@ public static class BotConfig
     public static void Initialize()
     {
         var files = Directory.GetFiles(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings"));
-        CONFIG_PATH = files.GetFileThatStartsWith("env.config") ??
-                      files.GetFileThatStartsWith("config")!;
+        CONFIG_PATH = GetFileThatStartsWith("env.config") ?? GetFileThatStartsWith("config")!;
 
         LogManager.GetCurrentClassLogger().Info($"[ Config path: {CONFIG_PATH} ]");
+        return;
+
+        string? GetFileThatStartsWith(string pattern)
+            => files.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
     }
-
-
-    private static string? GetFileThatStartsWith(this string[] paths, string pattern)
-        => paths.FirstOrDefault(file => file.Split(Path.DirectorySeparatorChar).Last().StartsWith(pattern));
 
 
     private static T GetParamByName<T>(string paramName) where T : notnull

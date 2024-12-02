@@ -33,12 +33,6 @@ public static class InteractionsHelper
 
     public static (bool valid, string? message) IsUserFriendlyException(this Exception exception)
     {
-        var webhookExceptionCheck = exception.CheckForWebhookException();
-        if (webhookExceptionCheck.valid)
-        {
-            return webhookExceptionCheck;
-        }
-
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
         {
@@ -48,11 +42,11 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException or FormatException;
+            => e is UserFriendlyException or SakuraException or CharacterAiException;
     }
 
 
-    public static (bool valid, string? message) CheckForWebhookException(this Exception exception)
+    public static (bool valid, string? message) IsWebhookException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -60,7 +54,7 @@ public static class InteractionsHelper
             return (true, ie.Message);
         }
 
-        return Check(exception) ? (false, exception.Message) : (false, null);
+        return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
             => (e is HttpException or InvalidOperationException)
@@ -70,25 +64,30 @@ public static class InteractionsHelper
 
     public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
-        var isBold = (e as UserFriendlyException)?.Bold ?? true;
-
         var userFriendlyExceptionCheck = e.IsUserFriendlyException();
-        var message = userFriendlyExceptionCheck.valid ? userFriendlyExceptionCheck.message! : $"{MT.X_SIGN_DISCORD} Something went wrong!";
 
-        if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
+        Embed embed;
+
+        if (userFriendlyExceptionCheck.valid)
         {
-            message = $"{MT.X_SIGN_DISCORD} {message}";
-        }
+            var bold = (e as UserFriendlyException)?.Bold ?? (e.InnerException as UserFriendlyException)?.Bold ?? true;
 
-        if (isBold)
+            var message = bold ? $"**{userFriendlyExceptionCheck.message}**" : userFriendlyExceptionCheck.message!;
+            if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
+            {
+                message = $"{MT.X_SIGN_DISCORD} {message}";
+            }
+
+            embed = new EmbedBuilder().WithColor(Color.LightOrange).WithDescription(message).Build();
+        }
+        else
         {
-            message = $"**{message}**";
-        }
-
-        var embed = new EmbedBuilder().WithColor(Color.Red)
-                                      .WithDescription(message)
+            embed = new EmbedBuilder().WithColor(Color.Red)
+                                      .WithDescription($"{MT.X_SIGN_DISCORD} Something went wrong!")
                                       .WithFooter($"ERROR TRACE ID: {traceId}")
                                       .Build();
+        }
+
         try
         {
             await interaction.RespondAsync(embed: embed);
@@ -109,7 +108,7 @@ public static class InteractionsHelper
                 {
                     try
                     {
-                        var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel((ulong)interaction.ChannelId!);
+                        var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel((ulong)interaction.ChannelId!);
                         await channel.SendMessageAsync(embed: embed);
                     }
                     catch
@@ -195,7 +194,7 @@ public static class InteractionsHelper
 
     public static async Task<ISpawnedCharacter> SpawnCharacterAsync(ulong channelId, CommonCharacter commonCharacter)
     {
-        if (CharacterEngineBot.DiscordShardedClient.GetChannel(channelId) is not ITextChannel channel)
+        if (CharacterEngineBot.DiscordClient.GetChannel(channelId) is not ITextChannel channel)
         {
             throw new Exception($"Failed to get channel {channelId}");
         }
@@ -231,7 +230,7 @@ public static class InteractionsHelper
 
         if (avatar is null)
         {
-            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
             await avatarOutput.WriteAsync(defaultAvatar);
         }
         else
@@ -263,7 +262,7 @@ public static class InteractionsHelper
 
         if (avatarOutput.Length >= 10240000)
         {
-            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine("./Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
+            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
 
             avatarOutput.SetLength(0);
             await avatarOutput.WriteAsync(defaultAvatar);
@@ -305,7 +304,7 @@ public static class InteractionsHelper
 
             var messageId = await webhookClient.SendMessageAsync(chunks[0]);
 
-            var channel = (ITextChannel)CharacterEngineBot.DiscordShardedClient.GetChannel(spawnedCharacter.DiscordChannelId);
+            var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(spawnedCharacter.DiscordChannelId);
             var message = await channel.GetMessageAsync(messageId);
             var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
 
@@ -320,7 +319,7 @@ public static class InteractionsHelper
         }
         catch (Exception e)
         {
-            var webhookExceptionCheck = e.CheckForWebhookException();
+            var webhookExceptionCheck = e.IsWebhookException();
             if (webhookExceptionCheck.valid)
             {
                 MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
@@ -517,12 +516,22 @@ public static class InteractionsHelper
 
     #region Validations
 
-    public static void ValidateUser(IGuildUser user, ISocketMessageChannel channel)
+    public static void ValidateUser(IGuildUser user, ITextChannel channel)
     {
         var validation = WatchDog.ValidateUser(user, channel);
 
         switch (validation.Result)
         {
+            case WatchDogValidationResult.Passed:
+            {
+                return;
+            }
+            case WatchDogValidationResult.Warning:
+            {
+                const string message = $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down or you may result being temporarily blocked";
+                _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Orange));
+                break;
+            }
             case WatchDogValidationResult.Blocked:
             {
                 if (validation.BlockedUntil.HasValue)
@@ -533,12 +542,6 @@ public static class InteractionsHelper
                 }
 
                 throw new UnauthorizedAccessException();
-            }
-            case WatchDogValidationResult.Warning:
-            {
-                const string message = $"{MT.WARN_SIGN_DISCORD} You are interacting with the bot too frequently, please slow down or you may result being temporarily blocked";
-                _ = channel.SendMessageAsync(user.Mention, embed: message.ToInlineEmbed(Color.Orange));
-                break;
             }
         }
     }
@@ -624,8 +627,8 @@ public static class InteractionsHelper
         }
 
         await using var db = DatabaseHelper.GetDbContext();
-        var noWarn = await db.DiscordChannels.Where(c => c.Id == textChannel.Id).Select(c => c.NoWarn).FirstAsync();
-        if (noWarn)
+        var dbChannel = await db.DiscordChannels.FirstOrDefaultAsync(c => c.Id == textChannel.Id);
+        if (dbChannel?.NoWarn ?? false)
         {
             return;
         }

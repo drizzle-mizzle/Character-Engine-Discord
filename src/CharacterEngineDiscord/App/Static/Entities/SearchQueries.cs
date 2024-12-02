@@ -12,20 +12,17 @@ public sealed class SearchQueryCollection
 
     public void Add(SearchQuery searchQuery)
     {
-        Remove(searchQuery.ChannelId);
-        _searchQueries.TryAdd(searchQuery.ChannelId, searchQuery);
+        Remove(searchQuery.MessageId);
+        _searchQueries.TryAdd(searchQuery.MessageId, searchQuery);
     }
 
-    public void Remove(ulong channelId)
+    public void Remove(ulong messageId)
     {
-        if (_searchQueries.ContainsKey(channelId))
-        {
-            _searchQueries.TryRemove(channelId, out _);
-        }
+        _searchQueries.TryRemove(messageId, out _);
     }
 
-    public SearchQuery? GetByChannelId(ulong channelId)
-        => _searchQueries.GetValueOrDefault(channelId);
+    public SearchQuery? Find(ulong messageId)
+        => _searchQueries.GetValueOrDefault(messageId);
 }
 
 
@@ -33,7 +30,7 @@ public record SearchQuery
 {
     public IntegrationType IntegrationType { get; }
 
-    public ulong ChannelId { get; }
+    public ulong MessageId { get; }
     public ulong UserId { get; }
     public string OriginalQuery { get; }
 
@@ -44,13 +41,14 @@ public record SearchQuery
     public DateTime CreatedAt { get; } = DateTime.Now;
 
     public ICollection<CommonCharacter> Characters { get; }
+
     public CommonCharacter SelectedCharacter
         => Characters.ElementAt(CurrentRow + ((CurrentPage - 1) * 10) - 1);
 
 
-    public SearchQuery(ulong channelId, ulong userId, string query, ICollection<CommonCharacter> characters, IntegrationType type)
+    public SearchQuery(ulong messageId, ulong userId, string query, ICollection<CommonCharacter> characters, IntegrationType type)
     {
-        ChannelId = channelId;
+        MessageId = messageId;
         UserId = userId;
         OriginalQuery = query;
         Characters = characters;

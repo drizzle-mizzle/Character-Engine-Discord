@@ -312,88 +312,122 @@ public static class DatabaseHelper
 
     #region Guilds and channels
 
-    public static async Task EnsureExistInDbAsync(this IGuildChannel channel)
+    public static void EnsureCached(this IGuildChannel channel)
     {
         if (!MemoryStorage.CachedChannels.TryAdd(channel.Id, null))
         {
             return;
         }
 
-        channel.Guild?.EnsureExistInDbAsync().Wait();
-
-        await using var db = GetDbContext();
-        var discordChannel = await db.DiscordChannels.FirstOrDefaultAsync(c => c.Id == channel.Id);
-
-        if (discordChannel is null)
+        Task.Run(async () =>
         {
-            var newChannel = new DiscordChannel
+            channel.Guild?.EnsureCached();
+
+            await using var db = GetDbContext();
+            var discordChannel = await db.DiscordChannels.FirstOrDefaultAsync(c => c.Id == channel.Id);
+
+            if (discordChannel is null)
             {
-                Id = channel.Id,
-                ChannelName = channel.Name,
-                DiscordGuildId = channel.GuildId,
-                NoWarn = false
-            };
+                var newChannel = new DiscordChannel
+                {
+                    Id = channel.Id,
+                    ChannelName = channel.Name,
+                    DiscordGuildId = channel.GuildId,
+                    NoWarn = false
+                };
 
-            await db.DiscordChannels.AddAsync(newChannel);
-            await db.SaveChangesAsync();
-        }
-        else if (discordChannel.ChannelName != channel.Name)
-        {
-            discordChannel.ChannelName = channel.Name;
-            await db.SaveChangesAsync();
-        }
+                await db.DiscordChannels.AddAsync(newChannel);
+                await db.SaveChangesAsync();
+            }
+            else if (discordChannel.ChannelName != channel.Name)
+            {
+                discordChannel.ChannelName = channel.Name;
+                await db.SaveChangesAsync();
+            }
+        });
     }
 
 
-    public static async Task EnsureExistInDbAsync(this IGuild guild)
+    public static void EnsureCached(this IGuild guild)
     {
-        await using var db = GetDbContext();
-        var discordGuild = await db.DiscordGuilds.FirstOrDefaultAsync(g => g.Id == guild.Id);
-
-        string? ownerUsername = null;
-        int? memberCount = null;
-        if (guild is SocketGuild socketGuild)
+        if (!MemoryStorage.CachedGuilds.TryAdd(guild.Id, null))
         {
-            ownerUsername = socketGuild.Owner?.Username;
-            memberCount = socketGuild.MemberCount;
+            return;
         }
 
-        ownerUsername ??= (await guild.GetOwnerAsync())?.Username;
-        memberCount ??= guild.ApproximateMemberCount;
-
-        if (discordGuild is null)
+        Task.Run(async () =>
         {
-            var newGuild = new DiscordGuild
+            await using var db = GetDbContext();
+            var discordGuild = await db.DiscordGuilds.FirstOrDefaultAsync(g => g.Id == guild.Id);
+
+            string? ownerUsername = null;
+            int? memberCount = null;
+            if (guild is SocketGuild socketGuild)
             {
-                Id = guild.Id,
-                GuildName = guild.Name,
-                MessagesSent = 0,
-                NoWarn = false,
-                OwnerId = guild.OwnerId,
-                OwnerUsername = ownerUsername,
-                MemberCount = memberCount ?? 0,
-                Joined = true,
-                FirstJoinDate = DateTime.Now
-            };
+                ownerUsername = socketGuild.Owner?.Username;
+                memberCount = socketGuild.MemberCount;
+            }
 
-            await db.DiscordGuilds.AddAsync(newGuild);
-        }
-        else
+            ownerUsername ??= (await guild.GetOwnerAsync())?.Username;
+            memberCount ??= guild.ApproximateMemberCount;
+
+            if (discordGuild is null)
+            {
+                var newGuild = new DiscordGuild
+                {
+                    Id = guild.Id,
+                    GuildName = guild.Name,
+                    MessagesSent = 0,
+                    NoWarn = false,
+                    OwnerId = guild.OwnerId,
+                    OwnerUsername = ownerUsername,
+                    MemberCount = memberCount ?? 0,
+                    Joined = true,
+                    FirstJoinDate = DateTime.Now
+                };
+
+                await db.DiscordGuilds.AddAsync(newGuild);
+            }
+            else
+            {
+                discordGuild.Joined = true;
+                discordGuild.GuildName = guild.Name ?? "";
+                discordGuild.OwnerId = guild.OwnerId;
+                discordGuild.OwnerUsername = ownerUsername;
+                discordGuild.MemberCount = memberCount ?? 0;
+            }
+
+            await db.SaveChangesAsync();
+        });
+    }
+
+
+    public static void EnsureCached(this IGuildUser guildUser)
+    {
+        if (!MemoryStorage.CachedUsers.TryAdd(guildUser.Id, null))
         {
-            discordGuild.Joined = true;
-            discordGuild.GuildName = guild.Name ?? "";
-            discordGuild.OwnerId = guild.OwnerId;
-            discordGuild.OwnerUsername = ownerUsername;
-            discordGuild.MemberCount = memberCount ?? 0;
+            return;
         }
 
-        await db.SaveChangesAsync();
+        Task.Run(async () =>
+        {
+            guildUser.Guild.EnsureCached();
+
+            await using var db = GetDbContext();
+
+            await db.DiscordUsers.AddAsync(new DiscordUser
+            {
+                Id = guildUser.Id
+            });
+
+            await db.SaveChangesAsync();
+        });
     }
 
 
     public static async Task MarkAsLeftAsync(this IGuild guild)
     {
-        await guild.EnsureExistInDbAsync();
+        guild.EnsureCached();
 
         await using var db = GetDbContext();
         var discordGuild = await db.DiscordGuilds.FirstAsync(g => g.Id == guild.Id);

@@ -15,7 +15,6 @@ using Microsoft.EntityFrameworkCore;
 namespace CharacterEngine.App.SlashCommands;
 
 
-[ValidateAccessLevel(AccessLevels.Manager)]
 [ValidateChannelPermissions]
 [Group("integration", "Integrations Management")]
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
@@ -31,6 +30,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("create", "Create new integration for this server")]
     public async Task Create(IntegrationType type)
     {
@@ -47,6 +47,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("re-login", "Re-login into the integration")]
     public async Task ReLogin(IntegrationType type)
     {
@@ -67,6 +68,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("copy", "Copy existing integration from another server")]
     public async Task Copy(string integrationId)
     {
@@ -134,6 +136,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("confirm", "Confirm intergration")]
     public async Task Confirm(IntegrationType type, string data)
     {
@@ -185,6 +188,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("remove", "Remove integration from this server")]
     public async Task Remove(IntegrationType type, bool removeAssociatedCharacters)
     {

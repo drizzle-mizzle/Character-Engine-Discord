@@ -5,6 +5,7 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
+using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
@@ -34,9 +35,13 @@ public class MessagesHandler
             {
                 await HandleMessageAsync(socketMessage);
             }
+            catch (Discord.Net.HttpException)
+            {
+                // ignore
+            }
             catch (Exception e)
             {
-                if (e is UnauthorizedAccessException)
+                if (e is UnauthorizedAccessException or UserFriendlyException)
                 {
                     return;
                 }
@@ -81,7 +86,6 @@ public class MessagesHandler
             return;
         }
 
-
         var textChannel = socketUserMessage.Channel switch
         {
             SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
@@ -89,16 +93,22 @@ public class MessagesHandler
             _ => throw new UserFriendlyException("Bot can operatein only in text channels")
         };
 
-        InteractionsHelper.ValidateUser(guildUser, socketUserMessage.Channel);
+        textChannel.EnsureCached();
+
+        var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
+        if (validation.Result is not WatchDogValidationResult.Passed)
+        {
+            return;
+        }
 
         try
         {
-            var tasks = new List<Task>();
+            var callTasks = new List<Task>();
 
             var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage) ?? await FindCharacterByPrefixAsync(socketUserMessage);
             if (taggedCharacter is not null)
             {
-                tasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
+                callTasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
             var cachedCharacters = MemoryStorage.CachedCharacters
@@ -109,13 +119,23 @@ public class MessagesHandler
             var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
-                tasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
+                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
             }
 
             var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
-            tasks.AddRange(hunterCharacters.Select(hunterCharacter => CallCharacterAsync(hunterCharacter, socketUserMessage, false)));
+            if (hunterCharacters.Count != 0)
+            {
+                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, false));
+                callTasks.AddRange(callCharactersByHuntedUsersAsync);
+            }
 
-            Task.WaitAll(tasks.ToArray());
+            if (callTasks.Count != 0 && !(guildUser.IsBot || guildUser.IsWebhook))
+            {
+                guildUser.EnsureCached();
+                MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+            }
+
+            Task.WaitAll(callTasks.ToArray());
         }
         catch (Exception e)
         {
@@ -132,7 +152,6 @@ public class MessagesHandler
     private static async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
     {
         var channel = (ITextChannel)socketUserMessage.Channel;
-        await channel.EnsureExistInDbAsync();
 
         if (spawnedCharacter.IsNfsw && !channel.IsNsfw)
         {
@@ -150,7 +169,7 @@ public class MessagesHandler
 
         var author = socketUserMessage.Author;
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
-        if (cachedCharacter.QueueIsFull || cachedCharacter.QueueContains(author.Id))
+        if (cachedCharacter.QueueIsFullFor(author.Id))
         {
             return;
         }
@@ -189,7 +208,7 @@ public class MessagesHandler
                 {
                     if (downloadedMessage is null
                      || downloadedMessage.Id <= cachedCharacter.WideContextLastMessageId
-                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordShardedClient.CurrentUser.Id
+                     || downloadedMessage.Author.Id == CharacterEngineBot.DiscordClient.CurrentUser.Id
                      || downloadedMessage.Author.Id == spawnedCharacter.WebhookId
                      || downloadedMessage.Content.Trim('\n', ' ').Length == 0)
                     {

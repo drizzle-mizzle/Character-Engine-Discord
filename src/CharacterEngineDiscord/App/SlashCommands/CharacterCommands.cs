@@ -19,7 +19,6 @@ using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 namespace CharacterEngine.App.SlashCommands;
 
 
-[ValidateAccessLevel(AccessLevels.Manager)]
 [ValidateChannelPermissions]
 [Group("character", "Basic characters commands")]
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
@@ -34,6 +33,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("spawn", "Spawn new character!")]
     public async Task SpawnCharacter(IntegrationType integrationType,
                                      [Summary(description: "Query to perform character search")] string? searchQuery = null,
@@ -46,9 +46,16 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException("search-query or character-id is required");
         }
 
+
         await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
+        var originalResponse = await GetOriginalResponseAsync();
 
         var channel = (ITextChannel)Context.Channel;
+        var webhooks = await channel.GetWebhooksAsync();
+        if (webhooks.Count == 15)
+        {
+            throw new UserFriendlyException("This channel already has 15 webhooks, which is the Discord limit. To create a new character, you will need to remove an existing one from this channel; this can be done with `/character remove` command.");
+        }
 
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
@@ -61,21 +68,16 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         {
             if (showNsfw && !channel.IsNsfw)
             {
-                await ModifyOriginalResponseAsync(msg => { msg.Embed = NSFW_REQUIRED.ToInlineEmbed(Color.Purple); });
-
-                return;
+                throw new UserFriendlyException(NSFW_REQUIRED);
             }
 
             var characters = await module.SearchAsync(searchQuery!, showNsfw, guildIntegration);
-
             if (characters.Count == 0)
             {
-                var message = $"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**";
-                await ModifyOriginalResponseAsync(msg => { msg.Embed = message.ToInlineEmbed(Color.Orange, false); });
-                return;
+                throw new UserFriendlyException($"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**", bold: false);
             }
 
-            var newSq = new SearchQuery(Context.Channel.Id, Context.User.Id, searchQuery!, characters, integrationType);
+            var newSq = new SearchQuery(originalResponse.Id, Context.User.Id, searchQuery!, characters, integrationType);
             MemoryStorage.SearchQueries.Add(newSq);
 
             await ModifyOriginalResponseAsync(msg =>
@@ -125,6 +127,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("reset", "Start new chat")]
     public async Task ResetCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -149,6 +152,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("remove", "Remove character")]
     public async Task RemoveCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -184,6 +188,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("hunt", "Make character hunt certain user or another character")]
     public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userIdOrCharacterCallPrefix = null)
     {
+        if (action is not UserAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync();
 
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
@@ -293,6 +302,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
+        if (action is not MessagesFormatAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
         await DeferAsync(ephemeral: hide);
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, scc.spawnedCharacter, newFormat);
@@ -315,6 +329,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("toggle", "Enable/disable feature")]
     public async Task Toggle([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, TogglableSettings feature)
     {
@@ -390,6 +405,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("edit", "Update character's info, call prefix, etc")]
     public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp property, string newValue)
     {
@@ -470,7 +486,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         var message = new StringBuilder();
-        var propertyName = property.ToString("G").SplitWordsBySep(' ');
+        var propertyName = property.ToString("G").SplitWordsBySep(' ').ToLower().CapitalizeFirst();
         message.Append($"{MT.OK_SIGN_DISCORD} **{propertyName}** for character {spawnedCharacter.GetMention()} was successfully changed ");
 
         if (oldValue is not null)
@@ -542,13 +558,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, channelId);
         if (cachedCharacter is null)
         {
-            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
         var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
         {
-            throw new UserFriendlyException($"Character **{anyIdentifier}** not found");
+            throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
         return (spawnedCharacter, cachedCharacter);

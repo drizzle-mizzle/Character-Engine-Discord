@@ -39,3 +39,9 @@ public enum UserAction
     [ChoiceDisplay("clear-all")]
     clearAll
 }
+
+
+public enum MetricUserSource
+{
+    SlashCommand, Button, CharacterCall
+}

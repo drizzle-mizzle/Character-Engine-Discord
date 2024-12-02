@@ -1,7 +1,9 @@
-﻿using CharacterEngine.App.Helpers;
+﻿using CharacterEngine.App.Exceptions;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
@@ -30,7 +32,7 @@ public class ButtonsHandler
             }
             catch (Exception e)
             {
-                if (e is UnauthorizedAccessException)
+                if (e is UnauthorizedAccessException or UserFriendlyException)
                 {
                     return;
                 }
@@ -62,7 +64,13 @@ public class ButtonsHandler
     {
         await component.DeferAsync();
 
-        InteractionsHelper.ValidateUser((IGuildUser)component.User, component.Channel);
+        var guildUser = (IGuildUser)component.User;
+        var textChannel = (ITextChannel)component.Channel;
+
+        guildUser.EnsureCached();
+        MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+
+        InteractionsHelper.ValidateUser(guildUser, textChannel);
 
         var actionType = GetActionType(component.Data.CustomId);
 
@@ -91,15 +99,17 @@ public class ButtonsHandler
 
     private static async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = MemoryStorage.SearchQueries.GetByChannelId(component.ChannelId!.Value);
+        var sq = MemoryStorage.SearchQueries.Find(component.Message.Id);
 
         if (sq is null)
         {
             await component.ModifyOriginalResponseAsync(msg =>
             {
                 var newEmbed = $"{MessagesTemplates.QUESTION_SIGN_DISCORD} Unobserved search request, try again".ToInlineEmbed(Color.Purple);
-                msg.Embeds = !msg.Embeds.IsSpecified ? [msg.Embeds.Value!.First(), newEmbed] : new[] { newEmbed };
+                msg.Embeds = new[] { newEmbed };
+                msg.Components = null;
             });
+
             return;
         }
 
@@ -135,13 +145,15 @@ public class ButtonsHandler
             }
             case "select":
             {
+                await InteractionsHelper.ValidateChannelPermissionsAsync(component.Channel);
+
                 var modifyOriginalResponseAsync1 = component.ModifyOriginalResponseAsync(msg =>
                 {
                     msg.Embed = MessagesTemplates.WAIT_MESSAGE;
                     msg.Components = null;
                 });
 
-                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(sq.ChannelId, sq.SelectedCharacter);
+                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync((ulong)component.ChannelId!, sq.SelectedCharacter);
 
                 var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
@@ -150,7 +162,7 @@ public class ButtonsHandler
                 await modifyOriginalResponseAsync1;
                 await modifyOriginalResponseAsync2;
 
-                MemoryStorage.SearchQueries.Remove(sq.ChannelId);
+                MemoryStorage.SearchQueries.Remove(sq.MessageId);
                 return;
             }
         }

@@ -64,7 +64,7 @@ public static class BackgroundWorker
                 }
                 catch (Exception e)
                 {
-                    await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}", null, e, traceId, writeMetric: true);
+                    await CharacterEngineBot.DiscordClient.ReportErrorAsync($"Exception in {jobTask.Method.Name}", null, e, traceId, writeMetric: true);
                 }
 
                 if (log)
@@ -93,7 +93,7 @@ public static class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", null, e, traceId, writeMetric: true);
+                await CharacterEngineBot.DiscordClient.ReportErrorAsync($"Error in GiveUpFinalizer for action {action.StoredActionType:G}", null, e, traceId, writeMetric: true);
             }
         });
     }
@@ -104,7 +104,7 @@ public static class BackgroundWorker
         var data = action.ExtractSakuraAiLoginData();
         var source = action.ExtractDiscordSourceInfo();
 
-        if (CharacterEngineBot.DiscordShardedClient.GetChannel(source.ChannelId) is not ITextChannel channel)
+        if (CharacterEngineBot.DiscordClient.GetChannel(source.ChannelId) is not ITextChannel channel)
         {
             return;
         }
@@ -144,7 +144,7 @@ public static class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in Quick Jobs loop", null, e, traceId, writeMetric: true);
+                await CharacterEngineBot.DiscordClient.ReportErrorAsync("Exception in Quick Jobs loop", null, e, traceId, writeMetric: true);
 
                 await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
@@ -158,7 +158,10 @@ public static class BackgroundWorker
     private static async Task MetricsReport(string traceId)
     {
         MetricsWriter.LockWrite();
+
         Metric[] metrics;
+        var sinceDt = MetricsWriter.GetLastMetricReport();
+
         try
         {
             if (MetricsWriter.GetLastMetricReport() == default)
@@ -167,7 +170,7 @@ public static class BackgroundWorker
             }
 
             await using var db = DatabaseHelper.GetDbContext();
-            metrics = await db.Metrics.Where(m => m.CreatedAt >= MetricsWriter.GetLastMetricReport()).ToArrayAsync();
+            metrics = await db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
         }
         finally
         {
@@ -175,9 +178,9 @@ public static class BackgroundWorker
             MetricsWriter.UnlockWrite();
         }
 
-        var metricsReport = MessagesHelper.GetMetricsReport(metrics);
+        var metricsReport = MessagesHelper.BuildMetricsReport(metrics, sinceDt);
 
-        var client = CharacterEngineBot.DiscordShardedClient;
+        var client = CharacterEngineBot.DiscordClient;
         await client.ReportLogAsync($"[{traceId}] Hourly Metrics Report", metricsReport);
     }
 
@@ -194,7 +197,7 @@ public static class BackgroundWorker
             }
             catch (Exception e)
             {
-                await CharacterEngineBot.DiscordShardedClient.ReportErrorAsync("Exception in RevalidateBlockedUsers", null, e, traceId, writeMetric: true);
+                await CharacterEngineBot.DiscordClient.ReportErrorAsync("Exception in RevalidateBlockedUsers", null, e, traceId, writeMetric: true);
             }
         }
     }
@@ -229,7 +232,7 @@ public static class BackgroundWorker
                       $"**UserID**: {sourceInfo.UserId}\n" +
                       $"**ChannelID**: {sourceInfo.ChannelId}";
 
-            await CharacterEngineBot.DiscordShardedClient.ReportLogAsync(title, msg, logToConsole: true);
+            await CharacterEngineBot.DiscordClient.ReportLogAsync(title, msg, logToConsole: true);
 
             action.Status = StoredActionStatus.Canceled;
             await db.SaveChangesAsync();

@@ -6,6 +6,7 @@ using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Models.Db;
 using Microsoft.EntityFrameworkCore;
 using NLog;
+using NLog.Config;
 
 namespace CharacterEngine
 {
@@ -17,7 +18,7 @@ namespace CharacterEngine
         private static async Task Main(string[] args)
         {
             var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "NLog.config");
-            LogManager.Configuration = new NLog.Config.XmlLoggingConfiguration(nlogPath);
+            LogManager.Configuration = new XmlLoggingConfiguration(nlogPath);
 
             _log.Info("[ Starting Character Engine ]");
 
@@ -33,12 +34,10 @@ namespace CharacterEngine
 
             TaskScheduler.UnobservedTaskException += (sender, e) =>
             {
-                if (e.Exception.InnerException is UserFriendlyException)
+                if (e.Exception.InnerException is not UserFriendlyException)
                 {
-                    return;
+                    _log.Error($"Unobserved task exception: {sender}\n{e.Exception}");
                 }
-
-                _log.Error($"Unobserved task exception: {sender}\n{e.Exception}");
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
