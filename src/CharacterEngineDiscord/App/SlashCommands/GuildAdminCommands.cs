@@ -100,8 +100,8 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             }
             case UserAction.remove:
             {
-                var manager = managers.First(manager => manager.DiscordGuildId == Context.Guild.Id
-                                                     && manager.UserId == managerUserId);
+                var manager = managers.FirstOrDefault(manager => manager.DiscordGuildId == Context.Guild.Id
+                                                              && manager.UserId == managerUserId);
 
                 if (manager is null)
                 {
@@ -197,8 +197,8 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             }
             case UserAction.remove:
             {
-                var blockedUser = blockedUsers.First(u => u.DiscordGuildId == Context.Guild.Id
-                                                       && u.UserId == blockUserId);
+                var blockedUser = blockedUsers.FirstOrDefault(u => u.DiscordGuildId == Context.Guild.Id
+                                                                && u.UserId == blockUserId);
 
                 if (blockedUser is null)
                 {
