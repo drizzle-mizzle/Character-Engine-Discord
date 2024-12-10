@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Models.Db;
 
 
+[Index(nameof(Id), IsUnique = true)]
 public class BlockedUser
 {
     [Key]

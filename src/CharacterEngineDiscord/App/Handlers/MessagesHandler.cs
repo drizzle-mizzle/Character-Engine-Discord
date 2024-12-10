@@ -182,7 +182,7 @@ public class MessagesHandler
             while (!cachedCharacter.QueueIsTurnOf(author.Id))
             {
                 // just in case it hang on for some reason (are there any?)
-                if (sw.Elapsed.TotalMinutes >= 2d)
+                if (sw.Elapsed.TotalMinutes >= 2)
                 {
                     return;
                 }

@@ -110,7 +110,7 @@ public static class BackgroundWorker
         }
 
         var user = await channel.GetUserAsync(source.UserId);
-        var msg = $"{IntegrationType.SakuraAI.GetIcon()} SakuraAI\n\nAuthorization confirmation time for account **{data.Email}** has expired.\nPlease, try again.";
+        var msg = $"**{IntegrationType.SakuraAI.GetIcon()} SakuraAI**\n\nAuthorization confirmation time has expired. Please, try again.";
 
         _log.Trace(msg);
         await channel.SendMessageAsync(user?.Mention ?? "@?", embed: msg.ToInlineEmbed(Color.LightOrange, bold: false));
