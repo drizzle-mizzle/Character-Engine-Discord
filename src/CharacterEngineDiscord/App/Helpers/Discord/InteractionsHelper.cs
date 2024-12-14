@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text;
+using System.Text.RegularExpressions;
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
@@ -14,6 +15,7 @@ using Discord.Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Primitives;
 using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
@@ -335,181 +337,184 @@ public static class InteractionsHelper
     #endregion
 
 
-    #region SharedSlashCommands
+    #region Messages format
 
-    private const string INHERITED_FROM_DEFAULT = " (default)";
-    private const string INHERITED_FROM_GUILD = " (inherited from server-wide setting)";
     private const string INHERITED_FROM_CHANNEL = " (inherited from channel-wide setting)";
+    private const string INHERITED_FROM_GUILD = " (inherited from server-wide setting)";
+    private const string INHERITED_FROM_DEFAULT = " (default)";
 
-    public static async Task<string> SharedMessagesFormatAsync(MessagesFormatTarget target, MessagesFormatAction action, object idOrCharacterObject, string? newFormat = null)
+    public static async Task<string> GetCharacterMessagesFormatAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = DatabaseHelper.GetDbContext();
-        switch (action)
+
+        var channelWithGuild = db.DiscordChannels.Include(c => c.DiscordGuild).Where(c => c.Id == spawnedCharacter.DiscordChannelId);
+        var getChannelFormatAsync = channelWithGuild.Select(c => c.MessagesFormat);
+        var getGuildFormatAsync = channelWithGuild.Select(c => c.DiscordGuild!.MessagesFormat);
+
+        string format;
+        string? inheritNote = null;
+        if (spawnedCharacter.MessagesFormat is string characterMessagesFormat)
         {
-            case MessagesFormatAction.show:
-            {
-                string? format = default;
-                string? inheritNote = default;
-                string msgBegin = default!;
-
-                switch (target)
-                {
-                    case MessagesFormatTarget.guild:
-                    {
-                        msgBegin = "Current server";
-
-                        format = await GetGuildFormatAsync((ulong)idOrCharacterObject);
-
-                        break;
-                    }
-                    case MessagesFormatTarget.channel:
-                    {
-                        msgBegin = "Current channel";
-
-                        format = await GetChannelFormatAsync((ulong)idOrCharacterObject);
-                        if (format is not null)
-                        {
-                            break;
-                        }
-
-
-                        var guildId = await db.DiscordChannels.Where(c => c.Id == (ulong)idOrCharacterObject).Select(c => c.DiscordGuildId).FirstAsync();
-
-                        format = await GetGuildFormatAsync(guildId);
-                        if (format is not null)
-                        {
-                            inheritNote = INHERITED_FROM_GUILD;
-                        }
-
-                        break;
-                    }
-                    case MessagesFormatTarget.character:
-                    {
-                        var character = (ISpawnedCharacter)idOrCharacterObject;
-                        msgBegin = $"**{character.CharacterName}**'s";
-
-                        format = character.MessagesFormat;
-                        if (format is not null)
-                        {
-                            break;
-                        }
-
-                        format = await GetChannelFormatAsync(character.DiscordChannelId);
-                        if (format is not null)
-                        {
-                            inheritNote = INHERITED_FROM_CHANNEL;
-                            break;
-                        }
-
-                        var guildId = await db.DiscordChannels.Where(c => c.Id == character.DiscordChannelId).Select(c => c.DiscordGuildId).FirstAsync();
-
-                        format = await GetGuildFormatAsync(guildId);
-                        if (format is not null)
-                        {
-                            inheritNote = INHERITED_FROM_GUILD;
-                        }
-
-                        break;
-                    }
-                }
-
-                if (format is null)
-                {
-                    format = GetDefaultFormat();
-                    inheritNote = INHERITED_FROM_DEFAULT;
-                }
-
-                var preview = MH.BuildMessageFormatPreview(format);
-
-                return $"{msgBegin} messages format{inheritNote}:\n" +
-                       $"```{format}```\n" +
-                       $"**Preview:**\n{preview}";
-
-                Task<string?> GetChannelFormatAsync(ulong channelId)
-                    => db.DiscordChannels.Where(c => c.Id == channelId).Select(c => c.MessagesFormat).FirstAsync();
-
-                Task<string?> GetGuildFormatAsync(ulong guildId)
-                    => db.DiscordGuilds.Where(g => g.Id == guildId).Select(g => g.MessagesFormat).FirstAsync();
-            }
-            case MessagesFormatAction.update:
-            {
-                if (newFormat is null)
-                {
-                    throw new UserFriendlyException("Specify a new messages format");
-                }
-
-                if (!newFormat.Contains(MH.MF_MSG))
-                {
-                    throw new UserFriendlyException($"Add {MH.MF_MSG} placeholder");
-                }
-
-                if (newFormat.Contains(MH.MF_REF_MSG))
-                {
-                    var iBegin = newFormat.IndexOf(MH.MF_REF_BEGIN, StringComparison.Ordinal);
-                    var iEnd = newFormat.IndexOf(MH.MF_REF_END, StringComparison.Ordinal);
-                    var iMsg = newFormat.IndexOf(MH.MF_REF_MSG, StringComparison.Ordinal);
-
-                    if (iBegin == -1 || iEnd == -1 || iBegin > iMsg || iEnd < iMsg)
-                    {
-                        throw new UserFriendlyException($"{MH.MF_REF_MSG} placeholder can work only with {MH.MF_REF_BEGIN} and {MH.MF_REF_END} placeholders around it: `{MH.MF_REF_BEGIN} {MH.MF_REF_MSG} {MH.MF_REF_END}`");
-                    }
-                }
-
-                var msgBegin = await UpdateFormatAsync(newFormat, db);
-
-                return $"{MT.OK_SIGN_DISCORD} {msgBegin} was changed successfully.\n" +
-                       $"**Preview:**\n" +
-                       $"{MH.BuildMessageFormatPreview(newFormat)}";
-            }
-            case MessagesFormatAction.resetDefault:
-            {
-                var format = GetDefaultFormat();
-                var msgBegin = await UpdateFormatAsync(format, db);
-
-                return $"{MT.OK_SIGN_DISCORD} {msgBegin} was reset to default value successfully.\n" +
-                       $"**Preview:**\n" +
-                       $"{MH.BuildMessageFormatPreview(format)}";
-            }
+            format = characterMessagesFormat;
+        }
+        else if (await getChannelFormatAsync.FirstOrDefaultAsync() is string channelFormat)
+        {
+            format = channelFormat;
+            inheritNote = INHERITED_FROM_CHANNEL;
+        }
+        else if (await getGuildFormatAsync.FirstOrDefaultAsync() is string guildFormat)
+        {
+            format = guildFormat;
+            inheritNote = INHERITED_FROM_GUILD;
+        }
+        else
+        {
+            format = GetDefaultMessagesFormat();
+            inheritNote = INHERITED_FROM_DEFAULT;
         }
 
-        return default!;
-
-        async Task<string> UpdateFormatAsync(string format, AppDbContext dbContext)
-        {
-            switch (target)
-            {
-                case MessagesFormatTarget.guild:
-                {
-                    var guild = await dbContext.DiscordGuilds.FirstAsync(g => g.Id == (ulong)idOrCharacterObject);
-                    guild.MessagesFormat = format;
-                    await dbContext.SaveChangesAsync();
-
-                    return "Default server-wide messages format";
-                }
-                case MessagesFormatTarget.channel:
-                {
-                    var channel = await dbContext.DiscordChannels.FirstAsync(c => c.Id == (ulong)idOrCharacterObject);
-                    channel.MessagesFormat = format;
-                    await dbContext.SaveChangesAsync();
-
-                    return "Default channel-wide messages format";
-                }
-                case MessagesFormatTarget.character:
-                {
-                    var character = (await DatabaseHelper.GetSpawnedCharacterByIdAsync((Guid)idOrCharacterObject))!;
-                    character.MessagesFormat = format;
-                    await DatabaseHelper.UpdateSpawnedCharacterAsync(character);
-
-                    return $"Messages format for character {character.CharacterName}";
-                }
-            }
-
-            return default!;
-        }
-
-        string GetDefaultFormat()
-            => BotConfig.DEFAULT_MESSAGES_FORMAT.Replace("\\n", "\\n\n");
+        return SuccessFormatShowMessage($"{spawnedCharacter.GetMention()}'s", format, inheritNote);
     }
+
+
+    public static async Task<string> GetChannelMessagesFormatAsync(ulong channelId, ulong guildId)
+    {
+        await using var db = DatabaseHelper.GetDbContext();
+
+        var getChannelFormatAsync = db.DiscordChannels.Where(c => c.Id == channelId).Select(c => c.MessagesFormat);
+        var getGuildFormatAsync = db.DiscordGuilds.Where(g => g.Id == guildId).Select(g => g.MessagesFormat);
+
+        string format;
+        string? inheritNote = null;
+        if (await getChannelFormatAsync.FirstAsync() is string channelFormat)
+        {
+            format = channelFormat;
+        }
+        else if (await getGuildFormatAsync.FirstAsync() is string guildFormat)
+        {
+            format = guildFormat;
+            inheritNote = INHERITED_FROM_GUILD;
+        }
+        else
+        {
+            format = GetDefaultMessagesFormat();
+            inheritNote = INHERITED_FROM_DEFAULT;
+        }
+
+        return SuccessFormatShowMessage("Current channel", format, inheritNote);
+    }
+
+
+    public static async Task<string> GetGuildMessagesFormatAsync(ulong guildId)
+    {
+        await using var db = DatabaseHelper.GetDbContext();
+
+        var guildFormat = await db.DiscordGuilds.Where(g => g.Id == guildId).Select(g => g.MessagesFormat).FirstAsync();
+
+        string? inheritNote = null;
+        if (guildFormat is null)
+        {
+            guildFormat = GetDefaultMessagesFormat();
+            inheritNote = INHERITED_FROM_DEFAULT;
+        }
+
+        return SuccessFormatShowMessage("Current server", guildFormat, inheritNote);
+    }
+
+
+    public static async Task<string> UpdateCharacterMessagesFormatAsync(ISpawnedCharacter spawnedCharacter, string? newFormat)
+    {
+        ValidateMessagesFormat(newFormat);
+
+        spawnedCharacter.MessagesFormat = newFormat;
+        await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+        return SuccessFormatUpdateMessage($"Messages format for character {spawnedCharacter.GetMention()}", newFormat);
+    }
+
+
+    public static async Task<string> UpdateChannelMessagesFormatAsync(ulong channelId, string? newFormat)
+    {
+        ValidateMessagesFormat(newFormat);
+
+        await using var db = DatabaseHelper.GetDbContext();
+        var channel = await db.DiscordChannels.FirstAsync(c => c.Id == channelId);
+        channel.MessagesFormat = newFormat;
+        await db.SaveChangesAsync();
+
+        return SuccessFormatUpdateMessage("Default channel-wide messages format", newFormat);
+    }
+
+
+    public static async Task<string> UpdateGuildMessagesFormatAsync(ulong guildId, string? newFormat)
+    {
+        ValidateMessagesFormat(newFormat);
+
+        await using var db = DatabaseHelper.GetDbContext();
+        var guild = await db.DiscordGuilds.FirstAsync(g => g.Id == guildId);
+        guild.MessagesFormat = newFormat;
+        await db.SaveChangesAsync();
+
+        return SuccessFormatUpdateMessage("Default server-wide messages format", newFormat);
+    }
+
+
+
+    private static void ValidateMessagesFormat(string? newFormat)
+    {
+        if (newFormat is null)
+        {
+            return;
+        }
+
+        if (!newFormat.Contains(MH.MF_MSG))
+        {
+            throw new UserFriendlyException($"Add {MH.MF_MSG} placeholder");
+        }
+
+        if (newFormat.Contains(MH.MF_REF_MSG))
+        {
+            var iBegin = newFormat.IndexOf(MH.MF_REF_BEGIN, StringComparison.Ordinal);
+            var iEnd = newFormat.IndexOf(MH.MF_REF_END, StringComparison.Ordinal);
+            var iMsg = newFormat.IndexOf(MH.MF_REF_MSG, StringComparison.Ordinal);
+
+            if (iBegin == -1 || iEnd == -1 || iBegin > iMsg || iEnd < iMsg)
+            {
+                throw new UserFriendlyException($"{MH.MF_REF_MSG} placeholder can work only with {MH.MF_REF_BEGIN} and {MH.MF_REF_END} placeholders around it: `{MH.MF_REF_BEGIN} {MH.MF_REF_MSG} {MH.MF_REF_END}`");
+            }
+        }
+    }
+
+
+    private static string SuccessFormatUpdateMessage(string target, string? format)
+        => new StringBuilder(MT.OK_SIGN_DISCORD).Append(' ')
+                                                .Append(target)
+                                                .Append(format is null ? " reset to default value" : " was changed")
+                                                .Append(" successfully.\n\n**Preview:**\n")
+                                                .Append(MH.BuildMessageFormatPreview(format ?? GetDefaultMessagesFormat()))
+                                                .ToString();
+
+
+    private static string SuccessFormatShowMessage(string target, string format, string? inheritNote)
+    {
+        var message = new StringBuilder(target).Append(" messages format");
+
+        if (inheritNote is not null)
+        {
+            message.Append(inheritNote);
+        }
+
+        message.Append(":\n```")
+               .Append(format)
+               .Append("```\n**Preview:**\n")
+               .Append(MH.BuildMessageFormatPreview(format));
+
+        return message.ToString();
+    }
+
+
+    private static string GetDefaultMessagesFormat()
+        => BotConfig.DEFAULT_MESSAGES_FORMAT.Replace("\\n", "\\n\n");
 
     #endregion
 

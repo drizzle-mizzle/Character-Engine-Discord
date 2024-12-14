@@ -10,6 +10,7 @@ using CharacterEngineDiscord.Models.Abstractions;
 using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.Handlers;
@@ -197,6 +198,14 @@ public class MessagesHandler
                 await Task.Delay((int)(responseDelay * 1000));
             }
 
+            var messageFormat = spawnedCharacter.MessagesFormat;
+            if (messageFormat is null)
+            {
+                var db = DatabaseHelper.GetDbContext();
+                var channelWithGuild = await db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
+                messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild!.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+            }
+
             string userMessage;
             if (randomCall && spawnedCharacter.FreewillContextSize != 0)
             {
@@ -215,7 +224,7 @@ public class MessagesHandler
                         continue;
                     }
 
-                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter) + "\n\n";
+                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter, messageFormat) + "\n\n";
                     messageLength += messagePartial.Length;
 
                     if (messageLength <= spawnedCharacter.FreewillContextSize)
@@ -231,7 +240,7 @@ public class MessagesHandler
             }
             else
             {
-                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter);
+                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter, messageFormat);
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
@@ -256,7 +265,7 @@ public class MessagesHandler
 
 
 
-    private static string ReformatUserMessage(IUserMessage socketUserMessage, ISpawnedCharacter spawnedCharacter)
+    private static string ReformatUserMessage(IUserMessage socketUserMessage, ISpawnedCharacter spawnedCharacter, string messageFormat)
     {
         var message = socketUserMessage.Content.Trim(' ', '\n');
 
@@ -280,7 +289,6 @@ public class MessagesHandler
             refMessage = (refAuthorName, refMsg);
         }
 
-        var messageFormat = spawnedCharacter.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
         var author = socketUserMessage.Author;
         var channel = (ITextChannel)socketUserMessage.Channel;
 

@@ -309,7 +309,32 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         await DeferAsync(ephemeral: hide);
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.character, action, scc.spawnedCharacter, newFormat);
+
+        string message = default!;
+
+        switch (action)
+        {
+            case MessagesFormatAction.show:
+            {
+                message = await InteractionsHelper.GetCharacterMessagesFormatAsync(scc.spawnedCharacter);
+                break;
+            }
+            case MessagesFormatAction.update:
+            {
+                if (newFormat is null)
+                {
+                    throw new UserFriendlyException("Specify the new-format parameter");
+                }
+
+                message = await InteractionsHelper.UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, newFormat);
+                break;
+            }
+            case MessagesFormatAction.resetDefault:
+            {
+                message = await InteractionsHelper.UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, null);
+                break;
+            }
+        }
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
     }
