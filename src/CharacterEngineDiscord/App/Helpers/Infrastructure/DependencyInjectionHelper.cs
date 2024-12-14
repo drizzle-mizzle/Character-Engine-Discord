@@ -14,23 +14,19 @@ public static class DependencyInjectionHelper
     {
         var services = new ServiceCollection();
 
-        // Singleton
-        {
-            services.AddSingleton(discordClient);
-            services.AddSingleton(interactionService);
-        }
+        services.AddSingleton(discordClient);
+        services.AddSingleton(interactionService);
 
-        // Scoped
-        {
-            services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
-            services.AddScoped<SlashCommandsHandler>();
-            services.AddScoped<InteractionsHandler>();
-            services.AddScoped<ModalsHandler>();
-            services.AddScoped<ButtonsHandler>();
-            services.AddScoped<MessagesHandler>();
-            services.AddScoped<SpecialCommandsHandler>();
-            services.AddScoped<BotAdminCommandsHandler>();
-        }
+        services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
+
+        services.AddSingleton<SlashCommandsHandler>();
+        services.AddSingleton<InteractionsHandler>();
+        services.AddSingleton<ButtonsHandler>();
+        services.AddSingleton<MessagesHandler>();
+
+        services.AddTransient<ModalsHandler>();
+        services.AddTransient<SpecialCommandsHandler>();
+        services.AddTransient<BotAdminCommandsHandler>();
 
         return services.BuildServiceProvider();;
     }

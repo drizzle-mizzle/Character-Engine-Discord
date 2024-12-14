@@ -255,7 +255,7 @@ public static class MessagesHelper
         var refMessage = (authorName: "Dude", content: "Bipki");
         var formated = BringMessageToFormat(messagesFormat, null, userMessage, refMessage);
 
-        return $"Time: ***`{DateTime.Now.HumanizeDateTime()}`***\n" +
+        return $"Time: ***`{DateTime.Now.Humanize()}`***\n" +
                $"Referenced message: *`\"{refMessage.content}\"`* from user **`{refMessage.authorName}`**\n" +
                $"User message: *`\"{userMessage.content}\"`* from user **`{userMessage.authorName}`**\n" +
                $"Result (what character will see):\n```{formated}```";
@@ -397,7 +397,7 @@ public static class MessagesHelper
                                   .Replace(MF_USER, message.authorName)
                                   .Replace(MF_USER_MENTION_HINT, message.authorMention)
                                   .Replace(MF_MSG, message.content)
-                                  .Replace(MF_DATETIME, DateTime.Now.HumanizeDateTime());
+                                  .Replace(MF_DATETIME, DateTime.Now.Humanize());
 
         if (!messageFormat.Contains(MF_REF_MSG))
         {
@@ -505,7 +505,7 @@ public static class MessagesHelper
         => char.ToUpper(source[0]) + source[1..];
 
 
-    public static string HumanizeDateTime(this DateTime dateTime)
+    public static string Humanize(this DateTime dateTime)
         => dateTime.ToString("hh:mm dd-MMM-yyyy", new CultureInfo("en-US"));
 
 
