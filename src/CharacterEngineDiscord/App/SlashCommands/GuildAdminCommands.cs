@@ -144,7 +144,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                     var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
                     var managerUserName = managerUser.Username;
 
-                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.HumanizeDateTime()}`");
+                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.Humanize()}`");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)

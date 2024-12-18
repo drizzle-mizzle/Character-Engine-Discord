@@ -78,7 +78,7 @@ public static class WatchDog
 
         _watchedUsers.TryRemove(userId, out _);
 
-        MetricsWriter.Create(MetricType.UserBlocked, userId, blockedUntil.HumanizeDateTime());
+        MetricsWriter.Create(MetricType.UserBlocked, userId, blockedUntil.Humanize());
 
         await using var db = DatabaseHelper.GetDbContext();
         await db.BlockedUsers.AddAsync(new BlockedUser
@@ -94,7 +94,7 @@ public static class WatchDog
         var message = "**User blocked**\n" + (user is null
                     ? $"User: **{userId}**"
                     : $"User: **{user.Username}** ({userId}) {(user.IsBot ? "(bot)" : user.IsWebhook ? "(webhook)" : "")}")
-                    + $"\nBlocked until: **{blockedUntil.HumanizeDateTime()}**";
+                    + $"\nBlocked until: **{blockedUntil.Humanize()}**";
 
         string? content = null;
         if (channel is not null)

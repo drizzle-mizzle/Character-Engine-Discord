@@ -1,10 +1,18 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
+
 namespace CharacterEngineDiscord.Models.Db;
 
 
 public class Metric
 {
+    [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
+
+
     public required MetricType MetricType { get; init; }
+
+    [MaxLength(50)]
     public required string? EntityId { get; init; }
     public required string? Payload { get; init; }
     public required DateTime CreatedAt { get; init; }

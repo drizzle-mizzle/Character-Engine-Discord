@@ -1,5 +1,6 @@
 using System.Text;
 using CharacterEngine.App.CustomAttributes;
+using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Models;
@@ -35,7 +36,31 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
 
         await DeferAsync();
 
-        var message = await InteractionsHelper.SharedMessagesFormatAsync(MessagesFormatTarget.guild, action, Context.Guild.Id, newFormat);
+        string message = default!;
+
+        switch (action)
+        {
+            case MessagesFormatAction.show:
+            {
+                message = await InteractionsHelper.GetGuildMessagesFormatAsync(Context.Guild.Id);
+                break;
+            }
+            case MessagesFormatAction.update:
+            {
+                if (newFormat is null)
+                {
+                    throw new UserFriendlyException("Specify the new-format parameter");
+                }
+
+                message = await InteractionsHelper.UpdateGuildMessagesFormatAsync(Context.Guild.Id, newFormat);
+                break;
+            }
+            case MessagesFormatAction.resetDefault:
+            {
+                message = await InteractionsHelper.UpdateGuildMessagesFormatAsync(Context.Guild.Id, null);
+                break;
+            }
+        }
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
     }
