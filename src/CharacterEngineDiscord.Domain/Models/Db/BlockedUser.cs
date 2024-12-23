@@ -1,13 +1,12 @@
-using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db;
+namespace CharacterEngineDiscord.Domain.Models.Db;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
 public class BlockedUser
 {
-    [Key]
     public required ulong Id { get; set; }
 
     public required DateTime BlockedAt { get; set; }

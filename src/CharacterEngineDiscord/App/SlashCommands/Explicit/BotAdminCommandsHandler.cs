@@ -1,7 +1,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;

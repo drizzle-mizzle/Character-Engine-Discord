@@ -1,14 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db;
+namespace CharacterEngineDiscord.Domain.Models.Db;
 
 
+[PrimaryKey(nameof(Id))]
 public class Metric
 {
-    [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
-
 
     public required MetricType MetricType { get; init; }
 

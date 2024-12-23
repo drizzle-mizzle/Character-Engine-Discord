@@ -1,7 +1,7 @@
 ﻿using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Domain.Models;
 using Discord.WebSocket;
 
 namespace CharacterEngine.App.Handlers;
@@ -69,6 +69,9 @@ public class ModalsHandler
         {
             IntegrationType.SakuraAI => ModalsHelper.CreateSakuraAiIntegrationAsync(modal),
             IntegrationType.CharacterAI => ModalsHelper.CreateCharacterAiIntegrationAsync(modal),
+            IntegrationType.OpenRouter => ModalsHelper.CreateOpenRouterIntegrationAsync(modal),
+
+            _ => throw new ArgumentOutOfRangeException()
         });
     }
 

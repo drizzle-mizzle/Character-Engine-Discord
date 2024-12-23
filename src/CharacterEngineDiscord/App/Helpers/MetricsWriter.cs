@@ -1,6 +1,6 @@
 using System.Text;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db;
 using NLog;
 
 namespace CharacterEngine.App.Helpers;
@@ -65,7 +65,8 @@ public static class MetricsWriter
             }
 
             await using var db = DatabaseHelper.GetDbContext();
-            await db.Metrics.AddAsync(metric);
+            db.Metrics.Add(metric);
+
             await db.SaveChangesAsync();
         });
     }

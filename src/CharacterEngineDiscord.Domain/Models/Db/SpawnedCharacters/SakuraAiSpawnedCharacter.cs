@@ -1,17 +1,17 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
+namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
+public sealed class SakuraAiSpawnedCharacter : ISpawnedCharacter, ISakuraCharacter
 {
-    [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
@@ -37,7 +37,6 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public bool EnableQuotes { get; set; }
     public bool EnableStopButton { get; set; }
     public bool SkipNextBotMessage { get; set; }
-    public bool ResetWithNextMessage { get; set; }
     public ulong LastCallerDiscordUserId { get; set; }
     public ulong LastDiscordMessageId { get; set; }
     public uint MessagesSent { get; set; }
@@ -64,5 +63,13 @@ public class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharacter
     public int SakuraMessagesCount { get; set; }
     public string? SakuraChatId { get; set; } = "empty";
 
-    public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
+
+    public DiscordChannel DiscordChannel { get; set; } = null!;
+
+    [NotMapped]
+    public string CardCharacterDescription
+    {
+        get => SakuraDescription;
+        set => SakuraDescription = value;
+    }
 }

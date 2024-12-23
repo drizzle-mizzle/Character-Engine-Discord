@@ -5,10 +5,11 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db;
-using CharacterEngineDiscord.Models.Db.SpawnedCharacters;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -24,34 +25,49 @@ namespace CharacterEngine.App.SlashCommands;
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
+    private readonly DiscordSocketClient _discordSocketClient;
     private const string ANY_IDENTIFIER_DESC = "Character call prefix or User ID (Webhook ID)";
     private const string NSFW_REQUIRED = "Sorry, but NSFW characters can be spawned only in age restricted channels. Please, mark channel as NSFW and try again.";
 
-    public CharacterCommands(AppDbContext db)
+    public CharacterCommands(AppDbContext db, DiscordSocketClient discordSocketClient)
     {
         _db = db;
+        _discordSocketClient = discordSocketClient;
     }
 
 
     [ValidateAccessLevel(AccessLevels.Manager)]
     [SlashCommand("spawn", "Spawn new character!")]
-    public async Task SpawnCharacter(IntegrationType integrationType,
-                                     [Summary(description: "Query to perform character search")] string? searchQuery = null,
-                                     [Summary(description: "Needed for search only")] bool showNsfw = false,
-                                     [Summary(description: "Not required; you can spawn character directly with its ID")] string? characterId = null,
+    public async Task SpawnCharacter([Summary(description: "A platform to base character on")] IntegrationType integrationType,
+                                     [Summary(description: "A query to perform character search")] string? searchQuery = null,
+                                     [Summary(description: "Can be used instead of search to spawn a character with its ID")] string? characterId = null,
+                                     [Summary(description: "optional; show nsfw characters in search")] bool showNsfw = false,
+                                     [Summary(description: "optional; characters source to use, required for certain integration types")] CharacterSourceType? sourceType = null,
                                      bool hide = false)
     {
         if (searchQuery is null && characterId is null)
         {
-            throw new UserFriendlyException("search-query or character-id is required");
+            throw new UserFriendlyException("search-query or character-id parameter is required");
         }
-
 
         await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
         var originalResponse = await GetOriginalResponseAsync();
 
+        IReadOnlyCollection<IWebhook>? webhooks;
         var channel = (ITextChannel)Context.Channel;
-        var webhooks = await channel.GetWebhooksAsync();
+
+        bool isThread;
+        if (channel is SocketThreadChannel threadChannel && threadChannel.ParentChannel is ITextChannel parentChannel)
+        {
+            webhooks = await parentChannel.GetWebhooksAsync();
+            isThread = true;
+        }
+        else
+        {
+            webhooks = await channel.GetWebhooksAsync();
+            isThread = false;
+        }
+
         if (webhooks.Count == 15)
         {
             throw new UserFriendlyException("This channel already has 15 webhooks, which is the Discord limit. To create a new character, you will need to remove an existing one from this channel; this can be done with `/character remove` command.");
@@ -60,10 +76,17 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
         {
-            throw new UserFriendlyException($"You have to setup a {integrationType:G}{integrationType.GetIcon()} intergration for this server first!");
+            throw new UserFriendlyException($"You have to setup **{integrationType:G}** intergration for this server first!", bold: false);
         }
 
-        var module = integrationType.GetIntegrationModule();
+        sourceType ??= integrationType.GetDefaultSourceType();
+        if (sourceType is null)
+        {
+            throw new UserFriendlyException("source-type parameter is required");
+        }
+
+        var searchModule = ((CharacterSourceType)sourceType).GetSearchModule();
+
         if (string.IsNullOrWhiteSpace(characterId))
         {
             if (showNsfw && !channel.IsNsfw)
@@ -71,7 +94,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 throw new UserFriendlyException(NSFW_REQUIRED);
             }
 
-            var characters = await module.SearchAsync(searchQuery!, showNsfw, guildIntegration);
+            var characters = await searchModule.SearchAsync(searchQuery!, showNsfw, guildIntegration);
             if (characters.Count == 0)
             {
                 throw new UserFriendlyException($"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**", bold: false);
@@ -89,17 +112,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             return;
         }
 
-        if (characterId.Contains('/'))
-        {
-            characterId = characterId.Split('/').Last();
-        }
+        var character = await searchModule.GetCharacterInfoAsync(characterId.Trim(), guildIntegration);
+        character.IntegrationType = integrationType;
 
-        if (characterId.Contains('?'))
-        {
-            characterId = characterId.Split('?').First();
-        }
-
-        var character = await module.GetCharacterAsync(characterId.Trim(), guildIntegration);
         if (character.IsNfsw && !channel.IsNsfw)
         {
             await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
@@ -110,7 +125,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
         var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
-        await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName);
+        await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
         await modifyOriginalResponseAsync;
     }
 
@@ -136,7 +151,24 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var spawnedCharacter = scc.spawnedCharacter;
 
-        spawnedCharacter.ResetWithNextMessage = true;
+        switch (spawnedCharacter)
+        {
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                caiSpawnedCharacter.CaiChatId = null;
+                break;
+            }
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
+            {
+                sakuraAiSpawnedCharacter.SakuraChatId = null;
+                break;
+            }
+            case ICharacterCard:
+            {
+                // TODO: CLEAR && CREATE NEW CHAT
+                break;
+            }
+        }
 
         var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
         var message = $"{MT.OK_SIGN_DISCORD} Chat with {spawnedCharacter.GetMention()} reset successfully";
@@ -185,8 +217,8 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [SlashCommand("hunt", "Make character hunt certain user or another character")]
-    public async Task HuntUser([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, UserAction action, IGuildUser? user = null, string? userIdOrCharacterCallPrefix = null)
+    [SlashCommand("hunted-users", "Make character hunt certain user or another character")]
+    public async Task HuntedUsers(UserAction action, [Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, IGuildUser? user = null, string? userIdOrCharacterCallPrefix = null)
     {
         if (action is not UserAction.show)
         {
@@ -250,9 +282,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         var guildUser = user ?? await Context.Guild.GetUserAsync(huntedUserId);
-        var mention = guildUser?.Mention ?? $"User `{huntedUserId}`";
+        var mention = guildUser?.Mention ?? $"User <@{huntedUserId}>";
 
-        string message = default!;
+        string message = null!;
 
         switch (action)
         {
@@ -268,7 +300,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                     SpawnedCharacterId = spawnedCharacter.Id
                 };
 
-                await _db.HuntedUsers.AddAsync(newHuntedUser);
+                _db.HuntedUsers.Add(newHuntedUser);
                 cahcedCharacter.HuntedUsers.Add(huntedUserId);
 
                 message = $":ghost: {mention} now hunted by {spawnedCharacter.GetMention()}";
@@ -300,7 +332,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     #region configure
 
     [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, MessagesFormatAction action, string? newFormat = null, bool hide = false)
+    public async Task MessagesFormat(MessagesFormatAction action, [Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, string? newFormat = null, bool hide = false)
     {
         if (action is not MessagesFormatAction.show)
         {

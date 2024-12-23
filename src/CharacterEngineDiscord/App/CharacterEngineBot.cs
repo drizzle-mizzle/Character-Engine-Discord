@@ -7,7 +7,7 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -78,7 +78,7 @@ public sealed class CharacterEngineBot
             var ensureCommandsRegisteredAsync = EnsureCommandsRegisteredAsync(guild);
 
             MetricsWriter.Create(MetricType.JoinedGuild, guild.Id);
-            var message = $"Joined server **{guild.Name}** ({guild.Id})\n" + $"Owner: {await GetGuildOwnerNameAsync(guild)}\n" + $"Members: {guild.MemberCount}\n" + $"Description: {guild.Description ?? "none"}";
+            var message = $"Joined server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}\nDescription: {guild.Description ?? "none"}";
 
             await _discordClient.ReportLogAsync(message, color: Color.Gold, imageUrl: guild.IconUrl);
             await ensureCommandsRegisteredAsync;
@@ -93,7 +93,7 @@ public sealed class CharacterEngineBot
         Task.Run(async () =>
         {
             MetricsWriter.Create(MetricType.LeftGuild, guild.Id);
-            var message = $"Left server **{guild.Name}** ({guild.Id})\n" + $"Owner: {await GetGuildOwnerNameAsync(guild)}\n" + $"Members: {guild.MemberCount}";
+            var message = $"Left server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}";
 
             await _discordClient.ReportLogAsync(message, color: Color.DarkOrange, imageUrl: guild.IconUrl);
             await guild.MarkAsLeftAsync();
@@ -154,19 +154,6 @@ public sealed class CharacterEngineBot
 
     private static Task CacheUsersAndCharacters()
     {
-        var users = Task.Run(async () =>
-        {
-            await using var db = DatabaseHelper.GetDbContext();
-            var allCachedUserIds = await db.DiscordUsers.Select(u => u.Id).ToArrayAsync();
-
-            Parallel.ForEach(allCachedUserIds, (userId, _) =>
-            {
-                MemoryStorage.CachedUsers.TryAdd(userId, null);
-            });
-
-            _log.Info($"Cached {allCachedUserIds.Length} users");
-        });
-
         var characters = Task.Run(async () =>
         {
             var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
@@ -175,7 +162,21 @@ public sealed class CharacterEngineBot
             _log.Info($"Cached {allCharacters.Count} characters");
         });
 
-        Task.WaitAll(users, characters);
+        var users = Task.Run(async () =>
+        {
+            await using var db = DatabaseHelper.GetDbContext();
+            var allUsers = await db.DiscordUsers.Select(u => u.Id).ToArrayAsync();
+
+            await Parallel.ForEachAsync(allUsers, (userId, _) =>
+            {
+                MemoryStorage.CachedUsers.TryAdd(userId, null);
+                return ValueTask.CompletedTask;
+            });
+
+            _log.Info($"Cached {allUsers.Length} users");
+        });
+
+        Task.WaitAll(characters, users);
         return Task.CompletedTask;
     }
 
@@ -202,7 +203,6 @@ public sealed class CharacterEngineBot
             {
                 try
                 {
-                    guild.EnsureCached();
                     await EnsureCommandsRegisteredAsync(guild);
                 }
                 catch (Exception e)
@@ -254,7 +254,6 @@ public sealed class CharacterEngineBot
 
     private static async Task RegisterCommandsToAdminGuildAsync(SocketGuild adminGuild, InteractionService interactionService)
     {
-        adminGuild.EnsureCached();
         await interactionService.RegisterCommandsToGuildAsync(adminGuild.Id);
 
         var disableCommand = ExplicitCommandBuilders.BuildDisableCommand();

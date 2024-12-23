@@ -1,10 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>CharacterEngineDiscord.IntegrationModules</RootNamespace>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -25,8 +24,13 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
+      <ProjectReference Include="..\..\submodules\OpenRouter-Net-Client\src\OpenRouter.Client\OpenRouter.Client.csproj" />
       <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
       <ProjectReference Include="..\CharacterEngineDiscord.Domain\CharacterEngineDiscord.Domain.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Modules\Search\" />
     </ItemGroup>
 
 </Project>

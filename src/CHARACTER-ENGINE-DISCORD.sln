@@ -10,7 +10,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterAi.Client", "..\su
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SakuraAi.Client", "..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj", "{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Integrations", "CharacterEngineDiscord.Integrations\CharacterEngineDiscord.Integrations.csproj", "{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharacterEngineDiscord.Modules", "CharacterEngineDiscord.Modules\CharacterEngineDiscord.Modules.csproj", "{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenRouter.Client", "..\submodules\OpenRouter-Net-Client\src\OpenRouter.Client\OpenRouter.Client.csproj", "{2F33AA77-CFE1-412D-B890-2673C7F76D62}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,9 +40,14 @@ Global
 		{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4FBC8189-AE1C-4D3F-887A-8787F9D33D34}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F33AA77-CFE1-412D-B890-2673C7F76D62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F33AA77-CFE1-412D-B890-2673C7F76D62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F33AA77-CFE1-412D-B890-2673C7F76D62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F33AA77-CFE1-412D-B890-2673C7F76D62}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{EE88BB46-6AAC-4539-B305-D03D544634AC} = {B0D15590-D06A-4AFF-937F-D955F46A7322}
 		{E7F5FFCD-25CD-4FAA-AC87-CCD42ED0D119} = {B0D15590-D06A-4AFF-937F-D955F46A7322}
+		{2F33AA77-CFE1-412D-B890-2673C7F76D62} = {B0D15590-D06A-4AFF-937F-D955F46A7322}
 	EndGlobalSection
 EndGlobal

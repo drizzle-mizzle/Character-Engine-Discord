@@ -37,9 +37,6 @@ public static class BotConfig
     public static int USER_SECOND_BLOCK_HOURS
         => GetParamByName<int>("USER_SECOND_BLOCK_HOURS");
 
-    public static string NO_POWER_FILE
-        => GetParamByName<string>("NO_POWER_FILE");
-
     public static string DEFAULT_AVATAR_FILE
         => GetParamByName<string>("DEFAULT_AVATAR_FILE");
 
@@ -51,6 +48,9 @@ public static class BotConfig
 
     public static string CHARACTER_AI_EMOJI
         => GetParamByName<string>("CHARACTER_AI_EMOJI");
+
+    public static string OPEN_ROUTER_EMOJI
+        => GetParamByName<string>("OPEN_ROUTER_EMOJI");
 
 
 

@@ -1,4 +1,6 @@
-﻿namespace CharacterEngineDiscord.Models.Abstractions;
+﻿using CharacterEngineDiscord.Domain.Models.Db.Discord;
+
+namespace CharacterEngineDiscord.Domain.Models.Abstractions;
 
 public interface IGuildIntegration
 {
@@ -7,7 +9,9 @@ public interface IGuildIntegration
     public ulong DiscordGuildId { get; set; }
 
 
-    public string GlobalMessagesFormat { get; set; }
+    public string? GlobalMessagesFormat { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    public DiscordGuild DiscordGuild { get; set; }
 }

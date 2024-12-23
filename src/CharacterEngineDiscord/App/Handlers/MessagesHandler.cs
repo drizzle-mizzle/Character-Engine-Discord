@@ -5,9 +5,10 @@ using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -19,11 +20,13 @@ namespace CharacterEngine.App.Handlers;
 public class MessagesHandler
 {
     private readonly DiscordSocketClient _discordClient;
+    private readonly AppDbContext _db;
 
 
-    public MessagesHandler(DiscordSocketClient discordClient)
+    public MessagesHandler(DiscordSocketClient discordClient, AppDbContext db)
     {
         _discordClient = discordClient;
+        _db = db;
     }
 
 
@@ -87,12 +90,10 @@ public class MessagesHandler
             return;
         }
 
-        var textChannel = socketUserMessage.Channel switch
+        if (socketUserMessage.Channel is not ITextChannel textChannel)
         {
-            SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
-            ITextChannel cTextChannel => cTextChannel,
-            _ => throw new UserFriendlyException("Bot can operatein only in text channels")
-        };
+            throw new UserFriendlyException("Bot can operate only in text channels");
+        }
 
         textChannel.EnsureCached();
 
@@ -104,20 +105,21 @@ public class MessagesHandler
 
         try
         {
+            var primaryChannelId = textChannel is SocketThreadChannel threadChannel ? threadChannel.ParentChannel.Id : textChannel.Id;
             var callTasks = new List<Task>();
 
-            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage) ?? await FindCharacterByPrefixAsync(socketUserMessage);
+            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId) ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
             if (taggedCharacter is not null)
             {
                 callTasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
             var cachedCharacters = MemoryStorage.CachedCharacters
-                                                .ToList(textChannel.Id)
+                                                .ToList(primaryChannelId)
                                                 .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
                                                 .ToList();
 
-            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
+            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters, primaryChannelId);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
                 callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
@@ -146,11 +148,15 @@ public class MessagesHandler
                 var message = $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {userFriendlyExceptionCheck.message}";
                 await socketUserMessage.ReplyAsync(embed: message.ToInlineEmbed(Color.Orange));
             }
+            else
+            {
+                throw;
+            }
         }
     }
 
 
-    private static async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
+    private async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
     {
         var channel = (ITextChannel)socketUserMessage.Channel;
 
@@ -161,7 +167,6 @@ public class MessagesHandler
             return;
         }
 
-        var module = spawnedCharacter.GetIntegrationType().GetIntegrationModule();
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(spawnedCharacter);
         if (guildIntegration is null)
         {
@@ -191,6 +196,8 @@ public class MessagesHandler
                 await Task.Delay(500);
             }
 
+            spawnedCharacter = (await DatabaseHelper.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id))!; // force data reload
+
             // Wait for delay
             var responseDelay = author.IsBot || author.IsWebhook ? Math.Max(5, spawnedCharacter.ResponseDelay) : spawnedCharacter.ResponseDelay;
             if (responseDelay > 0)
@@ -201,9 +208,8 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var db = DatabaseHelper.GetDbContext();
-                var channelWithGuild = await db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
-                messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild!.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                var channelWithGuild = await _db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
+                messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
             }
 
             string userMessage;
@@ -244,13 +250,34 @@ public class MessagesHandler
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
-            var response = await module.CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
+            var messages = new List<(string role, string content)>();
+
+            var type = spawnedCharacter.GetIntegrationType();
+            if (type is IntegrationType.OpenRouter)
+            {
+                var history = await _db.ChatHistories
+                                       .Where(ch => ch.SpawnedCharacterId == spawnedCharacter.Id)
+                                       .Select(ch => new
+                                        {
+                                            ch.Name,
+                                            ch.Message,
+                                            ch.CreatedAt
+                                        })
+                                       .OrderBy(ch => ch.CreatedAt)
+                                       .ToArrayAsync();
+
+                messages.AddRange(history.Select(ch => (ch.Name, ch.Message)).ToArray());
+            }
+
+            messages.Add(("user", userMessage));
+
+            var chatModule = type.GetChatModule();
+            var response = await chatModule.CallCharacterAsync(spawnedCharacter, guildIntegration, messages);
             var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
-            var messageId = await spawnedCharacter.SendMessageAsync(responseMessage);
+            var messageId = await spawnedCharacter.SendMessageAsync(responseMessage, threadId: socketUserMessage.Channel is SocketThreadChannel threadChannel ? threadChannel.Id : null);
 
             spawnedCharacter.LastCallerDiscordUserId = socketUserMessage.Author.Id;
             spawnedCharacter.LastDiscordMessageId = messageId;
-            spawnedCharacter.ResetWithNextMessage = false;
             spawnedCharacter.LastCallTime = DateTime.Now;
             spawnedCharacter.MessagesSent++;
             await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
@@ -298,14 +325,14 @@ public class MessagesHandler
     }
 
 
-    private static Task<ISpawnedCharacter?> FindCharacterByReplyAsync(SocketUserMessage socketUserMessage)
+    private static Task<ISpawnedCharacter?> FindCharacterByReplyAsync(SocketUserMessage socketUserMessage, ulong channelId)
     {
         if (socketUserMessage.ReferencedMessage?.Author?.Id is not ulong webhookId)
         {
             return Task.FromResult<ISpawnedCharacter?>(null);
         }
 
-        var cachedCharacter = MemoryStorage.CachedCharacters.Find(webhookId.ToString(), socketUserMessage.Channel.Id);
+        var cachedCharacter = MemoryStorage.CachedCharacters.Find(webhookId.ToString(), channelId);
         if (cachedCharacter is null)
         {
             return Task.FromResult<ISpawnedCharacter?>(null);
@@ -315,9 +342,9 @@ public class MessagesHandler
     }
 
 
-    private static Task<ISpawnedCharacter?> FindCharacterByPrefixAsync(SocketUserMessage socketUserMessage)
+    private static Task<ISpawnedCharacter?> FindCharacterByPrefixAsync(SocketUserMessage socketUserMessage, ulong channelId)
     {
-        var cachedCharacters = MemoryStorage.CachedCharacters.ToList(socketUserMessage.Channel.Id);
+        var cachedCharacters = MemoryStorage.CachedCharacters.ToList(channelId);
         if (cachedCharacters.Count == 0)
         {
             return Task.FromResult<ISpawnedCharacter?>(null);
@@ -336,7 +363,7 @@ public class MessagesHandler
 
 
     private static readonly Random _random = new();
-    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
+    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters, ulong channelId)
     {
         if (cachedCharacters.Count == 0)
         {

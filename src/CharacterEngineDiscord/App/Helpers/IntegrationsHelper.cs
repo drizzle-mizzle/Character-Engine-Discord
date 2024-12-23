@@ -1,13 +1,15 @@
+using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.IntegrationModules.Abstractions;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
-using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.Db;
-using CharacterEngineDiscord.Models.Db.Integrations;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
+using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Domain.Models.Common;
+using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db.Integrations;
+using CharacterEngineDiscord.Modules.Abstractions;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,15 +20,12 @@ public static class IntegrationsHelper
 {
     public static IntegrationType GetIntegrationType(this ICharacter character)
     {
-        if (character is CommonCharacter commonCharacter)
-        {
-            return commonCharacter.IntegrationType;
-        }
-
         return character switch
         {
+            CommonCharacter commonCharacter => commonCharacter.IntegrationType,
             ISakuraCharacter => IntegrationType.SakuraAI,
             ICaiCharacter => IntegrationType.CharacterAI,
+            IOpenRouterCharacter => IntegrationType.OpenRouter,
 
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
@@ -39,21 +38,81 @@ public static class IntegrationsHelper
         {
             ISakuraIntegration => IntegrationType.SakuraAI,
             ICaiIntegration => IntegrationType.CharacterAI,
+            IOpenRouterIntegration => IntegrationType.OpenRouter,
 
             _ => throw new ArgumentOutOfRangeException(nameof(guildIntegration), guildIntegration, null)
         };
     }
 
 
+    public static CharacterSourceType GetSourceType(this ICharacter character)
+    {
+        return character switch
+        {
+            CommonCharacter commonCharacter => commonCharacter.CharacterSourceType,
+            ISakuraCharacter => CharacterSourceType.SakuraAI,
+            ICaiCharacter => CharacterSourceType.CharacterAI,
+            IOpenRouterCharacter orc => orc.CharacterSourceType,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+        };
+    }
+
+
     #region TypeBased
 
-    public static IIntegrationModule GetIntegrationModule(this IntegrationType type)
+    public static CharacterSourceType? GetDefaultSourceType(this IntegrationType integrationType)
     {
-        return type switch
+        return integrationType switch
+        {
+            IntegrationType.SakuraAI => CharacterSourceType.SakuraAI,
+            IntegrationType.CharacterAI => CharacterSourceType.CharacterAI,
+
+            _ => null
+        };
+    }
+
+    public static IChatModule GetChatModule(this IntegrationType integrationType)
+        => integrationType.GetChatModule<IChatModule>();
+
+    public static T GetChatModule<T>(this IntegrationType integrationType) where T : IChatModule
+        => integrationType.GetIntegrationModule<T>();
+
+    public static ISearchModule GetSearchModule(this CharacterSourceType sourceType)
+        => sourceType.GetSearchModule<ISearchModule>();
+
+    public static T GetSearchModule<T>(this CharacterSourceType sourceType) where T : ISearchModule
+        => sourceType.GetIntegrationModule<T>();
+
+
+    public static T GetIntegrationModule<T>(this IntegrationType integrationType) where T : IModule
+    {
+        IModule module = integrationType switch
         {
             IntegrationType.SakuraAI => MemoryStorage.IntegrationModules.SakuraAiModule,
-            IntegrationType.CharacterAI => MemoryStorage.IntegrationModules.CaiModule
+            IntegrationType.CharacterAI => MemoryStorage.IntegrationModules.CaiModule,
+            IntegrationType.OpenRouter => MemoryStorage.IntegrationModules.OpenRouterModule,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
         };
+
+        return (T)module;
+    }
+
+
+    public static T GetIntegrationModule<T>(this CharacterSourceType sourceType) where T : IModule
+    {
+        IModule module = sourceType switch
+        {
+            CharacterSourceType.SakuraAI => MemoryStorage.IntegrationModules.SakuraAiModule,
+            CharacterSourceType.CharacterAI => MemoryStorage.IntegrationModules.CaiModule,
+            // CharacterSourceType.ChubAI => MemoryStorage.IntegrationModules.ChubModule,
+            // CharacterSourceType.CharacterTavern => MemoryStorage.IntegrationModules.TavernModule,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(sourceType), sourceType, null)
+        };
+
+        return (T)module;
     }
 
 
@@ -62,7 +121,8 @@ public static class IntegrationsHelper
         return type switch
         {
             IntegrationType.SakuraAI => "Messages count",
-            IntegrationType.CharacterAI => "Chats count"
+            IntegrationType.CharacterAI => "Chats count",
+            IntegrationType.OpenRouter => "Messages count",
         };
     }
 
@@ -72,7 +132,8 @@ public static class IntegrationsHelper
         return type switch
         {
             IntegrationType.SakuraAI => BotConfig.SAKURA_AI_EMOJI,
-            IntegrationType.CharacterAI => BotConfig.CHARACTER_AI_EMOJI
+            IntegrationType.CharacterAI => BotConfig.CHARACTER_AI_EMOJI,
+            IntegrationType.OpenRouter => BotConfig.OPEN_ROUTER_EMOJI,
         };
     }
 
@@ -82,17 +143,8 @@ public static class IntegrationsHelper
         return type switch
         {
             IntegrationType.SakuraAI => Color.Purple,
-            IntegrationType.CharacterAI => Color.LighterGrey
-        };
-    }
-
-
-    public static string GetLinkPrefix(this IntegrationType type)
-    {
-        return type switch
-        {
-            IntegrationType.SakuraAI or
-            IntegrationType.CharacterAI => "Chat with",
+            IntegrationType.CharacterAI => Color.Blue,
+            IntegrationType.OpenRouter => Color.LightGrey,
         };
     }
 
@@ -103,6 +155,7 @@ public static class IntegrationsHelper
         {
             IntegrationType.SakuraAI => "https://www.sakura.fm/",
             IntegrationType.CharacterAI => "https://character.ai/",
+            IntegrationType.OpenRouter => "https://openrouter.ai",
         };
     }
 
@@ -111,48 +164,58 @@ public static class IntegrationsHelper
 
     #region ObjectBased
 
-    public static string GetCharacterLink(this ICharacter character)
+    public static string GetLinkLabel(this ICharacter character)
     {
         return character.GetIntegrationType() switch
         {
-            IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
-            IntegrationType.CharacterAI => $"https://character.ai/chat/{character.CharacterId}"
+            IntegrationType.SakuraAI or
+            IntegrationType.CharacterAI => $"Chat with {character.CharacterName}",
+            IntegrationType.OpenRouter => $"{character.CharacterName} on {character.GetSourceType()}"
+        };
+    }
+
+    public static string GetCharacterLink(this ICharacter character)
+    {
+        return character.GetSourceType() switch
+        {
+            CharacterSourceType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
+            CharacterSourceType.CharacterAI => $"https://character.ai/chat/{character.CharacterId}",
+            CharacterSourceType.ChubAI => $"https://chub.ai/characters/{character.CharacterAuthor}/{character.CharacterId}",
+            CharacterSourceType.CharacterTavern => $"https://character-tavern.com/character/{character.CharacterAuthor}/{character.CharacterId}",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
     }
 
 
     public static string GetAuthorLink(this ICharacter character)
     {
-        return character.GetIntegrationType() switch
+        return character.GetSourceType() switch
         {
-            IntegrationType.SakuraAI => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
-            IntegrationType.CharacterAI => $"https://character.ai/profile/{character.CharacterAuthor}",
+            CharacterSourceType.SakuraAI => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
+            CharacterSourceType.CharacterAI => $"https://character.ai/profile/{character.CharacterAuthor}",
+            CharacterSourceType.ChubAI => $"https://chub.ai/users/{character.CharacterAuthor}",
+            CharacterSourceType.CharacterTavern => $"https://character-tavern.com/author/{character.CharacterAuthor}",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+
         };
     }
 
     #endregion
 
-
-    #region Authorizatio
-
     public static async Task EnsureSakuraAiLoginAsync(StoredAction action)
     {
-        await using var db = DatabaseHelper.GetDbContext();
+        const IntegrationType type = IntegrationType.SakuraAI;
+
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
         var result = await MemoryStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);
-        if (result is null)
-        {
-            action.Attempt++;
-            db.StoredActions.Update(action);
-            await db.SaveChangesAsync();
-
-            return;
-        }
 
         var sourceInfo = action.ExtractDiscordSourceInfo();
         var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(sourceInfo.ChannelId);
 
+        await using var db = DatabaseHelper.GetDbContext();
         var integration = await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.GuildId);
         if (integration is not null)
         {
@@ -172,30 +235,23 @@ public static class IntegrationsHelper
                 CreatedAt = DateTime.Now
             };
 
-            MetricsWriter.Create(MetricType.IntegrationCreated, newSakuraIntegration.Id, $"{newSakuraIntegration.GetIntegrationType():G} | {newSakuraIntegration.SakuraEmail}");
-            await db.SakuraAiIntegrations.AddAsync(newSakuraIntegration);
+            MetricsWriter.Create(MetricType.IntegrationCreated, newSakuraIntegration.Id, $"{type:G} | {newSakuraIntegration.SakuraEmail}");
+            db.SakuraAiIntegrations.Add(newSakuraIntegration);
         }
-
-        action.Attempt++;
-        action.Status = StoredActionStatus.Finished;
-        db.StoredActions.Update(action);
-
         await db.SaveChangesAsync();
 
         var msg = $"Username: **{result.Username}**\n" +
                   "From now on, this account will be used for all SakuraAI interactions on this server.\n" +
-                  "For the next step, use *`/character spawn`* command to spawn new SakuraAI character in this channel.";
+                  type.GetNextStepTail();
 
         var embed = new EmbedBuilder()
-                   .WithTitle($"{IntegrationType.SakuraAI.GetIcon()} SakuraAI user authorized")
+                   .WithTitle($"{type.GetIcon()} SakuraAI user authorized")
                    .WithDescription(msg)
-                   .WithColor(IntegrationType.SakuraAI.GetColor())
+                   .WithColor(type.GetColor())
                    .WithThumbnailUrl(result.UserImageUrl);
 
         var user = await channel.GetUserAsync(sourceInfo.UserId);
         await channel.SendMessageAsync(user.Mention, embed: embed.Build());
     }
 
-
-    #endregion
 }

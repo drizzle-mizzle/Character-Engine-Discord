@@ -21,7 +21,7 @@ public static class CommonHelper
         }
         catch (Exception e)
         {
-            await CharacterEngineBot.DiscordClient.ReportErrorAsync($"DownloadFileAsync: {url}", null, e, NewTraceId(), false);
+            await CharacterEngineBot.DiscordClient.ReportErrorAsync($"DownloadFileAsync: {url}", null, $"URL: {url}\nException:\n{e}", NewTraceId(), false);
             return null;
         }
     }

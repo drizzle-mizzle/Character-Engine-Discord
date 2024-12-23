@@ -2,8 +2,8 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -101,7 +101,6 @@ public static class BackgroundWorker
 
     private static async Task SendSakuraAuthGiveUpNotificationAsync(StoredAction action)
     {
-        var data = action.ExtractSakuraAiLoginData();
         var source = action.ExtractDiscordSourceInfo();
 
         if (CharacterEngineBot.DiscordClient.GetChannel(source.ChannelId) is not ITextChannel channel)
@@ -127,8 +126,10 @@ public static class BackgroundWorker
     {
         var actions = await GetPendingActionsAsync(_quickJobActionTypes, traceId);
 
+        await using var db = DatabaseHelper.GetDbContext();
         foreach (var action in actions)
         {
+            action.Attempt++;
             var job = action.StoredActionType switch
             {
                 StoredActionType.SakuraAiEnsureLogin => IntegrationsHelper.EnsureSakuraAiLoginAsync(action),
@@ -137,21 +138,24 @@ public static class BackgroundWorker
             try
             {
                 await job;
+                action.Status = StoredActionStatus.Finished;
             }
             catch (SakuraException)
             {
-                // care not
+                action.Status = StoredActionStatus.Pending;
             }
             catch (Exception e)
             {
                 await CharacterEngineBot.DiscordClient.ReportErrorAsync("Exception in Quick Jobs loop", null, e, traceId, writeMetric: true);
-
-                await using var db = DatabaseHelper.GetDbContext();
                 action.Status = StoredActionStatus.Canceled;
+            }
+            finally
+            {
                 db.StoredActions.Update(action);
-                await db.SaveChangesAsync();
             }
         }
+
+        await db.SaveChangesAsync();
     }
 
 
@@ -220,6 +224,7 @@ public static class BackgroundWorker
         {
             if (action.Attempt <= action.MaxAttemtps)
             {
+                action.Status = StoredActionStatus.InProcess;
                 actionsToRun.Add(action);
                 continue;
             }
@@ -228,7 +233,6 @@ public static class BackgroundWorker
 
             var title = $"Giving up on action **{action.StoredActionType:G}**";
             var msg = $"**Attempt**: {action.Attempt}\n" +
-                      $"**ActionID**: {action.Id}\n" +
                       $"**UserID**: {sourceInfo.UserId}\n" +
                       $"**ChannelID**: {sourceInfo.ChannelId}";
 
@@ -239,6 +243,8 @@ public static class BackgroundWorker
 
             CallGiveUpFinalizer(action, traceId);
         }
+
+        await db.SaveChangesAsync();
 
         return actionsToRun;
     }

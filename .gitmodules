@@ -7,6 +7,3 @@
 [submodule "submodules/OpenRouter-Net-Client"]
 	path = submodules/OpenRouter-Net-Client
 	url = https://github.com/drizzle-mizzle/OpenRouter-Net-Client
-[submodule "submodules/Universal-OpenAI-Net-Client"]
-	path = submodules/Universal-OpenAI-Net-Client
-	url = https://github.com/drizzle-mizzle/Universal-OpenAI-Net-Client

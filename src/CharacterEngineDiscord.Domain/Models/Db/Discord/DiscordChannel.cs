@@ -2,13 +2,13 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db.Discord;
+namespace CharacterEngineDiscord.Domain.Models.Db.Discord;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class DiscordChannel
+public sealed class DiscordChannel
 {
-    [Key]
     public required ulong Id { get; set; }
 
     [MaxLength(200)]
@@ -25,5 +25,5 @@ public class DiscordChannel
 
 
 
-    public virtual DiscordGuild? DiscordGuild { get; set; }
+    public DiscordGuild DiscordGuild { get; set; } = null!;
 }

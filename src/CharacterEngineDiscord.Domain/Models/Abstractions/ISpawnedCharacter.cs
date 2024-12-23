@@ -1,6 +1,6 @@
-﻿using CharacterEngineDiscord.Models.Db.Discord;
+﻿using CharacterEngineDiscord.Domain.Models.Db.Discord;
 
-namespace CharacterEngineDiscord.Models.Abstractions;
+namespace CharacterEngineDiscord.Domain.Models.Abstractions;
 
 
 /// <summary>
@@ -45,8 +45,6 @@ public interface ISpawnedCharacter : ICharacter
 
     public bool SkipNextBotMessage { get; set; }
 
-    public bool ResetWithNextMessage { get; set; }
-
 
     /// <summary>
     /// Latest user who called a character
@@ -63,6 +61,5 @@ public interface ISpawnedCharacter : ICharacter
     public DateTime LastCallTime { get; set; }
 
     public DiscordChannel? DiscordChannel { get; set; }
-
 
 }

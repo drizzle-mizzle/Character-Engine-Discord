@@ -1,9 +1,9 @@
-using System.Text;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
@@ -27,6 +27,10 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    private ulong PrimaryChannelId
+        => Context.Channel is SocketThreadChannel threadChannel ? threadChannel.ParentChannel.Id : Context.Channel.Id;
+
+
     [SlashCommand("messages-format", "Messages format")]
     public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null, bool hide = false)
     {
@@ -37,7 +41,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
 
         await DeferAsync(ephemeral: hide);
 
-        string message = default!;
+        string message = null!;
 
         switch (action)
         {
@@ -87,7 +91,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync(ephemeral: hide);
 
-        var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(Context.Channel.Id);
+        var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
         if (spawnedCharacters.Count == 0)
         {
             await FollowupAsync(embed: "This channel has no spawned characters".ToInlineEmbed(Color.Magenta));
@@ -106,7 +110,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: MP.WAIT_MESSAGE);
 
-        var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(Context.Channel.Id);
+        var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
 
         foreach (var spawnedCharacter in spawnedCharacters)
         {

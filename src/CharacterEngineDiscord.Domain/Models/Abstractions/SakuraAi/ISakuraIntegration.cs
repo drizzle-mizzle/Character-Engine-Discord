@@ -1,4 +1,4 @@
-namespace CharacterEngineDiscord.Models.Abstractions.SakuraAi;
+namespace CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
 
 
 public interface ISakuraIntegration : IGuildIntegration

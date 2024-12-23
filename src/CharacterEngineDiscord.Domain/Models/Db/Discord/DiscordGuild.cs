@@ -1,13 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db.Discord;
+namespace CharacterEngineDiscord.Domain.Models.Db.Discord;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class DiscordGuild
+public sealed class DiscordGuild
 {
-    [Key]
     public required ulong Id { get; set; }
 
     [MaxLength(100)]
