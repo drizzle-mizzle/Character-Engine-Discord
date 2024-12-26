@@ -3,6 +3,7 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;

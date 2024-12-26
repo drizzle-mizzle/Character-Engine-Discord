@@ -1,4 +1,4 @@
-namespace CharacterEngineDiscord.Models.Abstractions;
+namespace CharacterEngineDiscord.Domain.Models.Abstractions;
 
 
 public interface ICharacter

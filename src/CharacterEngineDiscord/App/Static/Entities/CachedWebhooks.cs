@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 using Discord.Webhook;
 
 namespace CharacterEngine.App.Static.Entities;

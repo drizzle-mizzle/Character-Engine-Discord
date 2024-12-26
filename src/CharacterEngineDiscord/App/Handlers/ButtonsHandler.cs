@@ -2,8 +2,8 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
@@ -68,6 +68,8 @@ public class ButtonsHandler
         var textChannel = (ITextChannel)component.Channel;
 
         guildUser.EnsureCached();
+        textChannel.EnsureCached();
+
         MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
         InteractionsHelper.ValidateUser(guildUser, textChannel);
@@ -153,12 +155,24 @@ public class ButtonsHandler
                     msg.Components = null;
                 });
 
-                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync((ulong)component.ChannelId!, sq.SelectedCharacter);
+                var channelId = (ulong)component.ChannelId!;
+                var selectedCharacter = sq.SelectedCharacter;
+                selectedCharacter.IntegrationType = sq.IntegrationType;
+
+                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(channelId, selectedCharacter);
 
                 var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
-                await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
+                if (component.Channel is IThreadChannel)
+                {
+                    await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username, channelId);
+                }
+                else
+                {
+                    await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
+                }
+
                 await modifyOriginalResponseAsync1;
                 await modifyOriginalResponseAsync2;
 

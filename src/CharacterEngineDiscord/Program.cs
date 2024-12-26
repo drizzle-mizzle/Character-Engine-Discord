@@ -3,10 +3,10 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models.Db;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Config;
+using CharacterEngineDiscord.Domain.Models.Db;
 
 namespace CharacterEngine
 {

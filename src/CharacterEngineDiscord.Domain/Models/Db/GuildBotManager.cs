@@ -1,18 +1,15 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db;
+namespace CharacterEngineDiscord.Domain.Models.Db;
 
 
-[Index(nameof(UserId), nameof(DiscordGuildId), IsUnique = true)]
-public class GuildBotManager
+[PrimaryKey(nameof(DiscordUserId), nameof(DiscordGuildId))]
+[Index(nameof(DiscordUserId), nameof(DiscordGuildId), IsUnique = true)]
+public sealed class GuildBotManager
 {
-    [Key]
-    public Guid Id { get; init; } = Guid.NewGuid();
-
-    public required ulong UserId { get; set; }
+    public required ulong DiscordUserId { get; set; }
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }
@@ -24,5 +21,5 @@ public class GuildBotManager
     public required ulong AddedBy { get; set; }
 
 
-    public virtual DiscordGuild DiscordGuild { get; set; } = null!;
+    public DiscordGuild DiscordGuild { get; set; } = null!;
 }

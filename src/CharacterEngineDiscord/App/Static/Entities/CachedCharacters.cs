@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using CharacterEngine.App.Helpers;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -19,16 +19,18 @@ public sealed class CachedCharacerInfoCollection
         await using var db = DatabaseHelper.GetDbContext();
         var allHuntedUsers = await db.HuntedUsers.ToArrayAsync();
 
-        Parallel.ForEach(spawnedCharacters, AddNew);
+        await Parallel.ForEachAsync(spawnedCharacters, AddNew);
 
         return;
 
-        void AddNew(ISpawnedCharacter sc)
+        ValueTask AddNew(ISpawnedCharacter sc, CancellationToken _)
         {
             var huntedUsersIds = allHuntedUsers.Where(hu => hu.SpawnedCharacterId == sc.Id)
                                                .Select(hu => hu.DiscordUserId)
                                                .ToList();
             Add(sc, huntedUsersIds);
+
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -88,7 +90,7 @@ public record CachedCharacterInfo
     {
         lock (_queue)
         {
-            return _queue.Count >= 5 || _queue.Count(id => id == userId) > 1;
+            return _queue.Count > 4 || _queue.Contains(userId);
         }
     }
 
@@ -97,7 +99,7 @@ public record CachedCharacterInfo
     {
         lock (_queue)
         {
-            return _queue.Count < 2 || _queue[0] == userId;
+            return _queue.Count == 1 || _queue[0] == userId;
         }
     }
 
@@ -109,6 +111,7 @@ public record CachedCharacterInfo
             _queue.Add(userId);
         }
     }
+
 
     public void QueueRemove(ulong userId)
     {
