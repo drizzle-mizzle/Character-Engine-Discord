@@ -145,7 +145,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
 
     [ValidateAccessLevel(AccessLevels.Manager)]
-    [SlashCommand("confirm", "Confirm intergration")]
+    [SlashCommand("confirm", "Confirm integration")]
     public async Task Confirm(IntegrationType type, string data)
     {
         await DeferAsync(ephemeral: true);

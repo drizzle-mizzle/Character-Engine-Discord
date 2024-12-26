@@ -142,7 +142,7 @@ public class MessagesHandler
         }
         catch (Exception e)
         {
-            var userFriendlyExceptionCheck = e.IsUserFriendlyException();
+            var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
             if (userFriendlyExceptionCheck.valid)
             {
                 var message = $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {userFriendlyExceptionCheck.message}";

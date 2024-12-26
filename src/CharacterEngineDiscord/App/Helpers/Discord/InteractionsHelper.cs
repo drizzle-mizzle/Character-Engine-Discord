@@ -33,7 +33,7 @@ public static class InteractionsHelper
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 
-    public static (bool valid, string? message) IsUserFriendlyException(this Exception exception)
+    public static (bool valid, string? message) ValidateUserFriendlyException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -48,7 +48,7 @@ public static class InteractionsHelper
     }
 
 
-    public static (bool valid, string? message) IsWebhookException(this Exception exception)
+    public static (bool valid, string? message) ValidateWebhookException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -66,7 +66,7 @@ public static class InteractionsHelper
 
     public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
-        var userFriendlyExceptionCheck = e.IsUserFriendlyException();
+        var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
 
         Embed embed;
 
@@ -411,7 +411,7 @@ public static class InteractionsHelper
         }
         catch (Exception e)
         {
-            var webhookExceptionCheck = e.IsWebhookException();
+            var webhookExceptionCheck = e.ValidateWebhookException();
             if (webhookExceptionCheck.valid)
             {
                 MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);

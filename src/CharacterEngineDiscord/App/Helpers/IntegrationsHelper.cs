@@ -61,14 +61,14 @@ public static class IntegrationsHelper
 
     #region TypeBased
 
-    public static CharacterSourceType? GetDefaultSourceType(this IntegrationType integrationType)
+    public static CharacterSourceType GetDefaultSourceType(this IntegrationType integrationType)
     {
         return integrationType switch
         {
             IntegrationType.SakuraAI => CharacterSourceType.SakuraAI,
             IntegrationType.CharacterAI => CharacterSourceType.CharacterAI,
 
-            _ => null
+            _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
         };
     }
 

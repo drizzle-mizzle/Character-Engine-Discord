@@ -42,9 +42,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                                      [Summary(description: "A query to perform character search")] string? searchQuery = null,
                                      [Summary(description: "Can be used instead of search to spawn a character with its ID")] string? characterId = null,
                                      [Summary(description: "optional; show nsfw characters in search")] bool showNsfw = false,
-                                     [Summary(description: "optional; characters source to use, required for certain integration types")] CharacterSourceType? sourceType = null,
+                                     // [Summary(description: "optional; characters source to use, required for certain integration types")] CharacterSourceType? sourceType = null,
                                      bool hide = false)
     {
+        if (integrationType is IntegrationType.OpenRouter)
+        {
+            throw new UserFriendlyException("This feature is not available yet...");
+        }
+
         if (searchQuery is null && characterId is null)
         {
             throw new UserFriendlyException("search-query or character-id parameter is required");
@@ -79,13 +84,14 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException($"You have to setup **{integrationType:G}** intergration for this server first!", bold: false);
         }
 
-        sourceType ??= integrationType.GetDefaultSourceType();
-        if (sourceType is null)
-        {
-            throw new UserFriendlyException("source-type parameter is required");
-        }
+        // sourceType ??= integrationType.GetDefaultSourceType();
+        // if (sourceType is null)
+        // {
+        //     throw new UserFriendlyException("source-type parameter is required");
+        // }
 
-        var searchModule = ((CharacterSourceType)sourceType).GetSearchModule();
+        // var searchModule = ((CharacterSourceType)sourceType).GetSearchModule();
+        var searchModule = integrationType.GetDefaultSourceType().GetSearchModule();
 
         if (string.IsNullOrWhiteSpace(characterId))
         {
