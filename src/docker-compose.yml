@@ -1,9 +1,0 @@
-﻿version: "3"
-
-services:
-  character-engine-discord:
-    build:
-        context: ./
-        dockerfile: Dockerfile
-    container_name: character-engine-discord
-    restart: always

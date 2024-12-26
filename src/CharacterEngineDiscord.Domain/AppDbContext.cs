@@ -71,6 +71,11 @@ public sealed class AppDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        if (CONNECTION_STRING is null)
+        {
+            return;
+        }
+
         optionsBuilder.UseNpgsql(CONNECTION_STRING);
     }
 
