@@ -25,7 +25,7 @@ public static class DependencyInjectionHelper
         services.AddTransient<SpecialCommandsHandler>();
         services.AddTransient<BotAdminCommandsHandler>();
 
-        services.AddTransient<AppDbContext>(_ => DatabaseHelper.GetDbContext());
+        services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
 
         return services.BuildServiceProvider();;
     }
