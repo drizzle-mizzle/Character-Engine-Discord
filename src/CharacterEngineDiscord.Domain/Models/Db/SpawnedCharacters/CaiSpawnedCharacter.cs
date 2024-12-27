@@ -61,7 +61,7 @@ public sealed class CaiSpawnedCharacter : ISpawnedCharacter, ICaiCharacter
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
-    public string? CaiChatId { get; set; } = null;
+    public string? CaiChatId { get; set; }
 
     public DiscordChannel DiscordChannel { get; set; } = null!;
 
