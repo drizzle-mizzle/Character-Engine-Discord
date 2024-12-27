@@ -1,17 +1,17 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db.SpawnedCharacters;
+namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
+public sealed class CaiSpawnedCharacter : ISpawnedCharacter, ICaiCharacter
 {
-    [Key]
     public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
@@ -36,7 +36,6 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public bool EnableQuotes { get; set; }
     public bool EnableStopButton { get; set; }
     public bool SkipNextBotMessage { get; set; }
-    public bool ResetWithNextMessage { get; set; }
     public ulong LastCallerDiscordUserId { get; set; }
     public ulong LastDiscordMessageId { get; set; }
     public uint MessagesSent { get; set; }
@@ -62,8 +61,8 @@ public class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
-    public string? CaiChatId { get; set; } = "empty";
+    public string? CaiChatId { get; set; }
 
-    public virtual DiscordChannel? DiscordChannel { get; set; } = null!;
+    public DiscordChannel DiscordChannel { get; set; } = null!;
 
 }

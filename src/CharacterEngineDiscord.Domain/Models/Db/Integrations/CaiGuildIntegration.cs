@@ -1,16 +1,16 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db.Integrations;
+namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
 
 
+[PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class CaiGuildIntegration : ICaiIntegration
+public sealed class CaiGuildIntegration : ICaiIntegration
 {
-    [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 
     [ForeignKey("DiscordGuild")]
@@ -34,5 +34,5 @@ public class CaiGuildIntegration : ICaiIntegration
     public required string CaiUsername { get; set; }
 
 
-    public virtual DiscordGuild DiscordGuild { get; set; } = null!;
+    public DiscordGuild DiscordGuild { get; set; } = null!;
 }

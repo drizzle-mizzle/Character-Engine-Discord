@@ -1,4 +1,4 @@
-namespace CharacterEngineDiscord.Models.Abstractions.CharacterAi;
+namespace CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
 
 
 public interface ICaiIntegration : IGuildIntegration

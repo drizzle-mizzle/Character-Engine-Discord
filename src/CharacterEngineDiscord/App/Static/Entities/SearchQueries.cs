@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Common;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Common;
 
 namespace CharacterEngine.App.Static.Entities;
 

@@ -1,4 +1,4 @@
-namespace CharacterEngineDiscord.Models.Common;
+namespace CharacterEngineDiscord.Domain.Models.Common;
 
 
 public record CommonCharacterMessage

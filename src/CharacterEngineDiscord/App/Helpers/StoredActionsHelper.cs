@@ -1,5 +1,5 @@
-﻿using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Db;
+﻿using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Db;
 using SakuraAi.Client.Models.Common;
 
 namespace CharacterEngine.App.Helpers;

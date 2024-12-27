@@ -2,14 +2,12 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Helpers.Mappings;
-using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Models.Abstractions.SakuraAi;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -274,7 +272,7 @@ public static class MessagesHelper
         var desc = spawnedCharacter switch
         {
             ISakuraCharacter sc => sc.GetSakuraDesc(),
-            ICaiCharacter cc => await cc.GetCaiDescAsync(),
+            ICaiCharacter cc => cc.GetCaiDesc(),
 
             _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
         };
@@ -287,7 +285,7 @@ public static class MessagesHelper
         desc += "\n\n";
 
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
-                      $"*Original link: [__{type.GetLinkPrefix()} {spawnedCharacter.CharacterName}__]({spawnedCharacter.GetCharacterLink()})*\n" +
+                      $"*Original link: [__{spawnedCharacter.GetLinkLabel()}__]({spawnedCharacter.GetCharacterLink()})*\n" +
                       "*Can generate images: `No`*\n" +
                       $"*NSFW: `{spawnedCharacter.IsNfsw}`*\n\n";
 
@@ -339,14 +337,8 @@ public static class MessagesHelper
         return result;
     }
 
-    private static async Task<string> GetCaiDescAsync(this ICaiCharacter caiCharacter)
+    private static string GetCaiDesc(this ICaiCharacter caiCharacter)
     {
-        var asSpawnedCharacter = (ISpawnedCharacter)caiCharacter;
-
-        var guildIntegration = (await DatabaseHelper.GetGuildIntegrationAsync(asSpawnedCharacter))!;
-        var fullCharacter = await MemoryStorage.IntegrationModules.CaiModule.GetFullCaiChararcterInfoAsync(caiCharacter.CharacterId, guildIntegration);
-        asSpawnedCharacter.FillWith(fullCharacter);
-
         var title = caiCharacter.CaiTitle.Trim(' ', '\n');
         if (title.Length < 2)
         {
@@ -480,6 +472,10 @@ public static class MessagesHelper
     }
 
     #endregion
+
+
+    public static string GetNextStepTail(this IntegrationType integrationType)
+        => $"For the next step, use *`/character spawn`* command to spawn new {integrationType:G} character in this channel.";
 
 
     public static string SplitWordsBySep(this string source, char sep)

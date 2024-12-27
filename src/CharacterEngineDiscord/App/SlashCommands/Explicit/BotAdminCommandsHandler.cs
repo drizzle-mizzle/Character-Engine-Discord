@@ -1,7 +1,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +11,6 @@ namespace CharacterEngine.App.SlashCommands.Explicit;
 
 public class BotAdminCommandsHandler
 {
-
     public async Task ShutdownAsync(SocketSlashCommand command)
     {
         await command.RespondAsync(embed: "T_T".ToInlineEmbed(Color.Green));

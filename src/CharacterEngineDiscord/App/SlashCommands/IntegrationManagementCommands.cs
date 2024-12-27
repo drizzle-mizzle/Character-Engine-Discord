@@ -3,10 +3,11 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Static;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db.Integrations;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Db;
-using CharacterEngineDiscord.Models.Db.Integrations;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -41,6 +42,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         {
             IntegrationType.SakuraAI => modalBuilder.BuildSakuraAiAuthModal(),
             IntegrationType.CharacterAI => modalBuilder.BuildCaiAiAuthModal(),
+            IntegrationType.OpenRouter => modalBuilder.BuildOpenRouterAuthModal(),
         };
 
         await RespondWithModalAsync(modal); // next in EnsureSakuraAiLoginAsync()
@@ -63,7 +65,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         {
             SakuraAiGuildIntegration sakuraAiGuildIntegration => InteractionsHelper.SendSakuraAiMailAsync(Context.Interaction, sakuraAiGuildIntegration.SakuraEmail),
             CaiGuildIntegration caiGuildIntegration => InteractionsHelper.SendCharacterAiMailAsync(Context.Interaction, caiGuildIntegration.CaiEmail),
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new UserFriendlyException($"This command is not intended to be used with {type:G} integrations")
         });
     }
 
@@ -83,7 +85,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         var originalIntegrationGuild = await _db.DiscordGuilds.FirstAsync(g => g.Id == guildIntegration.DiscordGuildId);
 
         var allowed = originalIntegrationGuild.OwnerId == Context.User.Id
-                   || await _db.GuildBotManagers.Where(m => m.DiscordGuildId == originalIntegrationGuild.Id).AnyAsync(m => m.UserId == Context.User.Id);
+                   || await _db.GuildBotManagers.Where(m => m.DiscordGuildId == originalIntegrationGuild.Id).AnyAsync(m => m.DiscordUserId == Context.User.Id);
 
         if (!allowed)
         {
@@ -112,14 +114,20 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         {
             case SakuraAiGuildIntegration sakuraAiGuildIntegration:
             {
-                await _db.SakuraAiIntegrations.AddAsync(sakuraAiGuildIntegration);
+                _db.SakuraAiIntegrations.Add(sakuraAiGuildIntegration);
                 MetricsWriter.Create(MetricType.IntegrationCreated, sakuraAiGuildIntegration.Id, $"{sakuraAiGuildIntegration.GetIntegrationType():G} | {sakuraAiGuildIntegration.SakuraEmail}");
                 break;
             }
             case CaiGuildIntegration caiGuildIntegration:
             {
-                await _db.CaiIntegrations.AddAsync(caiGuildIntegration);
+                _db.CaiIntegrations.Add(caiGuildIntegration);
                 MetricsWriter.Create(MetricType.IntegrationCreated, caiGuildIntegration.Id, $"{caiGuildIntegration.GetIntegrationType():G} | {caiGuildIntegration.CaiEmail}");
+                break;
+            }
+            case OpenRouterGuildIntegration openRouterGuildIntegration:
+            {
+                _db.OpenRouterIntegrations.Add(openRouterGuildIntegration);
+                MetricsWriter.Create(MetricType.IntegrationCreated, openRouterGuildIntegration.Id, $"{openRouterGuildIntegration.GetIntegrationType():G} | {openRouterGuildIntegration.OpenRouterApiKey}");
                 break;
             }
             default:
@@ -137,7 +145,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
 
     [ValidateAccessLevel(AccessLevels.Manager)]
-    [SlashCommand("confirm", "Confirm intergration")]
+    [SlashCommand("confirm", "Confirm integration")]
     public async Task Confirm(IntegrationType type, string data)
     {
         await DeferAsync(ephemeral: true);
@@ -161,13 +169,14 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                     CaiEmail = caiUser.UserEmail
                 };
 
-                MetricsWriter.Create(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{newCaiIntergration.GetIntegrationType():G} | {newCaiIntergration.CaiEmail}");
-                await _db.CaiIntegrations.AddAsync(newCaiIntergration);
+                _db.CaiIntegrations.Add(newCaiIntergration);
                 await _db.SaveChangesAsync();
+
+                MetricsWriter.Create(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{type:G} | {newCaiIntergration.CaiEmail}");
 
                 message = $"Username: **{caiUser.Username}**\n" +
                           "From now on, this account will be used for all CharacterAI interactions on this server.\n" +
-                          "For the next step, use *`/character spawn`* command to spawn new CharacterAI character in this channel.";
+                          type.GetNextStepTail();
 
                 thumbnailUrl = caiUser.UserImageUrl;
 
@@ -175,13 +184,13 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             }
             default:
             {
-                throw new UserFriendlyException($"This command is not intended to be used for {type:G} integrations");
+                throw new UserFriendlyException($"This command is not intended to be used with {type:G} integrations");
             }
         }
 
         var embed = new EmbedBuilder().WithTitle($"{type.GetIcon()} {type:G} user authorized")
                    .WithDescription(message)
-                   .WithColor(IntegrationType.CharacterAI.GetColor())
+                   .WithColor(type.GetColor())
                    .WithThumbnailUrl(thumbnailUrl);
 
         await FollowupAsync(embed: embed.Build());
@@ -198,6 +207,9 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         {
             IntegrationType.SakuraAI => await _db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id),
             IntegrationType.CharacterAI => await _db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id),
+            IntegrationType.OpenRouter => await _db.OpenRouterIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
         });
 
         if (integration is null)
@@ -247,7 +259,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             }
         }
 
-        await DatabaseHelper.DeleteGuildIntegrationAsync(integration, removeAssociatedCharacters);
+        await DatabaseHelper.DeleteGuildIntegrationAsync(integration);
 
 
         await FollowupAsync(embed: $"{type.GetIcon()} {type:G} integration {(removeAssociatedCharacters ? "and all associated characters were" : "was")} successfully removed".ToInlineEmbed(Color.Green));

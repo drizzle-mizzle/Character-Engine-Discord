@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 
@@ -81,7 +81,7 @@ public static class WatchDog
         MetricsWriter.Create(MetricType.UserBlocked, userId, blockedUntil.Humanize());
 
         await using var db = DatabaseHelper.GetDbContext();
-        await db.BlockedUsers.AddAsync(new BlockedUser
+        db.BlockedUsers.Add(new BlockedUser
         {
             Id = userId,
             BlockedAt = DateTime.Now,
@@ -127,7 +127,7 @@ public static class WatchDog
         }
 
         await using var db = DatabaseHelper.GetDbContext();
-        await db.GuildBlockedUsers.AddAsync(new BlockedGuildUser
+        db.GuildBlockedUsers.Add(new BlockedGuildUser
         {
             UserId = user.Id,
             DiscordGuildId = user.GuildId,

@@ -1,16 +1,13 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Models.Db.Discord;
+using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngineDiscord.Models.Db;
+namespace CharacterEngineDiscord.Domain.Models.Db;
 
+[PrimaryKey(nameof(UserId), nameof(DiscordGuildId))]
 [Index(nameof(UserId), nameof(DiscordGuildId), IsUnique = true)]
-public class BlockedGuildUser
+public sealed class BlockedGuildUser
 {
-    [Key]
-    public Guid Id { get; init; } = Guid.NewGuid();
-
     public required ulong UserId { get; set; }
 
     [ForeignKey("DiscordGuild")]
@@ -25,5 +22,5 @@ public class BlockedGuildUser
     public required DateTime BlockedAt { get; set; }
 
 
-    public virtual DiscordGuild DiscordGuild { get; set; } = null!;
+    public DiscordGuild DiscordGuild { get; set; } = null!;
 }

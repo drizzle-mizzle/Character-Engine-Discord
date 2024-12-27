@@ -1,7 +1,7 @@
-namespace CharacterEngineDiscord.Models.Abstractions.CharacterAi;
+namespace CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
 
 
-public interface ICaiCharacter : ICharacter
+public interface ICaiCharacter : ISolidCharacter, ICharacter
 {
     public string CaiTitle { get; set; }
     public string CaiDescription { get; set; }

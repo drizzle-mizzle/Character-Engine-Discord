@@ -5,17 +5,17 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
-using CharacterEngineDiscord.IntegrationModules;
-using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Abstractions;
-using CharacterEngineDiscord.Models.Common;
-using CharacterEngineDiscord.Models.Db;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Common;
+using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
+using CharacterEngineDiscord.Modules.Helpers;
 using Discord;
 using Discord.Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Primitives;
 using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
@@ -33,7 +33,7 @@ public static class InteractionsHelper
     private static readonly Regex DISCORD_REGEX = new("discord", RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
 
-    public static (bool valid, string? message) IsUserFriendlyException(this Exception exception)
+    public static (bool valid, string? message) ValidateUserFriendlyException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -48,7 +48,7 @@ public static class InteractionsHelper
     }
 
 
-    public static (bool valid, string? message) IsWebhookException(this Exception exception)
+    public static (bool valid, string? message) ValidateWebhookException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -66,7 +66,7 @@ public static class InteractionsHelper
 
     public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
-        var userFriendlyExceptionCheck = e.IsUserFriendlyException();
+        var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
 
         Embed embed;
 
@@ -125,16 +125,15 @@ public static class InteractionsHelper
 
     public static async Task SendSakuraAiMailAsync(IDiscordInteraction interaction, string email)
     {
-        var sakuraAiModule = (SakuraAiModule)IntegrationType.SakuraAI.GetIntegrationModule();
-
+        var sakuraAiModule = MemoryStorage.IntegrationModules.SakuraAiModule;
         var attempt = await sakuraAiModule.SendLoginEmailAsync(email);
 
         // Respond to user
         var msg = $"{IntegrationType.SakuraAI.GetIcon()} **SakuraAI**\n\n" +
                   $"Confirmation mail was sent to **{email}**. Please check your mailbox and follow further instructions.\n\n" +
-                  $"- *It's **highly recommended** to open an [Incognito Tab](https://support.google.com/chrome/answer/95464), before you open the link in mail.*\n" +
+                  $"- *It's **highly recommended** to open an [Incognito Tab](https://support.google.com/chrome/answer/95464), before you open a link in the mail.*\n" +
                   $"- *It may take up to a minute for the bot to react on successful confirmation.*\n" +
-                  $"- *If you're willing to put this account into several integrations on different servers, **DO NOT USE `/integration create` command again**, it will break existing integration; use `/integration copy` command instead.*";
+                  $"- *If you're willing to put this account into several integrations on different servers, **DO NOT USE `/integration create` command again**, it may break existing integration; use `/integration copy` command instead.*";
 
         await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green), ephemeral: true);
 
@@ -143,14 +142,14 @@ public static class InteractionsHelper
         var newAction = new StoredAction(StoredActionType.SakuraAiEnsureLogin, data, maxAttemtps: 25);
 
         await using var db = DatabaseHelper.GetDbContext();
-        await db.StoredActions.AddAsync(newAction);
+        db.StoredActions.Add(newAction);
         await db.SaveChangesAsync();
     }
 
 
     public static async Task SendCharacterAiMailAsync(IDiscordInteraction interaction, string email)
     {
-        var caiModule = (CaiModule)IntegrationType.CharacterAI.GetIntegrationModule();
+        var caiModule = MemoryStorage.IntegrationModules.CaiModule;
 
         try
         {
@@ -170,6 +169,7 @@ public static class InteractionsHelper
 
         await interaction.FollowupAsync(embed: msg.ToInlineEmbed(bold: false, color: Color.Green), ephemeral: true);
     }
+
 
     #region CustomId
 
@@ -205,10 +205,99 @@ public static class InteractionsHelper
         var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.Token);
         MemoryStorage.CachedWebhookClients.Add(webhook.Id, webhookClient);
 
-        var newSpawnedCharacter = await DatabaseHelper.CreateSpawnedCharacterAsync(commonCharacter, webhook);
+        var newSpawnedCharacter = await CreateSpawnedCharacterAsync(commonCharacter, webhook);
         MemoryStorage.CachedCharacters.Add(newSpawnedCharacter, []);
 
-        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()} | {newSpawnedCharacter.CharacterName}");
+        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()}:{newSpawnedCharacter.GetSourceType()} | {newSpawnedCharacter.CharacterName}");
+
+        return newSpawnedCharacter;
+    }
+
+
+    private static readonly Regex FILTER_REGEX = new(@"[^a-zA-Z0-9\s]", RegexOptions.Compiled);
+    private static async Task<ISpawnedCharacter> CreateSpawnedCharacterAsync(CommonCharacter commonCharacter, IWebhook webhook)
+    {
+        var characterName = FILTER_REGEX.Replace(commonCharacter.CharacterName.Trim(), string.Empty);
+        if (characterName.Length == 0)
+        {
+            throw new UserFriendlyException("Invalid character name");
+        }
+
+        string callPrefix;
+        if (characterName.Contains(' '))
+        {
+            var split = characterName.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            callPrefix = $"@{split[0][0]}{split[1][0]}";
+        }
+        else if (characterName.Length > 2)
+        {
+            callPrefix = $"@{characterName[..2]}";
+        }
+        else
+        {
+            callPrefix = $"@{characterName}";
+        }
+
+        await using var db = DatabaseHelper.GetDbContext();
+        var channel = await db.DiscordChannels
+                              .Include(c => c.DiscordGuild)
+                              .FirstAsync(c => c.Id == (ulong)webhook.ChannelId!);
+
+        var searchModule = commonCharacter.CharacterSourceType.GetSearchModule();
+        var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync((ulong)webhook.GuildId!, commonCharacter.GetIntegrationType());
+        var fullCharacter = await searchModule.GetCharacterInfoAsync(commonCharacter.CharacterId, guildIntegration);
+
+        var newSpawnedCharacter = ((ISpawnedCharacter)(commonCharacter.IntegrationType switch
+        {
+            IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter(),
+            IntegrationType.CharacterAI => new CaiSpawnedCharacter(),
+            IntegrationType.OpenRouter => new OpenRouterSpawnedCharacter(),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(commonCharacter.IntegrationType))
+        })).FillWith(fullCharacter);
+
+        newSpawnedCharacter.CharacterId = commonCharacter.CharacterId;
+        newSpawnedCharacter.CharacterName = commonCharacter.CharacterName;
+        newSpawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
+        newSpawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
+        newSpawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor ?? "unknown";
+        newSpawnedCharacter.IsNfsw = commonCharacter.IsNfsw;
+        newSpawnedCharacter.DiscordChannelId = channel.Id;
+        newSpawnedCharacter.WebhookId = webhook.Id;
+        newSpawnedCharacter.WebhookToken = webhook.Token;
+        newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
+        newSpawnedCharacter.ResponseDelay = 5;
+        newSpawnedCharacter.FreewillFactor = 5;
+        newSpawnedCharacter.EnableSwipes = false;
+        newSpawnedCharacter.FreewillContextSize = 3000;
+        newSpawnedCharacter.EnableQuotes = false;
+        newSpawnedCharacter.EnableStopButton = true;
+        newSpawnedCharacter.SkipNextBotMessage = false;
+        newSpawnedCharacter.LastCallerDiscordUserId = 0;
+        newSpawnedCharacter.LastDiscordMessageId = 0;
+        newSpawnedCharacter.MessagesSent = 0;
+        newSpawnedCharacter.LastCallTime = DateTime.Now;
+
+        switch (newSpawnedCharacter)
+        {
+            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
+            {
+                db.SakuraAiSpawnedCharacters.Add(sakuraAiSpawnedCharacter);
+                break;
+            }
+            case CaiSpawnedCharacter caiSpawnedCharacter:
+            {
+                db.CaiSpawnedCharacters.Add(caiSpawnedCharacter);
+                break;
+            }
+            case OpenRouterSpawnedCharacter openRouterSpawnedCharacter:
+            {
+                db.OpenRouterSpawnedCharacters.Add(openRouterSpawnedCharacter);
+                break;
+            }
+        }
+
+        await db.SaveChangesAsync();
 
         return newSpawnedCharacter;
     }
@@ -228,7 +317,6 @@ public static class InteractionsHelper
 
         using var avatarInput = new MemoryStream();
         using var avatarOutput = new MemoryStream();
-
 
         if (avatar is null)
         {
@@ -262,20 +350,15 @@ public static class InteractionsHelper
             }
         }
 
-        if (avatarOutput.Length >= 10240000)
-        {
-            var defaultAvatar = await File.ReadAllBytesAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "img", BotConfig.DEFAULT_AVATAR_FILE));
-
-            avatarOutput.SetLength(0);
-            await avatarOutput.WriteAsync(defaultAvatar);
-        }
-
         avatarOutput.Seek(0, SeekOrigin.Begin);
-        return await channel.CreateWebhookAsync(characterName, avatarOutput);
+
+        return channel is SocketThreadChannel { ParentChannel: ITextChannel parentChannel }
+                ? await parentChannel.CreateWebhookAsync(characterName, avatarOutput)
+                : await channel.CreateWebhookAsync(characterName, avatarOutput);
     }
 
 
-    public static async Task<ulong> SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username)
+    public static async Task<ulong> SendGreetingAsync(this ISpawnedCharacter spawnedCharacter, string username, ulong? threadId = null)
     {
         if (string.IsNullOrWhiteSpace(spawnedCharacter.CharacterFirstMessage))
         {
@@ -286,11 +369,11 @@ public static class InteractionsHelper
                                                .Replace("{{char}}", spawnedCharacter.CharacterName)
                                                .Replace("{{user}}", $"**{username}**");
 
-        return await SendMessageAsync(spawnedCharacter, characterMessage);
+        return await SendMessageAsync(spawnedCharacter, characterMessage, threadId);
     }
 
 
-    public static async Task<ulong> SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage)
+    public static async Task<ulong> SendMessageAsync(this ISpawnedCharacter spawnedCharacter, string characterMessage, ulong? threadId = null)
     {
         try
         {
@@ -298,30 +381,37 @@ public static class InteractionsHelper
 
             if (characterMessage.Length <= 2000)
             {
-                return await webhookClient.SendMessageAsync(characterMessage);
+                return await (threadId is null ? webhookClient.SendMessageAsync(characterMessage) : webhookClient.SendMessageAsync(characterMessage, threadId: threadId));
             }
 
             var chunkSize = characterMessage.Length > 3990 ? 1990 : characterMessage.Length / 2;
             var chunks = characterMessage.Chunk(chunkSize).Select(c => new string(c)).ToArray();
 
-            var messageId = await webhookClient.SendMessageAsync(chunks[0]);
-
-            var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(spawnedCharacter.DiscordChannelId);
-            var message = await channel.GetMessageAsync(messageId);
-            var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
-
-            for (var i = 1; i < chunks.Length; i++)
+            ulong messageId;
+            if (threadId is null)
             {
-                await webhookClient.SendMessageAsync(chunks[i], threadId: thread.Id);
-            }
+                messageId = await webhookClient.SendMessageAsync(chunks[0]);
+                var channel = (ITextChannel)CharacterEngineBot.DiscordClient.GetChannel(threadId ?? spawnedCharacter.DiscordChannelId);
+                var message = await channel.GetMessageAsync(messageId);
+                var thread = await channel.CreateThreadAsync("[MESSAGE LENGTH LIMIT EXCEEDED]", message: message);
 
-            await thread.ModifyAsync(t => { t.Archived = true; });
+                for (var i = 1; i < chunks.Length; i++)
+                {
+                    await webhookClient.SendMessageAsync(chunks[i], threadId: thread.Id);
+                }
+
+                await thread.ModifyAsync(t => { t.Archived = true; });
+            }
+            else
+            {
+                messageId = await webhookClient.SendMessageAsync(chunks[0] + "[...]", threadId: threadId);
+            }
 
             return messageId;
         }
         catch (Exception e)
         {
-            var webhookExceptionCheck = e.IsWebhookException();
+            var webhookExceptionCheck = e.ValidateWebhookException();
             if (webhookExceptionCheck.valid)
             {
                 MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
@@ -349,7 +439,7 @@ public static class InteractionsHelper
 
         var channelWithGuild = db.DiscordChannels.Include(c => c.DiscordGuild).Where(c => c.Id == spawnedCharacter.DiscordChannelId);
         var getChannelFormatAsync = channelWithGuild.Select(c => c.MessagesFormat);
-        var getGuildFormatAsync = channelWithGuild.Select(c => c.DiscordGuild!.MessagesFormat);
+        var getGuildFormatAsync = channelWithGuild.Select(c => c.DiscordGuild.MessagesFormat);
 
         string format;
         string? inheritNote = null;
@@ -597,7 +687,7 @@ public static class InteractionsHelper
     {
         await using var db = DatabaseHelper.GetDbContext();
         return await db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
-                                                          && manager.UserId == user.Id);
+                                                          && manager.DiscordUserId == user.Id);
     }
 
 
@@ -612,28 +702,25 @@ public static class InteractionsHelper
     {
         var textChannel = channel switch
         {
-            SocketThreadChannel { ParentChannel: ITextChannel threadTextChannel } => threadTextChannel,
+            SocketThreadChannel { ParentChannel: ITextChannel threadParentChannel } => threadParentChannel,
             ITextChannel cTextChannel => cTextChannel,
-            _ => throw new UserFriendlyException("Bot can operatein only in text channels")
+            _ => throw new UserFriendlyException("Bot can operate only in text channels")
         };
 
         var guild = (SocketGuild)textChannel.Guild;
+        var botRoles = guild.CurrentUser.Roles;
 
-        var botGuildUser = guild.CurrentUser;
-        if (botGuildUser is null)
-        {
-            throw new UserFriendlyException("Bot has no permission to view this channel");
-        }
-
-        var botRoles = botGuildUser.Roles;
         if (botRoles.Select(br => br.Permissions).Any(perm => perm.Administrator))
         {
             return;
         }
 
-        await using var db = DatabaseHelper.GetDbContext();
-        var dbChannel = await db.DiscordChannels.FirstOrDefaultAsync(c => c.Id == textChannel.Id);
-        if (dbChannel?.NoWarn ?? false)
+        if (await channel.GetUserAsync(CharacterEngineBot.DiscordClient.CurrentUser.Id) is null)
+        {
+            throw new UserFriendlyException("Bot has no permission to view this channel");
+        }
+
+        if (MemoryStorage.CachedChannels.TryGetValue(channel.Id, out var noWarn) && noWarn)
         {
             return;
         }
@@ -709,7 +796,7 @@ public static class InteractionsHelper
         }
 
         bool BotAffectedByOw(Overwrite ow)
-            => ow.TargetId == botGuildUser.Id || botGuildUser.Roles.Any(role => role.Id == ow.TargetId);
+            => ow.TargetId == guild.CurrentUser.Id || guild.CurrentUser.Roles.Any(role => role.Id == ow.TargetId);
 
         #endregion
     }

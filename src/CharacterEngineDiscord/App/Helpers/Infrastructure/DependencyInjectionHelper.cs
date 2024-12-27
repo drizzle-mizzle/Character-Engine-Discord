@@ -16,17 +16,16 @@ public static class DependencyInjectionHelper
 
         services.AddSingleton(discordClient);
         services.AddSingleton(interactionService);
-
-        services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
-
         services.AddSingleton<SlashCommandsHandler>();
         services.AddSingleton<InteractionsHandler>();
-        services.AddSingleton<ButtonsHandler>();
         services.AddSingleton<MessagesHandler>();
 
-        services.AddTransient<ModalsHandler>();
         services.AddTransient<SpecialCommandsHandler>();
         services.AddTransient<BotAdminCommandsHandler>();
+        services.AddTransient<ButtonsHandler>();
+        services.AddTransient<ModalsHandler>();
+
+        services.AddScoped<AppDbContext>(_ => DatabaseHelper.GetDbContext());
 
         return services.BuildServiceProvider();;
     }

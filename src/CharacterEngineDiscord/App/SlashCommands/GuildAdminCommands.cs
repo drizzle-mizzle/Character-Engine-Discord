@@ -2,8 +2,9 @@ using System.Text;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -45,7 +46,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
                 foreach (var manager in managers)
                 {
-                    var managerUser = await Context.Guild.GetUserAsync(manager.UserId);
+                    var managerUser = await Context.Guild.GetUserAsync(manager.DiscordUserId);
                     var addedByUser = await Context.Guild.GetUserAsync(manager.AddedBy);
 
                     list.AppendLine($"**{managerUser.Username}** | Added by **{addedByUser.Username}**");
@@ -75,13 +76,13 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
         var managerUserId = user?.Id ?? ulong.Parse(userId!);
         var guildUser = user ?? await Context.Guild.GetUserAsync(managerUserId);
-        var mention = guildUser?.Mention ?? $"User `{managerUserId}`";
+        var mention = guildUser?.Mention ?? $"User <@{managerUserId}>";
 
         string message = default!;
 
         switch (action)
         {
-            case UserAction.add when managers.Any(manager => manager.UserId == managerUserId):
+            case UserAction.add when managers.Any(manager => manager.DiscordUserId == managerUserId):
             {
                 throw new UserFriendlyException($"{mention} is already a manager");
             }
@@ -89,19 +90,19 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             {
                 var newManager = new GuildBotManager
                 {
-                    UserId = managerUserId,
+                    DiscordUserId = managerUserId,
                     DiscordGuildId = Context.Guild.Id,
                     AddedBy = Context.User.Id,
                 };
 
-                await _db.GuildBotManagers.AddAsync(newManager);
+                _db.GuildBotManagers.Add(newManager);
                 message = $"{mention} was successfully added to the managers list.";
                 break;
             }
             case UserAction.remove:
             {
                 var manager = managers.FirstOrDefault(manager => manager.DiscordGuildId == Context.Guild.Id
-                                                              && manager.UserId == managerUserId);
+                                                              && manager.DiscordUserId == managerUserId);
 
                 if (manager is null)
                 {
@@ -172,7 +173,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
         var blockUserId = user?.Id ?? ulong.Parse(userId!);
         var guildUser = user ?? await Context.Guild.GetUserAsync(blockUserId);
-        var mention = guildUser?.Mention ?? $"User `{blockedUsers}`";
+        var mention = guildUser?.Mention ?? $"User <@{blockUserId}>";
 
         string message = default!;
 
@@ -186,12 +187,12 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             {
                 var newManager = new GuildBotManager
                 {
-                    UserId = blockUserId,
+                    DiscordUserId = blockUserId,
                     DiscordGuildId = Context.Guild.Id,
                     AddedBy = Context.User.Id,
                 };
 
-                await _db.GuildBotManagers.AddAsync(newManager);
+                _db.GuildBotManagers.Add(newManager);
                 message = $"{mention} was successfully added to the block list.";
                 break;
             }

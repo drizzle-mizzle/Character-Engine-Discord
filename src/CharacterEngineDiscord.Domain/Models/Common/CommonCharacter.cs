@@ -1,6 +1,6 @@
-using CharacterEngineDiscord.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 
-namespace CharacterEngineDiscord.Models.Common;
+namespace CharacterEngineDiscord.Domain.Models.Common;
 
 
 public class CommonCharacter : ICharacter
@@ -16,5 +16,6 @@ public class CommonCharacter : ICharacter
     public required bool IsNfsw { get; set; }
     public required string? CharacterStat { get; set; }
 
-    public required IntegrationType IntegrationType { get; init; }
+    public required IntegrationType IntegrationType { get; set; }
+    public required CharacterSourceType CharacterSourceType { get; init; }
 }
