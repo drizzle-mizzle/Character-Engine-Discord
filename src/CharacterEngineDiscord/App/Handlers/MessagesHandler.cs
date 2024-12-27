@@ -20,13 +20,11 @@ namespace CharacterEngine.App.Handlers;
 public class MessagesHandler
 {
     private readonly DiscordSocketClient _discordClient;
-    private readonly AppDbContext _db;
 
 
-    public MessagesHandler(DiscordSocketClient discordClient, AppDbContext db)
+    public MessagesHandler(DiscordSocketClient discordClient)
     {
         _discordClient = discordClient;
-        _db = db;
     }
 
 
@@ -208,7 +206,8 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var channelWithGuild = await _db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
+                var db = DatabaseHelper.GetDbContext();
+                var channelWithGuild = await db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
                 messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
             }
 
@@ -255,16 +254,17 @@ public class MessagesHandler
             var type = spawnedCharacter.GetIntegrationType();
             if (type is IntegrationType.OpenRouter)
             {
-                var history = await _db.ChatHistories
-                                       .Where(ch => ch.SpawnedCharacterId == spawnedCharacter.Id)
-                                       .Select(ch => new
-                                        {
-                                            ch.Name,
-                                            ch.Message,
-                                            ch.CreatedAt
-                                        })
-                                       .OrderBy(ch => ch.CreatedAt)
-                                       .ToArrayAsync();
+                var db = DatabaseHelper.GetDbContext();
+                var history = await db.ChatHistories
+                                      .Where(ch => ch.SpawnedCharacterId == spawnedCharacter.Id)
+                                      .Select(ch => new
+                                       {
+                                           ch.Name,
+                                           ch.Message,
+                                           ch.CreatedAt
+                                       })
+                                      .OrderBy(ch => ch.CreatedAt)
+                                      .ToArrayAsync();
 
                 messages.AddRange(history.Select(ch => (ch.Name, ch.Message)).ToArray());
             }
