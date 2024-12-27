@@ -11,7 +11,6 @@ namespace CharacterEngine.App.SlashCommands.Explicit;
 
 public class BotAdminCommandsHandler
 {
-
     public async Task ShutdownAsync(SocketSlashCommand command)
     {
         await command.RespondAsync(embed: "T_T".ToInlineEmbed(Color.Green));
