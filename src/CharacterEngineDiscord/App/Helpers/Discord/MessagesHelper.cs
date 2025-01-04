@@ -55,7 +55,7 @@ public static class MessagesHelper
         try
         {
             var channel = (ITextChannel)await discordClient.GetChannelAsync(BotConfig.ERRORS_CHANNEL_ID);
-            var thread = await channel.CreateThreadAsync($"[{traceId}]💀 {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
+            var thread = await channel.CreateThreadAsync($"[{traceId}] {title}", autoArchiveDuration: ThreadArchiveDuration.ThreeDays);
 
             if (header is not null)
             {

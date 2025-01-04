@@ -32,7 +32,6 @@ public class MessagesHandler
     {
         Task.Run(async () =>
         {
-            var traceId = CommonHelper.NewTraceId();
             try
             {
                 await HandleMessageAsync(socketMessage);
@@ -56,14 +55,19 @@ public class MessagesHandler
                     return;
                 }
 
+                var traceId = CommonHelper.NewTraceId();
                 var owner = await guild.GetOwnerAsync();
+                var userName = socketMessage.Author.GlobalName ?? socketMessage.Author.Username;
+
+                var title = $"📧MessagesHandler Exception [{userName}]";
+
                 var header = $"TraceID: **{traceId}**\n" +
-                             $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
+                             $"User: **{userName}** ({socketMessage.Author.Id})\n" +
                              $"Channel: **{channel!.Name}** ({channel.Id})\n" +
                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
                              $"Owned by: **{owner?.Username}** ({owner?.Id})";
 
-                await _discordClient.ReportErrorAsync("MessagesHandler exception", header, e, traceId, writeMetric: false);
+                await _discordClient.ReportErrorAsync(title, header, e, traceId, writeMetric: false);
             }
         });
 
