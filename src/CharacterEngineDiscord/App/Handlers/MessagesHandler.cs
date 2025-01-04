@@ -210,9 +210,17 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var db = DatabaseHelper.GetDbContext();
-                var channelWithGuild = await db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
-                messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                await using var db = DatabaseHelper.GetDbContext();
+                var formats = await db.DiscordChannels
+                                      .Include(c => c.DiscordGuild)
+                                      .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
+                                      .Select(c => new
+                                       {
+                                           ChannelMessagesFormat = c.MessagesFormat,
+                                           GuildMessagesFormat = c.DiscordGuild.MessagesFormat
+                                       })
+                                      .FirstAsync();
+                messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
             }
 
             string userMessage;
