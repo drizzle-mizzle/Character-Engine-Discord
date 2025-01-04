@@ -104,7 +104,7 @@ public record CachedCharacterInfo
     }
 
 
-    public void QueueAdd(ulong userId)
+    public void QueueAddCaller(ulong userId)
     {
         lock (_queue)
         {

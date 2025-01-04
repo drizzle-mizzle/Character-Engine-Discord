@@ -178,7 +178,7 @@ public class MessagesHandler
             return;
         }
 
-        cachedCharacter.QueueAdd(author.Id);
+        cachedCharacter.QueueAddCaller(author.Id);
         try
         {
             // Wait for the first place in queue
@@ -229,7 +229,7 @@ public class MessagesHandler
                         continue;
                     }
 
-                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter, messageFormat) + "\n\n";
+                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter.CallPrefix, messageFormat) + "\n\n";
                     messageLength += messagePartial.Length;
 
                     if (messageLength <= spawnedCharacter.FreewillContextSize)
@@ -245,7 +245,7 @@ public class MessagesHandler
             }
             else
             {
-                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter, messageFormat);
+                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter.CallPrefix, messageFormat);
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
@@ -292,13 +292,13 @@ public class MessagesHandler
 
 
 
-    private static string ReformatUserMessage(IUserMessage socketUserMessage, ISpawnedCharacter spawnedCharacter, string messageFormat)
+    private static string ReformatUserMessage(IUserMessage socketUserMessage, string characterCallPrefix, string messageFormat)
     {
         var message = socketUserMessage.Content.Trim(' ', '\n');
 
-        if (message.StartsWith(spawnedCharacter.CallPrefix, StringComparison.Ordinal))
+        if (message.StartsWith(characterCallPrefix, StringComparison.Ordinal))
         {
-            message = message[spawnedCharacter.CallPrefix.Length..].Trim();
+            message = message[characterCallPrefix.Length..].Trim();
         }
 
         while (message.Contains("\n\n\n"))
@@ -316,9 +316,8 @@ public class MessagesHandler
             refMessage = (refAuthorName, refMsg);
         }
 
-        var author = socketUserMessage.Author;
         var channel = (ITextChannel)socketUserMessage.Channel;
-
+        var author = socketUserMessage.Author;
         var authorName = author is IGuildUser gAuthor ? gAuthor.DisplayName ?? gAuthor.Username : author.GlobalName ?? author.Username;
 
         return MH.BringMessageToFormat(messageFormat, channel, (authorName, author.Mention, message), refMessage);
