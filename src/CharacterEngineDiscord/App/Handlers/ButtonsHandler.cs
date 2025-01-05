@@ -45,13 +45,15 @@ public class ButtonsHandler
 
                 var traceId = CommonHelper.NewTraceId();
                 var owner = guild.Owner ?? await ((IGuild)guild).GetOwnerAsync();
+                var title = $"🔘ButtonsHandler Exception [{component.User.Username}]";
+
                 var header = $"Button: **{component.Data.CustomId}**\n" +
                              $"User: **{component.User.Username}** ({component.User.Id})\n" +
                              $"Channel: **{component.Channel.Name}** ({component.Channel.Id})\n" +
                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
                              $"Owned by: **{owner?.Username}** ({owner?.Id})";
 
-                await _discordClient.ReportErrorAsync("ButtonsHandler exception", header, e, traceId, writeMetric: false);
+                await _discordClient.ReportErrorAsync(title, header, e, traceId, writeMetric: false);
                 await InteractionsHelper.RespondWithErrorAsync(component, e, traceId);
             }
         });

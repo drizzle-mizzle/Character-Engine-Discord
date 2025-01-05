@@ -91,12 +91,14 @@ public class InteractionsHandler
         var guild = interactionContext.Guild ?? _discordClient.GetGuild((ulong)interactionContext.Interaction.GuildId!);
         var owner = await guild.GetOwnerAsync();
 
-        header += $"User: **{interactionContext.User?.Username}** ({interactionContext.User?.Id})\n" +
+        var userName = interactionContext.User?.Username;
+
+        header += $"User: **{userName}** ({interactionContext.User?.Id})\n" +
                   $"Channel: **{interactionContext.Channel?.Name}** ({interactionContext.Channel?.Id})\n" +
                   $"Guild: **{guild.Name}** ({guild.Id})\n" +
                   $"Owned by: **{owner?.Username ?? "???"}** ({guild.OwnerId})";
 
-        await _discordClient.ReportErrorAsync("Interaction exception", header, exception, traceId, writeMetric: false);
+        await _discordClient.ReportErrorAsync($"⌨Interaction Exception [{userName}]", header, exception, traceId, writeMetric: false);
     }
 
 }

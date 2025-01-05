@@ -32,7 +32,6 @@ public class MessagesHandler
     {
         Task.Run(async () =>
         {
-            var traceId = CommonHelper.NewTraceId();
             try
             {
                 await HandleMessageAsync(socketMessage);
@@ -56,14 +55,19 @@ public class MessagesHandler
                     return;
                 }
 
+                var traceId = CommonHelper.NewTraceId();
                 var owner = await guild.GetOwnerAsync();
+                var userName = socketMessage.Author.GlobalName ?? socketMessage.Author.Username;
+
+                var title = $"📧MessagesHandler Exception [{userName}]";
+
                 var header = $"TraceID: **{traceId}**\n" +
-                             $"User: **{socketMessage.Author.GlobalName ?? socketMessage.Author.Username}** ({socketMessage.Author.Id})\n" +
+                             $"User: **{userName}** ({socketMessage.Author.Id})\n" +
                              $"Channel: **{channel!.Name}** ({channel.Id})\n" +
                              $"Guild: **{guild.Name}** ({guild.Id})\n" +
                              $"Owned by: **{owner?.Username}** ({owner?.Id})";
 
-                await _discordClient.ReportErrorAsync("MessagesHandler exception", header, e, traceId, writeMetric: false);
+                await _discordClient.ReportErrorAsync(title, header, e, traceId, writeMetric: false);
             }
         });
 
@@ -178,7 +182,7 @@ public class MessagesHandler
             return;
         }
 
-        cachedCharacter.QueueAdd(author.Id);
+        cachedCharacter.QueueAddCaller(author.Id);
         try
         {
             // Wait for the first place in queue
@@ -206,9 +210,17 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var db = DatabaseHelper.GetDbContext();
-                var channelWithGuild = await db.DiscordChannels.Include(c => c.DiscordGuild).FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
-                messageFormat = channelWithGuild.MessagesFormat ?? channelWithGuild.DiscordGuild.MessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                await using var db = DatabaseHelper.GetDbContext();
+                var formats = await db.DiscordChannels
+                                      .Include(c => c.DiscordGuild)
+                                      .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
+                                      .Select(c => new
+                                       {
+                                           ChannelMessagesFormat = c.MessagesFormat,
+                                           GuildMessagesFormat = c.DiscordGuild.MessagesFormat
+                                       })
+                                      .FirstAsync();
+                messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
             }
 
             string userMessage;
@@ -229,7 +241,7 @@ public class MessagesHandler
                         continue;
                     }
 
-                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter, messageFormat) + "\n\n";
+                    var messagePartial = ReformatUserMessage(downloadedMessage, spawnedCharacter.CallPrefix, messageFormat) + "\n\n";
                     messageLength += messagePartial.Length;
 
                     if (messageLength <= spawnedCharacter.FreewillContextSize)
@@ -245,7 +257,7 @@ public class MessagesHandler
             }
             else
             {
-                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter, messageFormat);
+                userMessage = ReformatUserMessage(socketUserMessage, spawnedCharacter.CallPrefix, messageFormat);
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
@@ -292,13 +304,13 @@ public class MessagesHandler
 
 
 
-    private static string ReformatUserMessage(IUserMessage socketUserMessage, ISpawnedCharacter spawnedCharacter, string messageFormat)
+    private static string ReformatUserMessage(IUserMessage socketUserMessage, string characterCallPrefix, string messageFormat)
     {
         var message = socketUserMessage.Content.Trim(' ', '\n');
 
-        if (message.StartsWith(spawnedCharacter.CallPrefix, StringComparison.Ordinal))
+        if (message.StartsWith(characterCallPrefix, StringComparison.Ordinal))
         {
-            message = message[spawnedCharacter.CallPrefix.Length..].Trim();
+            message = message[characterCallPrefix.Length..].Trim();
         }
 
         while (message.Contains("\n\n\n"))
@@ -316,9 +328,8 @@ public class MessagesHandler
             refMessage = (refAuthorName, refMsg);
         }
 
-        var author = socketUserMessage.Author;
         var channel = (ITextChannel)socketUserMessage.Channel;
-
+        var author = socketUserMessage.Author;
         var authorName = author is IGuildUser gAuthor ? gAuthor.DisplayName ?? gAuthor.Username : author.GlobalName ?? author.Username;
 
         return MH.BringMessageToFormat(messageFormat, channel, (authorName, author.Mention, message), refMessage);

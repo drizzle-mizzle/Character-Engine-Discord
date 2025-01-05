@@ -75,17 +75,17 @@ public static class IntegrationsHelper
     public static IChatModule GetChatModule(this IntegrationType integrationType)
         => integrationType.GetChatModule<IChatModule>();
 
-    public static T GetChatModule<T>(this IntegrationType integrationType) where T : IChatModule
-        => integrationType.GetIntegrationModule<T>();
+    public static TResult GetChatModule<TResult>(this IntegrationType integrationType) where TResult : IChatModule
+        => integrationType.GetIntegrationModule<TResult>();
 
     public static ISearchModule GetSearchModule(this CharacterSourceType sourceType)
         => sourceType.GetSearchModule<ISearchModule>();
 
-    public static T GetSearchModule<T>(this CharacterSourceType sourceType) where T : ISearchModule
-        => sourceType.GetIntegrationModule<T>();
+    public static TResult GetSearchModule<TResult>(this CharacterSourceType sourceType) where TResult : ISearchModule
+        => sourceType.GetIntegrationModule<TResult>();
 
 
-    public static T GetIntegrationModule<T>(this IntegrationType integrationType) where T : IModule
+    public static TResult GetIntegrationModule<TResult>(this IntegrationType integrationType) where TResult : IModule
     {
         IModule module = integrationType switch
         {
@@ -96,11 +96,11 @@ public static class IntegrationsHelper
             _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
         };
 
-        return (T)module;
+        return (TResult)module;
     }
 
 
-    public static T GetIntegrationModule<T>(this CharacterSourceType sourceType) where T : IModule
+    public static TResult GetIntegrationModule<TResult>(this CharacterSourceType sourceType) where TResult : IModule
     {
         IModule module = sourceType switch
         {
@@ -112,7 +112,7 @@ public static class IntegrationsHelper
             _ => throw new ArgumentOutOfRangeException(nameof(sourceType), sourceType, null)
         };
 
-        return (T)module;
+        return (TResult)module;
     }
 
 
@@ -207,7 +207,6 @@ public static class IntegrationsHelper
     public static async Task EnsureSakuraAiLoginAsync(StoredAction action)
     {
         const IntegrationType type = IntegrationType.SakuraAI;
-
 
         var signInAttempt = action.ExtractSakuraAiLoginData();
         var result = await MemoryStorage.IntegrationModules.SakuraAiModule.EnsureLoginByEmailAsync(signInAttempt);

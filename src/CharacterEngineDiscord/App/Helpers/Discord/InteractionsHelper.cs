@@ -673,7 +673,7 @@ public static class InteractionsHelper
                     return;
                 }
 
-                throw new UserFriendlyException("Only managers are allowed to access this command. Managers can be added by server administrators with `/managers` command.");
+                throw new UserFriendlyException("Only managers are allowed to access this command. Managers list can be seen with `/managers` command.");
             }
             default:
             {

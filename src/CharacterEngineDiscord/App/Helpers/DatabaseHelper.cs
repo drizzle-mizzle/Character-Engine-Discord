@@ -103,6 +103,18 @@ public static class DatabaseHelper
     {
         await using var db = GetDbContext();
 
+        var characterExist = await (spawnedCharacter.GetIntegrationType() switch
+        {
+            IntegrationType.SakuraAI => db.SakuraAiSpawnedCharacters.AnyAsync(c => c.Id == spawnedCharacter.Id),
+            IntegrationType.CharacterAI => db.CaiSpawnedCharacters.AnyAsync(c => c.Id == spawnedCharacter.Id),
+            IntegrationType.OpenRouter => db.OpenRouterSpawnedCharacters.AnyAsync(c => c.Id == spawnedCharacter.Id),
+        });
+
+        if (!characterExist)
+        {
+            return;
+        }
+
         switch (spawnedCharacter)
         {
             case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
@@ -124,6 +136,7 @@ public static class DatabaseHelper
 
         await db.SaveChangesAsync();
     }
+
 
 
     // public static async Task DeleteSpawnedCharactersAsync(ICollection<ISpawnedCharacter> spawnedCharacters)
@@ -176,14 +189,17 @@ public static class DatabaseHelper
     public static async Task<IGuildIntegration?> GetGuildIntegrationAsync(ISpawnedCharacter spawnedCharacter)
     {
         await using var db = GetDbContext();
-        var channel = await db.DiscordChannels.FirstAsync(c => c.Id == spawnedCharacter.DiscordChannelId);
+        var guildId = await db.DiscordChannels
+                              .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
+                              .Select(c => c.DiscordGuildId)
+                              .FirstAsync();
 
         var type = spawnedCharacter.GetIntegrationType();
         IGuildIntegration? integration = type switch
         {
-            IntegrationType.SakuraAI => await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.DiscordGuildId),
-            IntegrationType.CharacterAI => await db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.DiscordGuildId),
-            IntegrationType.OpenRouter => await db.OpenRouterIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == channel.DiscordGuildId),
+            IntegrationType.SakuraAI => await db.SakuraAiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId),
+            IntegrationType.CharacterAI => await db.CaiIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId),
+            IntegrationType.OpenRouter => await db.OpenRouterIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == guildId),
         };
 
         return integration;
