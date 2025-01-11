@@ -28,11 +28,6 @@ public class ModalsHandler
             }
             catch (Exception e)
             {
-                if (e is UserFriendlyException)
-                {
-                    return;
-                }
-
                 var traceId = CommonHelper.NewTraceId();
                 await _discordClient.ReportErrorAsync("HandleModal", null, e, traceId, writeMetric: true);
                 await InteractionsHelper.RespondWithErrorAsync(modal, e, traceId);
