@@ -4,11 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db;
 
-[PrimaryKey(nameof(UserId), nameof(DiscordGuildId))]
-[Index(nameof(UserId), nameof(DiscordGuildId), IsUnique = true)]
+[PrimaryKey(nameof(UserOrRoleId), nameof(DiscordGuildId))]
+[Index(nameof(UserOrRoleId), nameof(DiscordGuildId), IsUnique = true)]
 public sealed class BlockedGuildUser
 {
-    public required ulong UserId { get; set; }
+    public required ulong UserOrRoleId { get; set; }
+    
+    public required bool IsRole { get; set; }
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }

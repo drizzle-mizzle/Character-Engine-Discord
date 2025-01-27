@@ -85,7 +85,8 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         var originalIntegrationGuild = await _db.DiscordGuilds.FirstAsync(g => g.Id == guildIntegration.DiscordGuildId);
 
         var allowed = originalIntegrationGuild.OwnerId == Context.User.Id
-                   || await _db.GuildBotManagers.Where(m => m.DiscordGuildId == originalIntegrationGuild.Id).AnyAsync(m => m.DiscordUserId == Context.User.Id);
+                   || await _db.GuildBotManagers.Where(m => m.DiscordGuildId == originalIntegrationGuild.Id)
+                                                .AnyAsync(m => m.DiscordUserOrRoleId == Context.User.Id);
 
         if (!allowed)
         {
@@ -150,8 +151,8 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     {
         await DeferAsync(ephemeral: true);
 
-        string message = null!;
-        string? thumbnailUrl = null;
+        string message;
+        string? thumbnailUrl;
 
         switch (type)
         {

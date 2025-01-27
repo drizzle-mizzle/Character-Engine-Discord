@@ -2,6 +2,7 @@ using System.Text;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
@@ -26,8 +27,8 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [SlashCommand("managers", "Add or remove managers")]
-    public async Task ManagersCommand(UserAction action, IGuildUser? user = null, string? userId = null)
+    [SlashCommand("managers", "Users who can use bot's commands")]
+    public async Task ManagersCommand(UserAction action, IGuildUser? user = null, string? userId = null, IRole? role = null)
     {
         if (action is not UserAction.show)
         {
@@ -36,7 +37,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
         await DeferAsync();
 
-        var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToListAsync();
+        var managers = await _db.GuildBotManagers.Where(manager => manager.DiscordGuildId == Context.Guild.Id).ToArrayAsync();
 
         switch (action)
         {
@@ -46,17 +47,28 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
 
                 foreach (var manager in managers)
                 {
-                    var managerUser = await Context.Guild.GetUserAsync(manager.DiscordUserId);
-                    var addedByUser = await Context.Guild.GetUserAsync(manager.AddedBy);
+                    string name;
+                    if (manager.IsRole)
+                    {
+                        name = $"Role {Context.Guild.GetRole(manager.DiscordUserOrRoleId)?.Mention ?? "?"}";
+                    }
+                    else
+                    {
+                        var guildUser = await Context.Guild.GetUserAsync(manager.DiscordUserOrRoleId);
+                        name = guildUser?.Mention ?? $"**{manager.DiscordUserOrRoleId}**";
+                    }
 
-                    list.AppendLine($"**{managerUser.Username}** | Added by **{addedByUser.Username}**");
+                    var managerUser = await Context.Guild.GetUserAsync(manager.AddedBy) ;
+                    var managerUserName = managerUser?.Mention ?? $"**{manager.AddedBy}**";
+                    
+                    list.AppendLine($"{name} | Added by **{managerUserName}**");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)
-                                              .WithTitle($"Managers ({managers.Count})")
+                                              .WithTitle($"Managers ({managers.Length})")
                                               .WithDescription(list.ToString());
 
-                await FollowupAsync(embed: embed.Build());
+                await FollowupAsync(embed: embed.Build(), allowedMentions: AllowedMentions.None);
                 return;
             }
             case UserAction.clearAll:
@@ -69,150 +81,65 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        if (user is null && userId is null)
+        if (role is null && user is null && userId is null)
         {
-            throw new UserFriendlyException($"Specify the user to {action:G}");
+            throw new UserFriendlyException("Specify a user or role");
         }
 
-        var managerUserId = user?.Id ?? ulong.Parse(userId!);
-        var guildUser = user ?? await Context.Guild.GetUserAsync(managerUserId);
-        var mention = guildUser?.Mention ?? $"User <@{managerUserId}>";
+        var isRole = role is not null;
+        var managerUserOrRoleId = role?.Id ?? user?.Id ?? ulong.Parse(userId!);
+        var mention = isRole ? $"{role!.Mention} role" : $"User <@{managerUserOrRoleId}>";
 
-        string message = default!;
-
+        string message;
         switch (action)
         {
-            case UserAction.add when managers.Any(manager => manager.DiscordUserId == managerUserId):
+            case UserAction.add when managers.Any(manager => manager.DiscordUserOrRoleId == managerUserOrRoleId):
             {
-                throw new UserFriendlyException($"{mention} is already a manager");
+                throw new UserFriendlyException($"{mention} is already in the managers list");
             }
             case UserAction.add:
             {
                 var newManager = new GuildBotManager
                 {
-                    DiscordUserId = managerUserId,
+                    DiscordUserOrRoleId = managerUserOrRoleId,
                     DiscordGuildId = Context.Guild.Id,
                     AddedBy = Context.User.Id,
+                    IsRole = isRole
                 };
 
                 _db.GuildBotManagers.Add(newManager);
-                message = $"{mention} was successfully added to the managers list.";
+                message = $"{mention} was successfully added to the managers list";
                 break;
             }
             case UserAction.remove:
             {
                 var manager = managers.FirstOrDefault(manager => manager.DiscordGuildId == Context.Guild.Id
-                                                              && manager.DiscordUserId == managerUserId);
-
+                                                              && manager.DiscordUserOrRoleId == managerUserOrRoleId);
                 if (manager is null)
                 {
-                    throw new UserFriendlyException($"{mention} is not a manager");
+                    throw new UserFriendlyException($"{mention} is not in the managers list");
                 }
 
                 _db.GuildBotManagers.Remove(manager);
-                message = $"{mention} was successfully removed from the managers list.";
+                message = $"{mention} was successfully removed from the managers list";
                 break;
+            }
+            default:
+            {
+                throw new ArgumentException();
             }
         }
 
         await _db.SaveChangesAsync();
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
-    }
 
-
-    [SlashCommand("ignored-users", "Add or remove ignored users")]
-    public async Task BlockedUserCommand(UserAction action, IGuildUser? user = null, string? userId = null)
-    {
-        if (action is not UserAction.show)
+        if (isRole)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)Context.User);
+            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true));
         }
-
-        await DeferAsync();
-
-        var blockedUsers = await _db.GuildBlockedUsers.Where(u => u.DiscordGuildId == Context.Guild.Id).ToListAsync();
-
-        switch (action)
+        else
         {
-            case UserAction.show:
-            {
-                var list = new StringBuilder();
-
-                foreach (var blockedUser in blockedUsers)
-                {
-                    var guildBlockedUser = await Context.Guild.GetUserAsync(blockedUser.UserId);
-                    var blockedUserName = guildBlockedUser.Username;
-                    var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
-                    var managerUserName = managerUser.Username;
-
-                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.Humanize()}`");
-                }
-
-                var embed = new EmbedBuilder().WithColor(Color.Blue)
-                                              .WithTitle($"Ignored users ({blockedUsers.Count})")
-                                              .WithDescription(list.ToString());
-
-                await FollowupAsync(embed: embed.Build());
-                return;
-            }
-            case UserAction.clearAll:
-            {
-                _db.GuildBlockedUsers.RemoveRange(blockedUsers);
-                await _db.SaveChangesAsync();
-
-                await FollowupAsync(embed: "Blocked users list has been cleared".ToInlineEmbed(Color.Green, bold: true));
-
-                return;
-            }
+            var guildUser = await Context.Guild.GetUserAsync(managerUserOrRoleId);
+            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
         }
-
-        if (user is null && userId is null)
-        {
-            throw new UserFriendlyException($"Specify the user to {action:G}");
-        }
-
-        var blockUserId = user?.Id ?? ulong.Parse(userId!);
-        var guildUser = user ?? await Context.Guild.GetUserAsync(blockUserId);
-        var mention = guildUser?.Mention ?? $"User <@{blockUserId}>";
-
-        string message = default!;
-
-        switch (action)
-        {
-            case UserAction.add when blockedUsers.Any(manager => manager.UserId == blockUserId):
-            {
-                throw new UserFriendlyException($"{mention} is already blocked");
-            }
-            case UserAction.add:
-            {
-                var newManager = new GuildBotManager
-                {
-                    DiscordUserId = blockUserId,
-                    DiscordGuildId = Context.Guild.Id,
-                    AddedBy = Context.User.Id,
-                };
-
-                _db.GuildBotManagers.Add(newManager);
-                message = $"{mention} was successfully added to the block list.";
-                break;
-            }
-            case UserAction.remove:
-            {
-                var blockedUser = blockedUsers.FirstOrDefault(u => u.DiscordGuildId == Context.Guild.Id
-                                                                && u.UserId == blockUserId);
-
-                if (blockedUser is null)
-                {
-                    throw new UserFriendlyException($"{mention} is not blocked");
-                }
-
-                _db.GuildBlockedUsers.Remove(blockedUser);
-                message = $"{mention} was successfully removed from the bloks list.";
-                break;
-            }
-        }
-
-        await _db.SaveChangesAsync();
-        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
     }
 }

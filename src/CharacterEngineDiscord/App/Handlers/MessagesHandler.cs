@@ -121,16 +121,16 @@ public class MessagesHandler
                                                 .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
                                                 .ToList();
 
-            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters, primaryChannelId);
+            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
-                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, true));
+                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, randomCall: true));
             }
 
             var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
             if (hunterCharacters.Count != 0)
             {
-                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, false));
+                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, randomCall: false));
                 callTasks.AddRange(callCharactersByHuntedUsersAsync);
             }
 
@@ -199,6 +199,10 @@ public class MessagesHandler
             }
 
             spawnedCharacter = (await DatabaseHelper.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id))!; // force data reload
+            if (spawnedCharacter is null)
+            {
+                return;
+            }
 
             // Wait for delay
             var responseDelay = author.IsBot || author.IsWebhook ? Math.Max(5, spawnedCharacter.ResponseDelay) : spawnedCharacter.ResponseDelay;
@@ -374,33 +378,35 @@ public class MessagesHandler
 
 
     private static readonly Random _random = new();
-    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters, ulong channelId)
+    private static async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
     {
         if (cachedCharacters.Count == 0)
         {
             return null;
         }
 
-        var spawnedCharacters = new List<ISpawnedCharacter>();
+        var randomlyCalledCharacters = new List<ISpawnedCharacter>();
         foreach (var cachedCharacter in cachedCharacters)
         {
-            var bet = _random.NextDouble() + 0.01d;
-            if ((cachedCharacter.FreewillFactor / 100) < bet)
+            var bet = _random.NextDouble() + 0.01d; // 0.01 - 1.00
+            var claim = cachedCharacter.FreewillFactor / 100; // 0 - 1.00
+            
+            // 1.00 - claim = chance that character will NOT be called
+            if (bet <= claim)
             {
-                continue;
+                var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+                randomlyCalledCharacters.Add(spawnedCharacter!);
             }
-
-            var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
-            spawnedCharacters.Add(spawnedCharacter!);
         }
 
-        if (spawnedCharacters.Count == 0)
+        switch (randomlyCalledCharacters.Count)
         {
-            return null;
+            case 0: return null;
+            case 1: return randomlyCalledCharacters[0];
         }
 
         // Try to find mentioned character
-        foreach (var spawnedCharacter in spawnedCharacters)
+        foreach (var spawnedCharacter in randomlyCalledCharacters)
         {
             var characterNameWords = spawnedCharacter.CharacterName.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             if (characterNameWords.Any(word => socketUserMessage.Content.Contains(word, StringComparison.OrdinalIgnoreCase)))
@@ -414,7 +420,7 @@ public class MessagesHandler
             }
         }
 
-        return spawnedCharacters.OrderBy(c => c.MessagesSent).First(); // return less active one
+        return randomlyCalledCharacters.OrderBy(c => c.MessagesSent).First(); // return less active one
     }
 
 

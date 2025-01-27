@@ -40,7 +40,7 @@ public static class WatchDog
         var blockedGuildUsers = await db.GuildBlockedUsers.ToArrayAsync();
         foreach (var user in blockedGuildUsers)
         {
-            _blockedGuildUsers.TryAdd((user.UserId, user.DiscordGuildId), null);
+            _blockedGuildUsers.TryAdd((user.UserOrRoleId, user.DiscordGuildId), null);
         }
     }
 
@@ -119,26 +119,6 @@ public static class WatchDog
     }
 
 
-    public static async Task BlockGuildUserAsync(IGuildUser user, ulong adminId)
-    {
-        if (_blockedGuildUsers.TryAdd((user.Id, user.GuildId), null) == false)
-        {
-            return;
-        }
-
-        await using var db = DatabaseHelper.GetDbContext();
-        db.GuildBlockedUsers.Add(new BlockedGuildUser
-        {
-            UserId = user.Id,
-            DiscordGuildId = user.GuildId,
-            BlockedBy = adminId,
-            BlockedAt = DateTime.Now
-        });
-
-        await db.SaveChangesAsync();
-    }
-
-
     public static async Task<bool> UnblockUserGloballyAsync(ulong userId)
     {
         _blockedUsers.TryRemove(userId, out _);
@@ -158,23 +138,48 @@ public static class WatchDog
         await db.SaveChangesAsync();
         return true;
     }
-
-
-    public static async Task<bool> UnblockGuildUserAsync(IGuildUser user)
+    
+    public static async Task BlockGuildUserAsync(ulong userOrRoleId, ulong guildId, ulong blockedBy, bool isRole)
     {
-        _blockedGuildUsers.TryRemove((user.Id, user.GuildId), out _);
-
-        await using var db = DatabaseHelper.GetDbContext();
-        var blockedGuildUser = await db.GuildBlockedUsers.FirstOrDefaultAsync(u => u.UserId == user.Id && u.DiscordGuildId == user.GuildId);
-        if (blockedGuildUser is null)
+        if (_blockedGuildUsers.TryAdd((userOrRoleId, guildId), null) == false)
         {
-            return false;
+            return;
         }
+    
+        await using var db = DatabaseHelper.GetDbContext();
+        db.GuildBlockedUsers.Add(new BlockedGuildUser
+        {
+            UserOrRoleId = userOrRoleId,
+            DiscordGuildId = guildId,
+            BlockedAt = DateTime.Now,
+            BlockedBy = blockedBy,
+            IsRole = isRole
+        });
+    
+        await db.SaveChangesAsync();
+    }
 
+
+    public static async Task UnblockGuildUserAsync(BlockedGuildUser blockedGuildUser)
+    {
+        _blockedGuildUsers.TryRemove((blockedGuildUser.UserOrRoleId, blockedGuildUser.DiscordGuildId), out _);
+    
+        await using var db = DatabaseHelper.GetDbContext();
         db.GuildBlockedUsers.Remove(blockedGuildUser);
         await db.SaveChangesAsync();
-
-        return true;
+    }
+    
+    public static async Task UnblockGuildUsersAsync(BlockedGuildUser[] blockedGuildUsers)
+    {
+        foreach (var blockedGuildUser in blockedGuildUsers)
+        {
+            _blockedGuildUsers.TryRemove((blockedGuildUser.UserOrRoleId, blockedGuildUser.DiscordGuildId), out _);
+        }
+    
+        await using var db = DatabaseHelper.GetDbContext();
+        db.GuildBlockedUsers.RemoveRange(blockedGuildUsers);
+        
+        await db.SaveChangesAsync();
     }
 
 
