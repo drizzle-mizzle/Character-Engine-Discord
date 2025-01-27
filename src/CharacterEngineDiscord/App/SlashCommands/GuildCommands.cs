@@ -156,12 +156,21 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
 
                 foreach (var blockedUser in blockedUsers)
                 {
-                    var guildBlockedUser = await Context.Guild.GetUserAsync(blockedUser.UserOrRoleId);
-                    var blockedUserName = guildBlockedUser.Username;
+                    string name;
+                    if (blockedUser.IsRole)
+                    {
+                        name = $"Role {Context.Guild.GetRole(blockedUser.UserOrRoleId)?.Mention ?? "?"}";
+                    }
+                    else
+                    {
+                        var guildUser = await Context.Guild.GetUserAsync(blockedUser.UserOrRoleId);
+                        name = guildUser?.Mention ?? $"**{blockedUser.UserOrRoleId}**";
+                    }
+                    
                     var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
-                    var managerUserName = managerUser.Username;
+                    var managerUserName = managerUser?.Mention ?? $"**{blockedUser.BlockedBy}**";
 
-                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.Humanize()}`");
+                    list.AppendLine($"{name} | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.Humanize()}`");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)
@@ -215,7 +224,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
                 }
 
                 await WatchDog.UnblockGuildUserAsync(blockedUser);
-                message = $"{mention} was successfully removed from the bloks list.";
+                message = $"{mention} was successfully removed from the ignored users list";
                 
                 break;
             }

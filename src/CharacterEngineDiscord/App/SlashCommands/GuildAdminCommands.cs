@@ -50,16 +50,18 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
                     string name;
                     if (manager.IsRole)
                     {
-                        name = $"Role {Context.Guild.GetRole(manager.DiscordUserOrRoleId).Mention}";
+                        name = $"Role {Context.Guild.GetRole(manager.DiscordUserOrRoleId)?.Mention ?? "?"}";
                     }
                     else
                     {
                         var guildUser = await Context.Guild.GetUserAsync(manager.DiscordUserOrRoleId);
-                        name = guildUser?.Mention ?? manager.DiscordUserOrRoleId.ToString();
+                        name = guildUser?.Mention ?? $"**{manager.DiscordUserOrRoleId}**";
                     }
 
-                    var addedByGuildUser = await Context.Guild.GetUserAsync(manager.AddedBy) ;
-                    list.AppendLine($"{name} | Added by **{addedByGuildUser?.Username ?? manager.AddedBy.ToString()}**");
+                    var managerUser = await Context.Guild.GetUserAsync(manager.AddedBy) ;
+                    var managerUserName = managerUser?.Mention ?? $"**{manager.AddedBy}**";
+                    
+                    list.AppendLine($"{name} | Added by **{managerUserName}**");
                 }
 
                 var embed = new EmbedBuilder().WithColor(Color.Blue)
