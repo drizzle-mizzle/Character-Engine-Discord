@@ -68,7 +68,7 @@ public static class DatabaseHelper
 
         return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId) as ISpawnedCharacter
             ?? await db.CaiSpawnedCharacters.FirstOrDefaultAsync(c => c.Id == characterId) as ISpawnedCharacter
-            ?? await db.OpenRouterSpawnedCharacters.FirstOrDefaultAsync(c => c.Id == characterId) as ISpawnedCharacter;
+            ?? await db.OpenRouterSpawnedCharacters.FirstOrDefaultAsync(o => o.Id == characterId) as ISpawnedCharacter;
     }
 
 

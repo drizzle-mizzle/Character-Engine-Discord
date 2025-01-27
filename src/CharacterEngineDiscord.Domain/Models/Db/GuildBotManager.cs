@@ -5,11 +5,14 @@ using Microsoft.EntityFrameworkCore;
 namespace CharacterEngineDiscord.Domain.Models.Db;
 
 
-[PrimaryKey(nameof(DiscordUserId), nameof(DiscordGuildId))]
-[Index(nameof(DiscordUserId), nameof(DiscordGuildId), IsUnique = true)]
+[PrimaryKey(nameof(DiscordUserOrRoleId), nameof(DiscordGuildId))]
+[Index(nameof(DiscordUserOrRoleId), nameof(DiscordGuildId), IsUnique = true)]
 public sealed class GuildBotManager
 {
-    public required ulong DiscordUserId { get; set; }
+    // Or role ID
+    public required ulong DiscordUserOrRoleId { get; set; }
+
+    public required bool IsRole { get; set; } = false;
 
     [ForeignKey("DiscordGuild")]
     public required ulong DiscordGuildId { get; set; }

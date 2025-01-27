@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
@@ -118,21 +119,28 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             return;
         }
 
-        var character = await searchModule.GetCharacterInfoAsync(characterId.Trim(), guildIntegration);
-        character.IntegrationType = integrationType;
-
-        if (character.IsNfsw && !channel.IsNsfw)
+        try
         {
-            await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
-            return;
+            var character = await searchModule.GetCharacterInfoAsync(characterId.Trim(), guildIntegration);
+            character.IntegrationType = integrationType;
+
+            if (character.IsNfsw && !channel.IsNsfw)
+            {
+                await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
+                return;
+            }
+
+            var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, character);
+            var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
+            var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
+
+            await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
+            await modifyOriginalResponseAsync;
         }
-
-        var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, character);
-        var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
-        var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
-
-        await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
-        await modifyOriginalResponseAsync;
+        catch (CharacterAiException)
+        {
+            throw new UserFriendlyException($"{integrationType.GetIcon()} Failed to find character with id \"{characterId.Trim()}\"");
+        }
     }
 
 

@@ -3,6 +3,7 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
 using Discord;
@@ -133,5 +134,105 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         embed.WithDescription(list.ToString());
 
         await FollowupAsync(embed: embed.Build());
+    }
+    
+    [SlashCommand("ignored-users", "Users whose messages characters cannot read")]
+    public async Task BlockedUserCommand(UserAction action, IGuildUser? user = null, string? userId = null, IRole? role = null)
+    {
+        if (action is not UserAction.show)
+        {
+            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+        }
+
+        await DeferAsync();
+
+        var blockedUsers = await _db.GuildBlockedUsers.Where(u => u.DiscordGuildId == Context.Guild.Id).ToArrayAsync();
+
+        switch (action)
+        {
+            case UserAction.show:
+            {
+                var list = new StringBuilder();
+
+                foreach (var blockedUser in blockedUsers)
+                {
+                    var guildBlockedUser = await Context.Guild.GetUserAsync(blockedUser.UserOrRoleId);
+                    var blockedUserName = guildBlockedUser.Username;
+                    var managerUser = await Context.Guild.GetUserAsync(blockedUser.BlockedBy);
+                    var managerUserName = managerUser.Username;
+
+                    list.AppendLine($"**{blockedUserName}** | Blocked by **{managerUserName}** at `{blockedUser.BlockedAt.Humanize()}`");
+                }
+
+                var embed = new EmbedBuilder().WithColor(Color.Blue)
+                                              .WithTitle($"Ignored users ({blockedUsers.Length})")
+                                              .WithDescription(list.ToString());
+
+                await FollowupAsync(embed: embed.Build());
+                return;
+            }
+            case UserAction.clearAll:
+            {
+                await WatchDog.UnblockGuildUsersAsync(blockedUsers);
+
+                await FollowupAsync(embed: "Ignored users list has been cleared".ToInlineEmbed(Color.Green, bold: true));
+
+                return;
+            }
+        }
+
+        if (role is null && user is null && userId is null)
+        {
+            throw new UserFriendlyException("Specify a user or role");
+        }
+
+        var isRole = role is not null;
+        var blockedUserOrRoleId = role?.Id ?? user?.Id ?? ulong.Parse(userId!);
+        var mention = isRole ? $"{role!.Mention} role" : $"User <@{blockedUserOrRoleId}>";
+        
+        string message;
+        switch (action)
+        {
+            case UserAction.add when blockedUsers.Any(blockedUser => blockedUser.UserOrRoleId == blockedUserOrRoleId):
+            {
+                throw new UserFriendlyException($"{mention} is already in the ignored users list");
+            }
+            case UserAction.add:
+            {
+                await WatchDog.BlockGuildUserAsync(blockedUserOrRoleId, Context.Guild.Id, Context.User.Id, isRole);
+                message = $"{mention} was successfully added to the ignored users list";
+                
+                break;
+            }
+            case UserAction.remove:
+            {
+                var blockedUser = blockedUsers.FirstOrDefault(u => u.DiscordGuildId == Context.Guild.Id
+                                                                && u.UserOrRoleId == blockedUserOrRoleId);
+
+                if (blockedUser is null)
+                {
+                    throw new UserFriendlyException($"{mention} is not in the ignored users list");
+                }
+
+                await WatchDog.UnblockGuildUserAsync(blockedUser);
+                message = $"{mention} was successfully removed from the bloks list.";
+                
+                break;
+            }
+            default:
+            {
+                throw new ArgumentException();
+            }
+        }
+        
+        if (isRole)
+        {
+            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true));
+        }
+        else
+        {
+            var guildUser = await Context.Guild.GetUserAsync(blockedUserOrRoleId);
+            await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
+        }
     }
 }

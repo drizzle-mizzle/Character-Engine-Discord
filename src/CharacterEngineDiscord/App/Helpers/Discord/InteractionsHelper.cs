@@ -266,8 +266,8 @@ public static class InteractionsHelper
         newSpawnedCharacter.WebhookId = webhook.Id;
         newSpawnedCharacter.WebhookToken = webhook.Token;
         newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
-        newSpawnedCharacter.ResponseDelay = 5;
-        newSpawnedCharacter.FreewillFactor = 5;
+        newSpawnedCharacter.ResponseDelay = 3;
+        newSpawnedCharacter.FreewillFactor = 3;
         newSpawnedCharacter.EnableSwipes = false;
         newSpawnedCharacter.FreewillContextSize = 3000;
         newSpawnedCharacter.EnableQuotes = false;
@@ -686,8 +686,19 @@ public static class InteractionsHelper
     private static async Task<bool> UserIsManagerAsync(SocketGuildUser user)
     {
         await using var db = DatabaseHelper.GetDbContext();
-        return await db.GuildBotManagers.AnyAsync(manager => manager.DiscordGuildId == user.Guild.Id
-                                                          && manager.DiscordUserId == user.Id);
+
+        var managersIds = await db.GuildBotManagers
+                                  .Where(manager => manager.DiscordGuildId == user.Guild.Id)
+                                  .Select(manager => manager.DiscordUserOrRoleId)
+                                  .ToArrayAsync();
+
+        if (managersIds.Length == 0)
+        {
+            return false;
+        }
+
+        var userRolesIds = user.Roles.Select(r => r.Id).ToArray();
+        return managersIds.Any(id => id == user.Id || userRolesIds.Contains(id));
     }
 
 

@@ -62,12 +62,11 @@ public class SlashCommandsHandler
 
         textChannel.EnsureCached();
         guildUser.EnsureCached();
-        MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
         InteractionsHelper.ValidateUser(guildUser, textChannel);
 
-        var commandName = command.CommandName.Replace("-", "");
-        if (Enum.TryParse<SpecialCommands>(commandName, ignoreCase: true, out var specialCommand))
+        var commandNameCamel = command.CommandName.Replace("-", "");
+        if (Enum.TryParse<SpecialCommands>(commandNameCamel, ignoreCase: true, out var specialCommand))
         {
             await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
 
@@ -78,7 +77,7 @@ public class SlashCommandsHandler
                 SpecialCommands.disable => specialCommandsHandler.HandleDisableCommandAsync(command),
             });
         }
-        else if (Enum.TryParse<BotAdminCommands>(commandName, ignoreCase: true, out var botAdminCommand))
+        else if (Enum.TryParse<BotAdminCommands>(commandNameCamel, ignoreCase: true, out var botAdminCommand))
         {
             await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
 
@@ -96,7 +95,34 @@ public class SlashCommandsHandler
         else
         {
             var context = new InteractionContext(_discordClient, command, textChannel);
-            await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
+            var result = await _interactionService.ExecuteCommandAsync(context, _serviceProvider);
+
+            string commandName;
+            string options;
+            
+            if (command.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommand))
+            {
+                var subCommand = command.Data.Options.First();
+                
+                commandName = $"{command.CommandName}/{subCommand.Name}";
+                options = string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"));
+            }
+            else if (command.Data.Options.Any(opt => opt.Type is ApplicationCommandOptionType.SubCommandGroup))
+            {
+                var subCommandGroup = command.Data.Options.First();
+                var subCommand = subCommandGroup.Options.First();
+
+                commandName = $"{command.CommandName}/{subCommandGroup.Name}/{subCommand.Name}";
+                options = string.Join(" | ", subCommand.Options.Select(opt => $"{opt.Name}: {opt.Value}"));
+            }
+            else
+            {
+                commandName = command.CommandName;
+                options = string.Join(" | ", command.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"));
+            }
+            
+            MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{commandName}:{(result.IsSuccess ? "ok" : "err")}:{textChannel.Id}:{textChannel.GuildId}: [ {options} ]", true);
         }
+
     }
 }
