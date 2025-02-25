@@ -14,9 +14,8 @@ public enum IntegrationType
 public enum CharacterSourceType
 {
     SakuraAI = 1,
-    CharacterAI = 2,
-    ChubAI = 3,
-    CharacterTavern = 4
+    // ChubAI = 3,
+    // CharacterTavern = 4
 }
 
 

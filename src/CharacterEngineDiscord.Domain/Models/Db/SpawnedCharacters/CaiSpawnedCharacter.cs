@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using CharacterAi.Client.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
@@ -12,6 +13,18 @@ namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 [Index(nameof(Id), IsUnique = true)]
 public sealed class CaiSpawnedCharacter : ISpawnedCharacter, ICaiCharacter
 {
+    public CaiSpawnedCharacter()
+    {
+
+    }
+
+    public CaiSpawnedCharacter(CaiCharacter caiCharacter)
+    {
+        CaiTitle = caiCharacter.title!;
+        CaiDescription = caiCharacter.description!;
+        CaiImageGenEnabled = caiCharacter.img_gen_enabled;
+    }
+
     public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
@@ -47,20 +60,27 @@ public sealed class CaiSpawnedCharacter : ISpawnedCharacter, ICaiCharacter
     [MaxLength(50)]
     public string CharacterName { get; set; } = null!;
 
+    [MaxLength(int.MaxValue)]
     public string CharacterFirstMessage { get; set; } = null!;
+
+    [MaxLength(500)]
     public string? CharacterImageLink { get; set; }
 
     [MaxLength(50)]
     public string CharacterAuthor { get; set; } = null!;
     public bool IsNfsw { get; set; }
-    public string CharacterStat => CaiChatsCount.ToString();
 
-    public string CaiTitle { get; set; } = string.Empty;
-    public string CaiDescription { get; set; } = string.Empty;
-    public string? CaiDefinition { get; set; }
+
+    [MaxLength(3000)]
+    public string CaiTitle { get; set; } = null!;
+
+    [MaxLength(int.MaxValue)]
+    public string CaiDescription { get; set; } = null!;
+
     public bool CaiImageGenEnabled { get; set; }
     public int CaiChatsCount { get; set; }
 
+    [MaxLength(40)]
     public string? CaiChatId { get; set; }
 
     public DiscordChannel DiscordChannel { get; set; } = null!;

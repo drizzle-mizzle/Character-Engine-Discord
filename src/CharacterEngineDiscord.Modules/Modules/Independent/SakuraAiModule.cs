@@ -2,7 +2,7 @@
 using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Modules.Abstractions;
-using CharacterEngineDiscord.Modules.Helpers;
+using CharacterEngineDiscord.Modules.Helpers.Adapters;
 using SakuraAi.Client;
 using SakuraAi.Client.Models.Common;
 
@@ -13,22 +13,22 @@ public class SakuraAiModule : IChatModule, ISearchModule
 {
     private readonly SakuraAiClient _sakuraAiClient = new();
 
+
     public async Task<List<CommonCharacter>> SearchAsync(string query, bool allowNsfw, IGuildIntegration? guildIntegration)
     {
-        var characters = await _sakuraAiClient.SearchAsync(query, allowNsfw); // TODO: ?
-        return characters.Select(sc => sc.ToCommonCharacter()).ToList();
+        var sakuraCharacters = await _sakuraAiClient.SearchAsync(query, allowNsfw); // TODO: ?
+        return sakuraCharacters.Select(sc => new SakuraCharacterAdapter(sc).ToCommonCharacter()).ToList();
     }
 
 
-    public async Task<CommonCharacter> GetCharacterInfoAsync(string characterId, IGuildIntegration? _ = null)
+    public async Task<ICharacterAdapter> GetCharacterInfoAsync(string characterId, IGuildIntegration? _ = null)
     {
-        var character = await _sakuraAiClient.GetCharacterInfoAsync(characterId);
-
-        return character.ToCommonCharacter();
+        var sakuraCharacter = await _sakuraAiClient.GetCharacterInfoAsync(characterId);
+        return new SakuraCharacterAdapter(sakuraCharacter);
     }
 
 
-    public async Task<CommonCharacterMessage> CallCharacterAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, ICollection<(string role, string content)> messages)
+    public async Task<CommonCharacterMessage> CallCharacterAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, string message)
     {
         var sakuraCharacter = (ISakuraCharacter)spawnedCharacter;
         var sakuraIntegration = (ISakuraIntegration)guildIntegration;
@@ -42,13 +42,13 @@ public class SakuraAiModule : IChatModule, ISearchModule
                 firstMessage = spawnedCharacter.CharacterFirstMessage
             };
 
-            var sakuraChat = await _sakuraAiClient.CreateNewChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, character, messages.First().content);
+            var sakuraChat = await _sakuraAiClient.CreateNewChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, character, message);
             response = sakuraChat.messages.Last().content;
             sakuraCharacter.SakuraChatId = sakuraChat.chatId;
         }
         else
         {
-            var sakuraMessage = await _sakuraAiClient.SendMessageToChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, sakuraCharacter.SakuraChatId, messages.First().content);
+            var sakuraMessage = await _sakuraAiClient.SendMessageToChatAsync(sakuraIntegration.SakuraSessionId, sakuraIntegration.SakuraRefreshToken, sakuraCharacter.SakuraChatId, message);
             response = sakuraMessage.content;
         }
 

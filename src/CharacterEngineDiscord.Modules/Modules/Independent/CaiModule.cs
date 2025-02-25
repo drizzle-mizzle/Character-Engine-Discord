@@ -5,7 +5,7 @@ using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Modules.Abstractions;
-using CharacterEngineDiscord.Modules.Helpers;
+using CharacterEngineDiscord.Modules.Helpers.Adapters;
 
 namespace CharacterEngineDiscord.Modules.Modules.Independent;
 
@@ -19,19 +19,21 @@ public class CaiModule : IChatModule, ISearchModule
     {
         var caiIntergration = (ICaiIntegration)guildIntegration!;
         var characters = await _caiClient.SearchAsync(query, caiIntergration.CaiAuthToken);
-        return characters.Select(sc => sc.ToCommonCharacter()).ToList();
+
+        return characters.Select(sc => new CaiCharacterAdapter(sc).ToCommonCharacter()).ToList();
     }
 
 
-    public async Task<CommonCharacter> GetCharacterInfoAsync(string characterId, IGuildIntegration? guildIntegration)
+    public async Task<ICharacterAdapter> GetCharacterInfoAsync(string characterId, IGuildIntegration? guildIntegration)
     {
         var caiIntergration = (ICaiIntegration)guildIntegration!;
         var character = await _caiClient.GetCharacterInfoAsync(characterId, caiIntergration.CaiAuthToken);
-        return character.ToCommonCharacter();
+
+        return new CaiCharacterAdapter(character);
     }
 
 
-    public Task<CommonCharacterMessage> CallCharacterAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, ICollection<(string role, string content)> messages)
+    public Task<CommonCharacterMessage> CallCharacterAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, string message)
     {
         var caiCharacter = (ICaiCharacter)spawnedCharacter;
         var caiIntegration = (ICaiIntegration)guildIntegration;
@@ -45,7 +47,7 @@ public class CaiModule : IChatModule, ISearchModule
         {
             CharacterId = caiCharacter.CharacterId,
             ChatId = caiCharacter.CaiChatId,
-            Message = messages.First().content,
+            Message = message,
             UserId = caiIntegration.CaiUserId,
             Username = caiIntegration.CaiUsername,
             UserAuthToken = caiIntegration.CaiAuthToken

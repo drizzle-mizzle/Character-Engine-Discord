@@ -210,7 +210,7 @@ public static class MessagesHelper
             var character = searchQuery.Characters.ElementAt(characterNumber - 1);
 
             var rowTitle = $"{characterNumber}. {character.CharacterName}";
-            var rowContent = $"{type.GetStatLabel()}: {character.CharacterStat} **|** [[__character link__]({character.GetCharacterLink()})] **|** Author: [[__{character.CharacterAuthor}__]({character.GetAuthorLink()})]";
+            var rowContent = $"{character.GetStatLabel()}: {character.CharacterStat} **|** [[__character link__]({character.GetCharacterLink()})] **|** Author: [[__{character.CharacterAuthor}__]({character.GetAuthorLink()})]";
             if (searchQuery.CurrentRow == row)
             {
                 rowTitle += " - ✅";
@@ -264,13 +264,14 @@ public static class MessagesHelper
 
     #region Description cards
 
-    public static async Task<Embed> BuildCharacterDescriptionCardAsync(ISpawnedCharacter spawnedCharacter, bool justSpawned)
+    public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter, bool justSpawned)
     {
         var type = spawnedCharacter.GetIntegrationType();
         var embed = new EmbedBuilder();
 
         var desc = spawnedCharacter switch
         {
+            IAdoptedCharacter ac => ac.AdoptedCharacterDefinition,
             ISakuraCharacter sc => sc.GetSakuraDesc(),
             ICaiCharacter cc => cc.GetCaiDesc(),
 

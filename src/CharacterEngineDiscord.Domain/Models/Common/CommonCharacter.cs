@@ -11,11 +11,9 @@ public class CommonCharacter : ICharacter
     public required string CharacterAuthor { get; set; }
     public required string? CharacterImageLink { get; set; }
 
-    public required object? OriginalCharacterObject { get; init; }
-
     public required bool IsNfsw { get; set; }
-    public required string? CharacterStat { get; set; }
+    public required string? CharacterStat { get; init; }
 
     public required IntegrationType IntegrationType { get; set; }
-    public required CharacterSourceType CharacterSourceType { get; init; }
+    public required CharacterSourceType? CharacterSourceType { get; set; }
 }

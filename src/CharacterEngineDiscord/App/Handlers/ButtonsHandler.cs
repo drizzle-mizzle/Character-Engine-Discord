@@ -163,7 +163,7 @@ public class ButtonsHandler
 
                 var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(channelId, selectedCharacter);
 
-                var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
+                var embed = MH.BuildCharacterDescriptionCard(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
                 if (component.Channel is IThreadChannel)

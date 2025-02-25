@@ -265,30 +265,9 @@ public class MessagesHandler
                 cachedCharacter.WideContextLastMessageId = socketUserMessage.Id;
             }
 
-            var messages = new List<(string role, string content)>();
-
             var type = spawnedCharacter.GetIntegrationType();
-            if (type is IntegrationType.OpenRouter)
-            {
-                var db = DatabaseHelper.GetDbContext();
-                var history = await db.ChatHistories
-                                      .Where(ch => ch.SpawnedCharacterId == spawnedCharacter.Id)
-                                      .Select(ch => new
-                                       {
-                                           ch.Name,
-                                           ch.Message,
-                                           ch.CreatedAt
-                                       })
-                                      .OrderBy(ch => ch.CreatedAt)
-                                      .ToArrayAsync();
-
-                messages.AddRange(history.Select(ch => (ch.Name, ch.Message)).ToArray());
-            }
-
-            messages.Add(("user", userMessage));
-
             var chatModule = type.GetChatModule();
-            var response = await chatModule.CallCharacterAsync(spawnedCharacter, guildIntegration, messages);
+            var response = await chatModule.CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
             var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
             var messageId = await spawnedCharacter.SendMessageAsync(responseMessage, threadId: socketUserMessage.Channel is SocketThreadChannel threadChannel ? threadChannel.Id : null);
 

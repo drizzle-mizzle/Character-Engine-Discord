@@ -8,5 +8,5 @@ public interface ISearchModule : IModule
 {
     public Task<List<CommonCharacter>> SearchAsync(string query, bool allowNsfw, IGuildIntegration? guildIntegration = null);
 
-    public Task<CommonCharacter> GetCharacterInfoAsync(string characterId, IGuildIntegration? guildIntegration = null);
+    public Task<ICharacterAdapter> GetCharacterInfoAsync(string characterId, IGuildIntegration? guildIntegration = null);
 }

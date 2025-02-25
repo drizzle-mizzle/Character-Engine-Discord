@@ -9,6 +9,4 @@ public interface ICharacter
     public string? CharacterImageLink { get; set; }
     public string CharacterAuthor { get; set; }
     public bool IsNfsw { get; set; }
-
-    public string? CharacterStat { get; }
 }

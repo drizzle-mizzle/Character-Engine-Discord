@@ -38,4 +38,7 @@ public sealed class OpenRouterGuildIntegration : IOpenRouterIntegration
 
 
     public DiscordGuild DiscordGuild { get; set; } = null!;
+
+    public bool IsChatOnly
+        => true;
 }

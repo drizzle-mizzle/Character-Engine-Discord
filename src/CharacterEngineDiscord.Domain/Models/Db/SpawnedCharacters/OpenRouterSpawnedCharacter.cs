@@ -12,6 +12,27 @@ namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 [Index(nameof(Id), IsUnique = true)]
 public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacter
 {
+    public OpenRouterSpawnedCharacter()
+    {
+
+    }
+
+
+    public OpenRouterSpawnedCharacter(IOpenRouterIntegration openRouterIntegration)
+    {
+        OpenRouterModel = openRouterIntegration.OpenRouterModel;
+        OpenRouterTemperature = openRouterIntegration.OpenRouterTemperature;
+        OpenRouterTopP = openRouterIntegration.OpenRouterTopP;
+        OpenRouterTopK = openRouterIntegration.OpenRouterTopK;
+        OpenRouterFrequencyPenalty = openRouterIntegration.OpenRouterFrequencyPenalty;
+        OpenRouterPresencePenalty = openRouterIntegration.OpenRouterPresencePenalty;
+        OpenRouterRepetitionPenalty = openRouterIntegration.OpenRouterRepetitionPenalty;
+        OpenRouterMinP = openRouterIntegration.OpenRouterMinP;
+        OpenRouterTopA = openRouterIntegration.OpenRouterTopA;
+        OpenRouterMaxTokens = openRouterIntegration.OpenRouterMaxTokens;
+    }
+
+
     public Guid Id { get; init; } = Guid.NewGuid();
 
     [ForeignKey("DiscordChannel")]
@@ -48,7 +69,10 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
     [MaxLength(50)]
     public string CharacterName { get; set; } = null!;
 
+    [MaxLength(int.MaxValue)]
     public string CharacterFirstMessage { get; set; } = null!;
+
+    [MaxLength(500)]
     public string? CharacterImageLink { get; set; }
 
     [MaxLength(50)]
@@ -56,7 +80,6 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
 
     public bool IsNfsw { get; set; }
 
-    public string CharacterStat { get; set; }
 
     [MaxLength(100)]
     public string? OpenRouterModel { get; set; }
@@ -70,11 +93,16 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
     public float? OpenRouterTopA { get; set; }
     public int? OpenRouterMaxTokens { get; set; }
 
-    public CharacterSourceType CharacterSourceType { get; set; }
-
-
-    public string? CardCharacterDescription { get; set; }
-
-
     public DiscordChannel? DiscordChannel { get; set; }
+
+    public required CharacterSourceType AdoptedCharacterSourceType { get; init; }
+
+    [MaxLength(int.MaxValue)]
+    public required string AdoptedCharacterDefinition { get; init; }
+
+    [MaxLength(500)]
+    public required string AdoptedCharacterLink { get; init; }
+
+    [MaxLength(200)]
+    public required string AdoptedCharacterAuthorLink { get; init; }
 }

@@ -46,7 +46,16 @@ namespace CharacterEngine
             if (args.Contains("--migrate"))
             {
                 await using var db = DatabaseHelper.GetDbContext();
-                await db.Database.MigrateAsync();
+                var migrations = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+
+                if (migrations.Length != 0)
+                {
+                    _log.Info($"Applying database migrations:\n{string.Join("\n", migrations)}");
+
+                    await db.Database.MigrateAsync();
+
+                    _log.Info("Migrations applied");
+                }
             }
 
             MetricsWriter.Create(MetricType.ApplicationLaunch);
