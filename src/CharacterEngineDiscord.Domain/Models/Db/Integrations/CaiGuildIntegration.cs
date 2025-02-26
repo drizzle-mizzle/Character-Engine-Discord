@@ -35,4 +35,7 @@ public sealed class CaiGuildIntegration : ICaiIntegration
 
 
     public DiscordGuild DiscordGuild { get; set; } = null!;
+
+    public bool IsChatOnly
+        => false;
 }

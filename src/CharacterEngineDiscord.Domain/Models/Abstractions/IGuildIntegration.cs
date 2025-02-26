@@ -14,4 +14,6 @@ public interface IGuildIntegration
     public DateTime CreatedAt { get; set; }
 
     public DiscordGuild DiscordGuild { get; set; }
+
+    public bool IsChatOnly { get; }
 }

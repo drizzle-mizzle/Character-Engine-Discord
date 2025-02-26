@@ -45,85 +45,50 @@ public static class IntegrationsHelper
     }
 
 
-    public static CharacterSourceType GetSourceType(this ICharacter character)
+    public static CharacterSourceType GetCharacterSourceType(this IReusableCharacter reusableCharacter)
     {
-        return character switch
+        return reusableCharacter switch
         {
-            CommonCharacter commonCharacter => commonCharacter.CharacterSourceType,
             ISakuraCharacter => CharacterSourceType.SakuraAI,
-            ICaiCharacter => CharacterSourceType.CharacterAI,
-            IOpenRouterCharacter orc => orc.CharacterSourceType,
 
-            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+            _ => throw new ArgumentOutOfRangeException(nameof(reusableCharacter), reusableCharacter, null)
         };
     }
 
 
-    #region TypeBased
-
-    public static CharacterSourceType GetDefaultSourceType(this IntegrationType integrationType)
-    {
-        return integrationType switch
-        {
-            IntegrationType.SakuraAI => CharacterSourceType.SakuraAI,
-            IntegrationType.CharacterAI => CharacterSourceType.CharacterAI,
-
-            _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
-        };
-    }
+    #region IntegrationType and CharacterSourceType based
 
     public static IChatModule GetChatModule(this IntegrationType integrationType)
-        => integrationType.GetChatModule<IChatModule>();
+        => integrationType.GetIntegrationModule<IChatModule>();
 
-    public static TResult GetChatModule<TResult>(this IntegrationType integrationType) where TResult : IChatModule
-        => integrationType.GetIntegrationModule<TResult>();
+    public static ISearchModule GetSearchModule(this IntegrationType integrationType)
+        => integrationType.GetIntegrationModule<ISearchModule>();
 
-    public static ISearchModule GetSearchModule(this CharacterSourceType sourceType)
-        => sourceType.GetSearchModule<ISearchModule>();
-
-    public static TResult GetSearchModule<TResult>(this CharacterSourceType sourceType) where TResult : ISearchModule
-        => sourceType.GetIntegrationModule<TResult>();
+    public static ISearchModule GetSearchModule(this CharacterSourceType characterSourceType)
+        => characterSourceType.GetIntegrationModule<ISearchModule>();
 
 
-    public static TResult GetIntegrationModule<TResult>(this IntegrationType integrationType) where TResult : IModule
+
+    private static TResult GetIntegrationModule<TResult>(this IntegrationType integrationType) where TResult : IModule
     {
-        IModule module = integrationType switch
+        return (TResult)(IModule)(integrationType switch
         {
             IntegrationType.SakuraAI => MemoryStorage.IntegrationModules.SakuraAiModule,
             IntegrationType.CharacterAI => MemoryStorage.IntegrationModules.CaiModule,
             IntegrationType.OpenRouter => MemoryStorage.IntegrationModules.OpenRouterModule,
 
             _ => throw new ArgumentOutOfRangeException(nameof(integrationType), integrationType, null)
-        };
-
-        return (TResult)module;
+        });
     }
 
-
-    public static TResult GetIntegrationModule<TResult>(this CharacterSourceType sourceType) where TResult : IModule
+    private static TResult GetIntegrationModule<TResult>(this CharacterSourceType characterSourceType) where TResult : IModule
     {
-        IModule module = sourceType switch
+        return (TResult)(IModule)(characterSourceType switch
         {
             CharacterSourceType.SakuraAI => MemoryStorage.IntegrationModules.SakuraAiModule,
-            CharacterSourceType.CharacterAI => MemoryStorage.IntegrationModules.CaiModule,
-            // CharacterSourceType.ChubAI => MemoryStorage.IntegrationModules.ChubModule,
-            // CharacterSourceType.CharacterTavern => MemoryStorage.IntegrationModules.TavernModule,
 
-            _ => throw new ArgumentOutOfRangeException(nameof(sourceType), sourceType, null)
-        };
-
-        return (TResult)module;
-    }
-
-
-    public static string GetStatLabel(this IntegrationType type)
-    {
-        return type switch
-        {
-            IntegrationType.SakuraAI => "Messages count",
-            IntegrationType.CharacterAI => "Chats count",
-            IntegrationType.OpenRouter => "Messages count",
-        };
+            _ => throw new ArgumentOutOfRangeException(nameof(characterSourceType), characterSourceType, null)
+        });
     }
 
 
@@ -144,7 +109,7 @@ public static class IntegrationsHelper
         {
             IntegrationType.SakuraAI => Color.Purple,
             IntegrationType.CharacterAI => Color.Blue,
-            IntegrationType.OpenRouter => Color.LightGrey,
+            IntegrationType.OpenRouter => Color.Green,
         };
     }
 
@@ -159,46 +124,91 @@ public static class IntegrationsHelper
         };
     }
 
+
+    public static bool CanNsfw(this IntegrationType type)
+    {
+        return type switch
+        {
+            IntegrationType.SakuraAI => true,
+            IntegrationType.CharacterAI => false,
+            IntegrationType.OpenRouter => true,
+        };
+    }
+
     #endregion
 
 
-    #region ObjectBased
+    #region ICharacter based
+
+    // Search only
+    public static string GetStatLabel(this ICharacter character)
+    {
+        if (character is IAdoptedCharacter adoptedCharacter)
+        {
+            return adoptedCharacter.AdoptedCharacterSourceType switch
+            {
+                CharacterSourceType.SakuraAI => "Messages count"
+            };
+        }
+
+        return character.GetIntegrationType() switch
+        {
+            IntegrationType.SakuraAI => "Messages count",
+            IntegrationType.CharacterAI => "Chats count",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
+        };
+    }
+
 
     public static string GetLinkLabel(this ICharacter character)
     {
+        if (character is IAdoptedCharacter adoptedCharacter)
+        {
+            return $"{adoptedCharacter.CharacterName} on {adoptedCharacter.AdoptedCharacterSourceType}";
+        }
+
         return character.GetIntegrationType() switch
         {
             IntegrationType.SakuraAI or
             IntegrationType.CharacterAI => $"Chat with {character.CharacterName}",
-            IntegrationType.OpenRouter => $"{character.CharacterName} on {character.GetSourceType()}"
+
+            _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
     }
 
     public static string GetCharacterLink(this ICharacter character)
     {
-        return character.GetSourceType() switch
+        if (character is IAdoptedCharacter adoptedCharacter)
         {
-            CharacterSourceType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
-            CharacterSourceType.CharacterAI => $"https://character.ai/chat/{character.CharacterId}",
-            CharacterSourceType.ChubAI => $"https://chub.ai/characters/{character.CharacterAuthor}/{character.CharacterId}",
-            CharacterSourceType.CharacterTavern => $"https://character-tavern.com/character/{character.CharacterAuthor}/{character.CharacterId}",
+            return adoptedCharacter.AdoptedCharacterLink;
+        }
+
+        return character.GetIntegrationType() switch
+        {
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/chat/{character.CharacterId}",
+            IntegrationType.CharacterAI => $"https://character.ai/chat/{character.CharacterId}",
+            // CharacterSourceType.ChubAI => $"https://chub.ai/characters/{character.CharacterAuthor}/{character.CharacterId}",
+            // CharacterSourceType.CharacterTavern => $"https://character-tavern.com/character/{character.CharacterAuthor}/{character.CharacterId}",
 
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
         };
     }
 
-
+    // for search only
     public static string GetAuthorLink(this ICharacter character)
     {
-        return character.GetSourceType() switch
+        if (character is IAdoptedCharacter adoptedCharacter)
         {
-            CharacterSourceType.SakuraAI => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
-            CharacterSourceType.CharacterAI => $"https://character.ai/profile/{character.CharacterAuthor}",
-            CharacterSourceType.ChubAI => $"https://chub.ai/users/{character.CharacterAuthor}",
-            CharacterSourceType.CharacterTavern => $"https://character-tavern.com/author/{character.CharacterAuthor}",
+            return adoptedCharacter.AdoptedCharacterAuthorLink;
+        }
+
+        return character.GetIntegrationType() switch
+        {
+            IntegrationType.SakuraAI => $"https://www.sakura.fm/user/{character.CharacterAuthor}",
+            IntegrationType.CharacterAI => $"https://character.ai/profile/{character.CharacterAuthor}",
 
             _ => throw new ArgumentOutOfRangeException(nameof(character), character, null)
-
         };
     }
 

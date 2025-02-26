@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Modules.Modules.Chat;
 using CharacterEngineDiscord.Modules.Modules.Independent;
@@ -31,7 +33,7 @@ public record IntegrationModulesCollection
 
     public CaiModule CaiModule { get; } = new();
 
-    public OpenRouterModule OpenRouterModule { get; } = new();
+    public OpenRouterModule OpenRouterModule { get; } = new(BotConfig.DATABASE_CONNECTION_STRING);
 
 
 }

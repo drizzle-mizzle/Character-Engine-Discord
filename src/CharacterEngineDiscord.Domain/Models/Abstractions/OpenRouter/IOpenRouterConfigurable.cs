@@ -1,7 +1,7 @@
 namespace CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
 
 
-public interface IOpenRouterSettings
+public interface IOpenRouterConfigurable
 {
     public string? OpenRouterModel { get; set; }
     public float? OpenRouterTemperature { get; set; }

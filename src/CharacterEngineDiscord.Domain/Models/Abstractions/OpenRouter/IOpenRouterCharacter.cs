@@ -1,7 +1,7 @@
 namespace CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
 
 
-public interface IOpenRouterCharacter : ICharacterCard, IOpenRouterSettings, ICharacter
+public interface IOpenRouterCharacter : IOpenRouterConfigurable, IAdoptedCharacter
 {
-    public CharacterSourceType CharacterSourceType { get; set; }
+
 }

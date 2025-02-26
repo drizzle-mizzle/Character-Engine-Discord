@@ -1,12 +1,14 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 using CharacterAi.Client.Exceptions;
+using CharacterAi.Client.Models.Common;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
 using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
@@ -16,9 +18,11 @@ using Discord.Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
+using SakuraAi.Client.Models.Common;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
@@ -72,20 +76,20 @@ public static class InteractionsHelper
 
         if (userFriendlyExceptionCheck.valid)
         {
-            var bold = (e as UserFriendlyException)?.Bold ?? (e.InnerException as UserFriendlyException)?.Bold ?? true;
+            var ufEx = (e as UserFriendlyException ?? e.InnerException as UserFriendlyException)!;
 
-            var message = bold ? $"**{userFriendlyExceptionCheck.message}**" : userFriendlyExceptionCheck.message!;
-            if (!message.StartsWith(MT.X_SIGN_DISCORD) && !message.StartsWith(MT.WARN_SIGN_DISCORD))
+            var message = ufEx.Bold ? $"**{userFriendlyExceptionCheck.message}**" : userFriendlyExceptionCheck.message!;
+            if (!(message.StartsWith(MT.X_SIGN_DISCORD) || message.StartsWith(MT.WARN_SIGN_DISCORD)))
             {
                 message = $"{MT.X_SIGN_DISCORD} {message}";
             }
 
-            embed = new EmbedBuilder().WithColor(Color.LightOrange).WithDescription(message).Build();
+            embed = new EmbedBuilder().WithColor(ufEx.Color).WithDescription(message).Build();
         }
         else
         {
             embed = new EmbedBuilder().WithColor(Color.Red)
-                                      .WithDescription($"{MT.X_SIGN_DISCORD} Something went wrong!")
+                                      .WithDescription($"{MT.X_SIGN_DISCORD} **Something went wrong!**")
                                       .WithFooter($"ERROR TRACE ID: {traceId}")
                                       .Build();
         }
@@ -201,15 +205,33 @@ public static class InteractionsHelper
             throw new Exception($"Failed to get channel {channelId}");
         }
 
-        var webhook = await CreateDiscordWebhookAsync(channel, commonCharacter);
+        var webhook = await CreateDiscordWebhookAsync(channel, commonCharacter.CharacterName, commonCharacter.CharacterImageLink);
         var webhookClient = new DiscordWebhookClient(webhook.Id, webhook.Token);
         MemoryStorage.CachedWebhookClients.Add(webhook.Id, webhookClient);
 
-        var newSpawnedCharacter = await CreateSpawnedCharacterAsync(commonCharacter, webhook);
+        ISpawnedCharacter newSpawnedCharacter;
+        try
+        {
+            newSpawnedCharacter = await CreateSpawnedCharacterAsync(commonCharacter, webhook);
+        }
+        catch
+        {
+            MemoryStorage.CachedWebhookClients.Remove(webhook.Id);
+
+            try
+            {
+                await webhookClient.DeleteWebhookAsync();
+            }
+            catch
+            {
+                // care not
+            }
+
+            throw;
+        }
+
         MemoryStorage.CachedCharacters.Add(newSpawnedCharacter, []);
-
-        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType()}:{newSpawnedCharacter.GetSourceType()} | {newSpawnedCharacter.CharacterName}");
-
+        MetricsWriter.Create(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType():G} | {newSpawnedCharacter.CharacterName}");
         return newSpawnedCharacter;
     }
 
@@ -238,31 +260,57 @@ public static class InteractionsHelper
             callPrefix = $"@{characterName}";
         }
 
-        await using var db = DatabaseHelper.GetDbContext();
-        var channel = await db.DiscordChannels
-                              .Include(c => c.DiscordGuild)
-                              .FirstAsync(c => c.Id == (ulong)webhook.ChannelId!);
-
-        var searchModule = commonCharacter.CharacterSourceType.GetSearchModule();
         var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync((ulong)webhook.GuildId!, commonCharacter.GetIntegrationType());
-        var fullCharacter = await searchModule.GetCharacterInfoAsync(commonCharacter.CharacterId, guildIntegration);
+        ArgumentNullException.ThrowIfNull(guildIntegration);
 
-        var newSpawnedCharacter = ((ISpawnedCharacter)(commonCharacter.IntegrationType switch
+        var searchModule = commonCharacter.CharacterSourceType is CharacterSourceType cst
+                ? cst.GetSearchModule()
+                : commonCharacter.IntegrationType.GetSearchModule();
+
+        var characterAdapter = await searchModule.GetCharacterInfoAsync(commonCharacter.CharacterId, guildIntegration);
+        var fullCommonCharacter = characterAdapter.ToCommonCharacter();
+
+
+        await using var db = DatabaseHelper.GetDbContext();
+        ISpawnedCharacter newSpawnedCharacter;
+
+        switch (commonCharacter.IntegrationType)
         {
-            IntegrationType.SakuraAI => new SakuraAiSpawnedCharacter(),
-            IntegrationType.CharacterAI => new CaiSpawnedCharacter(),
-            IntegrationType.OpenRouter => new OpenRouterSpawnedCharacter(),
+            case IntegrationType.SakuraAI:
+            {
+                newSpawnedCharacter = db.SakuraAiSpawnedCharacters.Add(new SakuraAiSpawnedCharacter(characterAdapter.GetValue<SakuraCharacter>())).Entity;
+                break;
+            }
+            case IntegrationType.CharacterAI:
+            {
+                newSpawnedCharacter = db.CaiSpawnedCharacters.Add(new CaiSpawnedCharacter(characterAdapter.GetValue<CaiCharacter>())).Entity;
+                break;
+            }
+            case IntegrationType.OpenRouter:
+            {
+                var reusableCharacter = characterAdapter.ToReusableCharacter();
+                newSpawnedCharacter = db.OpenRouterSpawnedCharacters.Add(new OpenRouterSpawnedCharacter((IOpenRouterIntegration)guildIntegration)
+                {
+                    AdoptedCharacterSourceType = reusableCharacter.GetCharacterSourceType(),
+                    AdoptedCharacterDefinition = reusableCharacter.GetCharacterDefinition(),
+                    AdoptedCharacterLink = reusableCharacter.GetCharacterLink(),
+                    AdoptedCharacterAuthorLink = reusableCharacter.GetAuthorLink(),
+                }).Entity;
+                break;
+            }
+            default:
+            {
+                throw new ArgumentOutOfRangeException(nameof(commonCharacter.IntegrationType));
+            }
+        }
 
-            _ => throw new ArgumentOutOfRangeException(nameof(commonCharacter.IntegrationType))
-        })).FillWith(fullCharacter);
-
-        newSpawnedCharacter.CharacterId = commonCharacter.CharacterId;
-        newSpawnedCharacter.CharacterName = commonCharacter.CharacterName;
-        newSpawnedCharacter.CharacterFirstMessage = commonCharacter.CharacterFirstMessage;
-        newSpawnedCharacter.CharacterImageLink = commonCharacter.CharacterImageLink;
-        newSpawnedCharacter.CharacterAuthor = commonCharacter.CharacterAuthor ?? "unknown";
-        newSpawnedCharacter.IsNfsw = commonCharacter.IsNfsw;
-        newSpawnedCharacter.DiscordChannelId = channel.Id;
+        newSpawnedCharacter.CharacterId = fullCommonCharacter.CharacterId;
+        newSpawnedCharacter.CharacterName = fullCommonCharacter.CharacterName;
+        newSpawnedCharacter.CharacterFirstMessage = fullCommonCharacter.CharacterFirstMessage!;
+        newSpawnedCharacter.CharacterImageLink = fullCommonCharacter.CharacterImageLink;
+        newSpawnedCharacter.CharacterAuthor = fullCommonCharacter.CharacterAuthor ?? "unknown";
+        newSpawnedCharacter.IsNfsw = fullCommonCharacter.IsNfsw;
+        newSpawnedCharacter.DiscordChannelId = (ulong)webhook.ChannelId!;
         newSpawnedCharacter.WebhookId = webhook.Id;
         newSpawnedCharacter.WebhookToken = webhook.Token;
         newSpawnedCharacter.CallPrefix = callPrefix.ToLower();
@@ -278,34 +326,15 @@ public static class InteractionsHelper
         newSpawnedCharacter.MessagesSent = 0;
         newSpawnedCharacter.LastCallTime = DateTime.Now;
 
-        switch (newSpawnedCharacter)
-        {
-            case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
-            {
-                db.SakuraAiSpawnedCharacters.Add(sakuraAiSpawnedCharacter);
-                break;
-            }
-            case CaiSpawnedCharacter caiSpawnedCharacter:
-            {
-                db.CaiSpawnedCharacters.Add(caiSpawnedCharacter);
-                break;
-            }
-            case OpenRouterSpawnedCharacter openRouterSpawnedCharacter:
-            {
-                db.OpenRouterSpawnedCharacters.Add(openRouterSpawnedCharacter);
-                break;
-            }
-        }
-
         await db.SaveChangesAsync();
 
         return newSpawnedCharacter;
     }
 
 
-    public static async Task<IWebhook> CreateDiscordWebhookAsync(IIntegrationChannel channel, ICharacter character)
+    public static async Task<IWebhook> CreateDiscordWebhookAsync(IIntegrationChannel channel, string name, string? imageUrl)
     {
-        var characterName = character.CharacterName.Trim();
+        var characterName = name.Trim();
         var match = DISCORD_REGEX.Match(characterName);
         if (match.Success)
         {
@@ -313,7 +342,7 @@ public static class InteractionsHelper
             characterName = characterName.Replace(match.Value, discordCensored);
         }
 
-        var avatar = await CommonHelper.DownloadFileAsync(character.CharacterImageLink);
+        var avatar = await CommonHelper.DownloadFileAsync(imageUrl);
 
         using var avatarInput = new MemoryStream();
         using var avatarOutput = new MemoryStream();

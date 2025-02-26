@@ -33,4 +33,7 @@ public sealed class SakuraAiGuildIntegration : ISakuraIntegration
 
 
     public DiscordGuild DiscordGuild { get; set; } = null!;
+
+    public bool IsChatOnly
+        => false;
 }

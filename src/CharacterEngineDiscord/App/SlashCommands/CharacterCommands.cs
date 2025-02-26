@@ -8,9 +8,11 @@ using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Modules.Abstractions;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -43,12 +45,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                                      [Summary(description: "A query to perform character search")] string? searchQuery = null,
                                      [Summary(description: "Can be used instead of search to spawn a character with its ID")] string? characterId = null,
                                      [Summary(description: "optional; show nsfw characters in search")] bool showNsfw = false,
-                                     // [Summary(description: "optional; characters source to use, required for certain integration types")] CharacterSourceType? sourceType = null,
+                                     [Summary(description: "optional; characters source to use, required for certain integration types")] CharacterSourceType? useCatalog = null,
                                      bool hide = false)
     {
-        if (integrationType is IntegrationType.OpenRouter)
+        var channel = (ITextChannel)Context.Channel;
+        if (showNsfw && !channel.IsNsfw)
         {
-            throw new UserFriendlyException("This feature is not available yet...");
+            throw new UserFriendlyException(NSFW_REQUIRED, bold: true, Color.Purple);
         }
 
         if (searchQuery is null && characterId is null)
@@ -59,11 +62,10 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await RespondAsync(embed: MT.WAIT_MESSAGE, ephemeral: hide);
         var originalResponse = await GetOriginalResponseAsync();
 
-        IReadOnlyCollection<IWebhook>? webhooks;
-        var channel = (ITextChannel)Context.Channel;
 
         bool isThread;
-        if (channel is SocketThreadChannel threadChannel && threadChannel.ParentChannel is ITextChannel parentChannel)
+        IReadOnlyCollection<IWebhook>? webhooks;
+        if (channel is SocketThreadChannel { ParentChannel: ITextChannel parentChannel })
         {
             webhooks = await parentChannel.GetWebhooksAsync();
             isThread = true;
@@ -85,22 +87,40 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException($"You have to setup **{integrationType:G}** intergration for this server first!", bold: false);
         }
 
-        // sourceType ??= integrationType.GetDefaultSourceType();
-        // if (sourceType is null)
-        // {
-        //     throw new UserFriendlyException("source-type parameter is required");
-        // }
-
-        // var searchModule = ((CharacterSourceType)sourceType).GetSearchModule();
-        var searchModule = integrationType.GetDefaultSourceType().GetSearchModule();
+        ISearchModule searchModule;
+        if (!guildIntegration.IsChatOnly)
+        {
+            searchModule = integrationType.GetSearchModule();
+        }
+        else if (useCatalog is CharacterSourceType sourceType)
+        {
+            searchModule = sourceType.GetSearchModule();
+        }
+        else
+        {
+            throw new UserFriendlyException($"{MT.WARN_SIGN_DISCORD} You have to specify the **use-catalog** parameter", bold: false);
+        }
 
         if (string.IsNullOrWhiteSpace(characterId))
         {
-            if (showNsfw && !channel.IsNsfw)
+            await SearchCharacterAsync();
+        }
+        else
+        {
+            try
             {
-                throw new UserFriendlyException(NSFW_REQUIRED);
+                await SpawnCharacterByIdAsync();
             }
+            catch (CharacterAiException)
+            {
+                throw new UserFriendlyException($"{integrationType.GetIcon()} Failed to find character with id \"{characterId.Trim()}\"");
+            }
+        }
 
+        return;
+
+        async Task SearchCharacterAsync()
+        {
             var characters = await searchModule.SearchAsync(searchQuery!, showNsfw, guildIntegration);
             if (characters.Count == 0)
             {
@@ -115,31 +135,25 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 msg.Embed = MH.BuildSearchResultList(newSq);
                 msg.Components = ButtonsHelper.BuildSearchButtons(newSq.Pages > 1);
             });
-
-            return;
         }
 
-        try
+        async Task SpawnCharacterByIdAsync()
         {
-            var character = await searchModule.GetCharacterInfoAsync(characterId.Trim(), guildIntegration);
-            character.IntegrationType = integrationType;
+            var characterAdapter = await searchModule.GetCharacterInfoAsync(characterId.Trim(), guildIntegration);
+            var commonCharacter = characterAdapter.ToCommonCharacter();
 
-            if (character.IsNfsw && !channel.IsNsfw)
+            if (commonCharacter.IsNfsw && !channel.IsNsfw)
             {
-                await FollowupAsync(embed: NSFW_REQUIRED.ToInlineEmbed(Color.Purple));
-                return;
+                throw new UserFriendlyException(NSFW_REQUIRED, bold: true, Color.Purple);
             }
 
-            var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, character);
-            var embed = await MH.BuildCharacterDescriptionCardAsync(newSpawnedCharacter, justSpawned: true);
+            var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, characterAdapter.ToCommonCharacter());
+
+            var embed = MH.BuildCharacterDescriptionCard(newSpawnedCharacter, justSpawned: true);
             var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
             await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
             await modifyOriginalResponseAsync;
-        }
-        catch (CharacterAiException)
-        {
-            throw new UserFriendlyException($"{integrationType.GetIcon()} Failed to find character with id \"{characterId.Trim()}\"");
         }
     }
 
@@ -150,7 +164,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         await DeferAsync(ephemeral: hide);
 
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
-        var infoEmbed = await MH.BuildCharacterDescriptionCardAsync(scc.spawnedCharacter, justSpawned: false);
+        var infoEmbed = MH.BuildCharacterDescriptionCard(scc.spawnedCharacter, justSpawned: false);
 
         await FollowupAsync(embed: infoEmbed);
     }
@@ -175,11 +189,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             case SakuraAiSpawnedCharacter sakuraAiSpawnedCharacter:
             {
                 sakuraAiSpawnedCharacter.SakuraChatId = null;
-                break;
-            }
-            case ICharacterCard:
-            {
-                // TODO: CLEAR && CREATE NEW CHAT
                 break;
             }
         }
@@ -576,7 +585,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
-            await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter);
+            await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, spawnedCharacter.CharacterImageLink);
         }
         else
         {
@@ -589,7 +598,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
-            await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter);
+            await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, newAvatarUrl);
         }
         else
         {
