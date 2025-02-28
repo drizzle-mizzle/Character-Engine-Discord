@@ -30,45 +30,77 @@ public static class DatabaseHelper
         await using var db = GetDbContext();
         result.AddRange(await db.SakuraAiSpawnedCharacters.ToListAsync());
         result.AddRange(await db.CaiSpawnedCharacters.ToListAsync());
-        // result.AddRange(await db.OpenRouterSpawnedCharacters.ToListAsync());
+        result.AddRange(await db.OpenRouterSpawnedCharacters.ToListAsync());
 
         return result;
     }
 
 
-    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInChannelAsync(ulong channelId)
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInChannelAsync(ulong channelId, AppDbContext? dbContext = null)
     {
-        var result = new List<ISpawnedCharacter>();
+        var db = dbContext ?? GetDbContext();
 
-        await using var db = GetDbContext();
-        result.AddRange(await db.SakuraAiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
-        result.AddRange(await db.CaiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
-        result.AddRange(await db.OpenRouterSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+        try
+        {
+            var result = new List<ISpawnedCharacter>();
 
-        return result;
+            result.AddRange(await db.SakuraAiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+            result.AddRange(await db.CaiSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+            result.AddRange(await db.OpenRouterSpawnedCharacters.Where(c => c.DiscordChannelId == channelId).ToListAsync());
+
+            return result;
+        }
+        finally
+        {
+            if (dbContext is null)
+            {
+                await db.DisposeAsync();
+            }
+        }
     }
 
 
-    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInGuildAsync(ulong guildId)
+    public static async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersInGuildAsync(ulong guildId, AppDbContext? dbContext = null)
     {
-        var result = new List<ISpawnedCharacter>();
+        var db = dbContext ?? GetDbContext();
 
-        await using var db = GetDbContext();
-        result.AddRange(await db.SakuraAiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
-        result.AddRange(await db.CaiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
-        result.AddRange(await db.OpenRouterSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
+        try
+        {
+            var result = new List<ISpawnedCharacter>();
 
-        return result;
+            result.AddRange(await db.SakuraAiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
+            result.AddRange(await db.CaiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
+            result.AddRange(await db.OpenRouterSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
+
+            return result;
+        }
+        finally
+        {
+            if (dbContext is null)
+            {
+                await db.DisposeAsync();
+            }
+        }
     }
 
 
-    public static async Task<ISpawnedCharacter?> GetSpawnedCharacterByIdAsync(Guid characterId)
+    public static async Task<ISpawnedCharacter?> GetSpawnedCharacterByIdAsync(Guid characterId, AppDbContext? dbContext = null)
     {
-        await using var db = GetDbContext();
+        var db = dbContext ?? GetDbContext();
 
-        return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId) as ISpawnedCharacter
-            ?? await db.CaiSpawnedCharacters.FirstOrDefaultAsync(c => c.Id == characterId) as ISpawnedCharacter
-            ?? await db.OpenRouterSpawnedCharacters.FirstOrDefaultAsync(o => o.Id == characterId) as ISpawnedCharacter;
+        try
+        {
+            return await db.SakuraAiSpawnedCharacters.FirstOrDefaultAsync(s => s.Id == characterId) as ISpawnedCharacter
+                ?? await db.CaiSpawnedCharacters.FirstOrDefaultAsync(c => c.Id == characterId) as ISpawnedCharacter
+                ?? await db.OpenRouterSpawnedCharacters.FirstOrDefaultAsync(o => o.Id == characterId) as ISpawnedCharacter;
+        }
+        finally
+        {
+            if (dbContext is null)
+            {
+                await db.DisposeAsync();
+            }
+        }
     }
 
 
@@ -132,6 +164,12 @@ public static class DatabaseHelper
                 db.OpenRouterSpawnedCharacters.Remove(openRouterSpawnedCharacter);
                 break;
             }
+        }
+
+        if (spawnedCharacter is IAdoptedCharacter)
+        {
+            var history = db.ChatHistories.Where(message => message.SpawnedCharacterId == spawnedCharacter.Id);
+            db.ChatHistories.RemoveRange(history);
         }
 
         await db.SaveChangesAsync();

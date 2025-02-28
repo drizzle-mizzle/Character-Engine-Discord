@@ -18,15 +18,3 @@ public abstract class CharacterAdapter<T> : ICharacterAdapter
 
     TResult ICharacterAdapter.GetValue<TResult>() => (TResult)Convert.ChangeType(Value, typeof(TResult))!;
 }
-
-
-public interface ICharacterAdapter
-{
-    public CommonCharacter ToCommonCharacter();
-
-    public IReusableCharacter ToReusableCharacter();
-
-    public TResult GetValue<TResult>();
-
-    public IntegrationType GetIntegrationType();
-}

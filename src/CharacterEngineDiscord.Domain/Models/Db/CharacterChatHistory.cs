@@ -8,12 +8,13 @@ namespace CharacterEngineDiscord.Domain.Models.Db;
 [Index(nameof(SpawnedCharacterId), IsUnique = false)]
 public class CharacterChatHistory
 {
-    public Guid SpawnedCharacterId { get; init; } = Guid.NewGuid();
-
-    public DateTime CreatedAt { get; init; } = DateTime.Now;
+    public required Guid SpawnedCharacterId { get; set; }
 
     [MaxLength(50)]
-    public required string Name { get; init; }
+    public required string Name { get; set; }
 
+    [MaxLength(int.MaxValue)]
     public required string Message { get; set; }
+
+    public required DateTime CreatedAt { get; set; }
 }

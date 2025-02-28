@@ -8,7 +8,6 @@ using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
-using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
