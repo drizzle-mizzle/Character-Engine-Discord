@@ -12,13 +12,12 @@ using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
 using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
-using CharacterEngineDiscord.Modules.Helpers;
+using CharacterEngineDiscord.Modules;
 using Discord;
 using Discord.Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using NLog;
 using PhotoSauce.MagicScaler;
 using SakuraAi.Client.Exceptions;
@@ -48,7 +47,7 @@ public static class InteractionsHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or SakuraException or CharacterAiException;
+            => e is UserFriendlyException or ChatModuleException or SakuraException or CharacterAiException;
     }
 
 
@@ -291,8 +290,10 @@ public static class InteractionsHelper
                 var reusableCharacter = characterAdapter.ToReusableCharacter();
                 newSpawnedCharacter = db.OpenRouterSpawnedCharacters.Add(new OpenRouterSpawnedCharacter((IOpenRouterIntegration)guildIntegration)
                 {
+                    CharacterName = reusableCharacter.CharacterName,
                     AdoptedCharacterSourceType = reusableCharacter.GetCharacterSourceType(),
                     AdoptedCharacterDefinition = reusableCharacter.GetCharacterDefinition(),
+                    AdoptedCharacterDescription = reusableCharacter.GetCharacterDescription(),
                     AdoptedCharacterLink = reusableCharacter.GetCharacterLink(),
                     AdoptedCharacterAuthorLink = reusableCharacter.GetAuthorLink(),
                 }).Entity;

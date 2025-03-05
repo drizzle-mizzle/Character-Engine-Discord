@@ -22,19 +22,21 @@ public sealed class SakuraAiSpawnedCharacter : ISpawnedCharacter, ISakuraCharact
 
     public SakuraAiSpawnedCharacter(SakuraCharacter sakuraCharacter)
     {
+        SakuraMessagesCount = sakuraCharacter.messageCount;
+        SakuraPersona = sakuraCharacter.persona;
+        SakuraScenario = sakuraCharacter.scenario;
+
         var sbDesc = new StringBuilder();
 
         if (sakuraCharacter.tags is JArray { Count: > 0 } tags)
         {
-            sbDesc.AppendLine($"Tags: [ {string.Join(", ", tags)} ]");
+            sbDesc.AppendLine($"Tags: {string.Join(", ", tags)}\n");
         }
 
-        sbDesc.AppendLine(sakuraCharacter.description);
+        sbDesc.AppendLine(sakuraCharacter.description.Trim('\n', ' '));
         SakuraDescription = sbDesc.ToString();
 
-        var messages = sakuraCharacter.exampleConversation
-                                      .Where(msg => !string.IsNullOrWhiteSpace(msg.content))
-                                      .ToArray();
+        var messages = sakuraCharacter.exampleConversation.Where(msg => !string.IsNullOrWhiteSpace(msg.content)).ToArray();
         if (messages.Length != 0)
         {
             var lines = messages.Select(message =>
@@ -48,10 +50,6 @@ public sealed class SakuraAiSpawnedCharacter : ISpawnedCharacter, ISakuraCharact
 
             SakuraExampleDialog = string.Join('\n', lines);
         }
-
-        SakuraMessagesCount = sakuraCharacter.messageCount;
-        SakuraPersona = sakuraCharacter.persona;
-        SakuraScenario = sakuraCharacter.scenario;
     }
 
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -131,26 +129,30 @@ public sealed class SakuraAiSpawnedCharacter : ISpawnedCharacter, ISakuraCharact
 
         if (!string.IsNullOrWhiteSpace(SakuraDescription))
         {
-            sb.AppendLine($"[DESCRIPTION]\n{SakuraDescription}\n[DESCRIPTION_END]");
+            sb.AppendLine($"[DESCRIPTION]\n{SakuraDescription.Trim('\n', ' ')}\n[DESCRIPTION_END]\n");
         }
 
         if (!string.IsNullOrWhiteSpace(SakuraPersona))
         {
-            sb.AppendLine($"[PERSONA]\n{SakuraPersona}\n[PERSONA_END]");
+            sb.AppendLine($"[PERSONA]\n{SakuraPersona.Trim('\n', ' ')}\n[PERSONA_END]\n");
         }
 
         if (!string.IsNullOrWhiteSpace(SakuraExampleDialog))
         {
-            sb.AppendLine($"[EXAMPLE_DIALOG]\n{SakuraExampleDialog}\n[EXAMPLE_DIALOG_END]");
+            sb.AppendLine($"[EXAMPLE_DIALOG]\n{SakuraExampleDialog.Trim('\n', ' ')}\n[EXAMPLE_DIALOG_END]\n");
         }
 
         if (!string.IsNullOrWhiteSpace(SakuraScenario))
         {
-            sb.AppendLine($"[SCENARIO]\n{SakuraScenario}\n[SCENARIO_END]");
+            sb.AppendLine($"[SCENARIO]\n{SakuraScenario.Trim('\n', ' ')}\n[SCENARIO_END]\n");
         }
 
         return sb.ToString();
     }
+
+
+    public string GetCharacterDescription()
+        => SakuraDescription;
 
 
     public CharacterSourceType GetCharacterSourceType()

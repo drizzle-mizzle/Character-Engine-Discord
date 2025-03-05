@@ -100,6 +100,9 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
     [MaxLength(int.MaxValue)]
     public required string AdoptedCharacterDefinition { get; init; }
 
+    [MaxLength(int.MaxValue)]
+    public required string AdoptedCharacterDescription { get; init; }
+
     [MaxLength(500)]
     public required string AdoptedCharacterLink { get; init; }
 

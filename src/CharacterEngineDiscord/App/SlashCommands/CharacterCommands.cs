@@ -8,7 +8,6 @@ using CharacterEngine.App.Static;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
-using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
@@ -181,6 +180,12 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         switch (spawnedCharacter)
         {
+            case IAdoptedCharacter:
+            {
+                var history = _db.ChatHistories.Where(message => message.SpawnedCharacterId == spawnedCharacter.Id);
+                _db.ChatHistories.RemoveRange(history);
+                break;
+            }
             case CaiSpawnedCharacter caiSpawnedCharacter:
             {
                 caiSpawnedCharacter.CaiChatId = null;

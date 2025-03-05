@@ -271,7 +271,7 @@ public static class MessagesHelper
 
         var desc = spawnedCharacter switch
         {
-            IAdoptedCharacter ac => ac.AdoptedCharacterDefinition,
+            IAdoptedCharacter ac => ac.AdoptedCharacterDescription,
             ISakuraCharacter sc => sc.GetSakuraDesc(),
             ICaiCharacter cc => cc.GetCaiDesc(),
 
@@ -361,15 +361,16 @@ public static class MessagesHelper
 
     private static string GetConfigurationInfo(this ISpawnedCharacter spawnedCharacter)
     {
-        var info = // $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" + // TODO: accumulations
-                $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
-                $"*Freewill max context size: `{(spawnedCharacter.FreewillContextSize == 0 ? "disabled" : $"{spawnedCharacter.FreewillContextSize} characters")}`*\n" +
-                $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
-                $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
-                $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";
+        var info = $"*Response delay: `{spawnedCharacter.ResponseDelay}`*\n" +
+                   $"*Freewill factor: `{spawnedCharacter.FreewillFactor}`*\n" +
+                   $"*Freewill max context size: `{(spawnedCharacter.FreewillContextSize == 0 ? "disabled" : $"{spawnedCharacter.FreewillContextSize} characters")}`*\n" +
+                   $"*Response swipes: `{spawnedCharacter.EnableSwipes.ToToggler()}`*\n" +
+                   $"*Quotes: `{spawnedCharacter.EnableQuotes.ToToggler()}`*\n" +
+                   $"*Stop buttons: `{spawnedCharacter.EnableStopButton.ToToggler()}`*\n";
 
         return info + spawnedCharacter switch
         {
+            IAdoptedCharacter => null,
             ISakuraCharacter sakuraCharacter => $"*Chat ID: `{sakuraCharacter.SakuraChatId}`*",
             ICaiCharacter caiCharacter => $"*Chat ID: `{caiCharacter.CaiChatId}`*",
 

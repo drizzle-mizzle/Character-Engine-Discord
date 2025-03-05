@@ -35,26 +35,39 @@ public class OpenRouterModule : IChatModule
 
         if (history.Count == 0)
         {
-            history.AddRange(
-            [
-                new CharacterChatHistory
-                {
-                    Name = "system",
-                    Message = orCharacter.AdoptedCharacterDefinition
-                },
-                new CharacterChatHistory()
-                {
-                    Name = "assistant",
-                    Message = orCharacter.CharacterFirstMessage
-                }
-            ]);
+            var systemMessage = new CharacterChatHistory
+            {
+                Name = "system",
+                Message = orCharacter.AdoptedCharacterDefinition,
+                SpawnedCharacterId = spawnedCharacter.Id,
+                CreatedAt = DateTime.Now,
+            };
+
+            history.Add(systemMessage);
+            db.ChatHistories.Add(systemMessage);
+
+            var firstMessage = new CharacterChatHistory()
+            {
+                Name = "assistant",
+                Message = orCharacter.CharacterFirstMessage,
+                SpawnedCharacterId = spawnedCharacter.Id,
+                CreatedAt = DateTime.Now,
+            };
+
+            history.Add(firstMessage);
+            db.ChatHistories.Add(firstMessage);
         }
 
-        history.Add(new CharacterChatHistory
+        var newMessage = new CharacterChatHistory
         {
             Name = "user",
-            Message = message
-        });
+            Message = message,
+            SpawnedCharacterId = spawnedCharacter.Id,
+            CreatedAt = DateTime.Now,
+        };
+
+        history.Add(newMessage);
+        db.ChatHistories.Add(newMessage);
 
         var chatMessages = history.Select(m => new ChatMessage
                                    {
@@ -77,16 +90,40 @@ public class OpenRouterModule : IChatModule
         };
 
         var model = orCharacter.OpenRouterModel ?? orIntegration.OpenRouterModel!;
-        var response = await _openRouterClient.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
-        var characterResponse = response.Choices.First().Message.Content;
 
-        history.Add(new CharacterChatHistory() { Name = "assistant", Message = characterResponse });
+        int attempt = 0;
 
-        await db.SaveChangesAsync();
-
-        return new CommonCharacterMessage
+        while (attempt < 3)
         {
-            Content = characterResponse
-        };
+            var response = await _openRouterClient.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
+            var characterResponse = response.Choices.FirstOrDefault(c => c.Message is not null && !string.IsNullOrWhiteSpace(c.Message.Content))?.Message?.Content;
+
+            if (characterResponse is null)
+            {
+                attempt++;
+                continue;
+            }
+
+            characterResponse = characterResponse.Replace($"{spawnedCharacter.CharacterName}:", string.Empty, StringComparison.InvariantCultureIgnoreCase);
+
+            var historyMessage = new CharacterChatHistory()
+            {
+                Name = "assistant",
+                Message = characterResponse,
+                SpawnedCharacterId = spawnedCharacter.Id,
+                CreatedAt = DateTime.Now
+            };
+
+            db.ChatHistories.Add(historyMessage);
+
+            await db.SaveChangesAsync();
+
+            return new CommonCharacterMessage
+            {
+                Content = characterResponse
+            };
+        }
+
+        throw new ChatModuleException("No response from OpenRouter");
     }
 }

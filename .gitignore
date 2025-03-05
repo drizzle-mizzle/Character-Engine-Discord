@@ -8,4 +8,3 @@
 *.env
 env.*
 .vs/
-Migrations/
