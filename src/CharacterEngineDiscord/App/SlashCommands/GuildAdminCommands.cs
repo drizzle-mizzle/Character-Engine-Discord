@@ -1,5 +1,4 @@
 using System.Text;
-using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngineDiscord.Domain.Models;
@@ -9,6 +8,7 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -31,7 +31,7 @@ public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
     {
         if (action is not UserAction.show)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)Context.User);
+            await ValidateAccessLevelAsync(AccessLevel.GuildAdmin, (SocketGuildUser)Context.User);
         }
 
         await DeferAsync();

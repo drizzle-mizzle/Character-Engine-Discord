@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
-using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared;
+using CharacterEngineDiscord.Shared.Abstractions.Adapters;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
@@ -10,7 +12,7 @@ namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 
 [PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacter
+public class OpenRouterSpawnedCharacter : IOpenRouterCharacter, ISpawnedCharacter
 {
     public OpenRouterSpawnedCharacter()
     {
@@ -18,8 +20,15 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
     }
 
 
-    public OpenRouterSpawnedCharacter(IOpenRouterIntegration openRouterIntegration)
+    public OpenRouterSpawnedCharacter(IAdoptableCharacterAdapter characterAdapter, IOpenRouterIntegration openRouterIntegration)
     {
+        CharacterName = characterAdapter.GetCharacterName();
+        AdoptedCharacterSourceType = characterAdapter.GetCharacterSourceType();
+        AdoptedCharacterDescription = characterAdapter.GetCharacterDescription();
+        AdoptedCharacterDefinition = characterAdapter.GetCharacterDefinition();
+        AdoptedCharacterLink = characterAdapter.GetCharacterLink();
+        AdoptedCharacterAuthorLink = characterAdapter.GetAuthorLink();
+
         OpenRouterModel = openRouterIntegration.OpenRouterModel;
         OpenRouterTemperature = openRouterIntegration.OpenRouterTemperature;
         OpenRouterTopP = openRouterIntegration.OpenRouterTopP;
@@ -95,17 +104,20 @@ public class OpenRouterSpawnedCharacter : ISpawnedCharacter, IOpenRouterCharacte
 
     public DiscordChannel? DiscordChannel { get; set; }
 
-    public required CharacterSourceType AdoptedCharacterSourceType { get; init; }
+    public CharacterSourceType AdoptedCharacterSourceType { get; set; }
 
     [MaxLength(int.MaxValue)]
-    public required string AdoptedCharacterDefinition { get; init; }
+    public string? AdoptedCharacterSystemPrompt { get; set; }
 
     [MaxLength(int.MaxValue)]
-    public required string AdoptedCharacterDescription { get; init; }
+    public string AdoptedCharacterDefinition { get; set; }
+
+    [MaxLength(int.MaxValue)]
+    public string AdoptedCharacterDescription { get; set; }
 
     [MaxLength(500)]
-    public required string AdoptedCharacterLink { get; init; }
+    public string AdoptedCharacterLink { get; set; }
 
     [MaxLength(200)]
-    public required string AdoptedCharacterAuthorLink { get; init; }
+    public string AdoptedCharacterAuthorLink { get; set; }
 }

@@ -1,7 +1,7 @@
-﻿using CharacterEngine.App.CustomAttributes;
-using CharacterEngine.App.Exceptions;
+﻿using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Repositories;
 using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db;
@@ -9,6 +9,7 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -18,13 +19,23 @@ public class SlashCommandsHandler
     private readonly IServiceProvider _serviceProvider;
     private readonly DiscordSocketClient _discordClient;
     private readonly InteractionService _interactionService;
+    // private readonly CharactersRepository _charactersRepository;
+    private readonly CacheRepository _cacheRepository;
 
 
-    public SlashCommandsHandler(IServiceProvider serviceProvider, DiscordSocketClient discordClient, InteractionService interactionService)
+    public SlashCommandsHandler(
+        IServiceProvider serviceProvider,
+        DiscordSocketClient discordClient,
+        InteractionService interactionService,
+        // CharactersRepository charactersRepository,
+        CacheRepository cacheRepository
+    )
     {
         _serviceProvider = serviceProvider;
         _discordClient = discordClient;
         _interactionService = interactionService;
+        // _charactersRepository = charactersRepository;
+        _cacheRepository = cacheRepository;
     }
 
 
@@ -60,15 +71,15 @@ public class SlashCommandsHandler
 
         var guildUser = (IGuildUser)command.User;
 
-        textChannel.EnsureCached();
-        guildUser.EnsureCached();
+        _cacheRepository.EnsureChannelCached(textChannel);
+        _cacheRepository.EnsureUserCached(guildUser);
 
-        InteractionsHelper.ValidateUser(guildUser, textChannel);
+        ValidateInteraction(guildUser, textChannel);
 
         var commandNameCamel = command.CommandName.Replace("-", "");
         if (Enum.TryParse<SpecialCommands>(commandNameCamel, ignoreCase: true, out var specialCommand))
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.GuildAdmin, (SocketGuildUser)command.User);
+            await ValidateAccessLevelAsync(AccessLevel.GuildAdmin, (SocketGuildUser)command.User);
 
             var specialCommandsHandler = _serviceProvider.GetRequiredService<SpecialCommandsHandler>();
             await (specialCommand switch
@@ -79,7 +90,7 @@ public class SlashCommandsHandler
         }
         else if (Enum.TryParse<BotAdminCommands>(commandNameCamel, ignoreCase: true, out var botAdminCommand))
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.BotAdmin, (SocketGuildUser)command.User);
+            await ValidateAccessLevelAsync(AccessLevel.BotAdmin, (SocketGuildUser)command.User);
 
             var botAdminCommandsHandler = _serviceProvider.GetRequiredService<BotAdminCommandsHandler>();
             await (botAdminCommand switch
@@ -121,7 +132,7 @@ public class SlashCommandsHandler
                 options = string.Join(" | ", command.Data.Options.Select(opt => $"{opt.Name}: {opt.Value}"));
             }
             
-            MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{commandName}:{(result.IsSuccess ? "ok" : "err")}:{textChannel.Id}:{textChannel.GuildId}: [ {options} ]", true);
+            MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.SlashCommand:G}:{commandName}:{(result.IsSuccess ? "ok" : "err")}:{textChannel.Id}:{textChannel.GuildId}: [ {options} ]", true);
         }
 
     }

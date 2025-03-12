@@ -1,9 +1,12 @@
-using CharacterEngineDiscord.Domain.Models.Abstractions;
-using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
-using CharacterEngineDiscord.Domain.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Modules.Abstractions;
+using CharacterEngineDiscord.Modules.Abstractions.Base;
+using CharacterEngineDiscord.Shared.Abstractions;
+using CharacterEngineDiscord.Shared.Abstractions.Characters;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
+using CharacterEngineDiscord.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using OpenRouter.Client;
 using UniversalOpenAi.Client.Models;
@@ -11,35 +14,43 @@ using UniversalOpenAi.Client.Models;
 namespace CharacterEngineDiscord.Modules.Modules.Chat;
 
 
-public class OpenRouterModule : IChatModule
+public class OpenRouterModule : ModuleBase<OpenRouterClient>, IChatModule
 {
     private readonly string _connectionString;
-    private readonly OpenRouterClient _openRouterClient = new();
+    private readonly string _defaultSystemPrompt;
 
 
-    public OpenRouterModule(string connectionString)
+    public OpenRouterModule(string connectionString, string defaultSystemPrompt)
     {
         _connectionString = connectionString;
+        _defaultSystemPrompt = defaultSystemPrompt;
     }
 
 
-    public async Task<CommonCharacterMessage> CallCharacterAsync(ISpawnedCharacter spawnedCharacter, IGuildIntegration guildIntegration, string message)
+    public async Task<CommonCharacterMessage> CallCharacterAsync(ICharacter character, IIntegration integration, string message)
     {
-        var orIntegration = (IOpenRouterIntegration)guildIntegration;
-        var orCharacter = (IOpenRouterCharacter)spawnedCharacter;
+        var orIntegration = (IOpenRouterIntegration)integration;
+        var orSpawnedCharacter = (OpenRouterSpawnedCharacter)character;
 
-        var db = new AppDbContext(_connectionString);
+        await using var db = new AppDbContext(_connectionString);
         var history = await db.ChatHistories
-                              .Where(ch => ch.SpawnedCharacterId == spawnedCharacter.Id)
+                              .Where(ch => ch.SpawnedCharacterId == orSpawnedCharacter.Id)
                               .ToListAsync();
 
         if (history.Count == 0)
         {
+            var prompt = (orSpawnedCharacter.AdoptedCharacterSystemPrompt ?? orIntegration.SystemPrompt ?? _defaultSystemPrompt)
+                        .Replace("{{CHAR}}", orSpawnedCharacter.CharacterName)
+                        .Replace("<CHAR>", orSpawnedCharacter.CharacterName)
+                        .Replace("<BOT>", orSpawnedCharacter.CharacterName);
+
+            var systemPrompt = $"{prompt}\n{orSpawnedCharacter.AdoptedCharacterDefinition}";
+
             var systemMessage = new CharacterChatHistory
             {
                 Name = "system",
-                Message = orCharacter.AdoptedCharacterDefinition,
-                SpawnedCharacterId = spawnedCharacter.Id,
+                Message = systemPrompt,
+                SpawnedCharacterId = orSpawnedCharacter.Id,
                 CreatedAt = DateTime.Now,
             };
 
@@ -49,8 +60,8 @@ public class OpenRouterModule : IChatModule
             var firstMessage = new CharacterChatHistory()
             {
                 Name = "assistant",
-                Message = orCharacter.CharacterFirstMessage,
-                SpawnedCharacterId = spawnedCharacter.Id,
+                Message = orSpawnedCharacter.CharacterFirstMessage,
+                SpawnedCharacterId = orSpawnedCharacter.Id,
                 CreatedAt = DateTime.Now,
             };
 
@@ -62,7 +73,7 @@ public class OpenRouterModule : IChatModule
         {
             Name = "user",
             Message = message,
-            SpawnedCharacterId = spawnedCharacter.Id,
+            SpawnedCharacterId = orSpawnedCharacter.Id,
             CreatedAt = DateTime.Now,
         };
 
@@ -78,24 +89,24 @@ public class OpenRouterModule : IChatModule
 
         var settings = new GenerationSettings
         {
-            Temperature = (float)(orCharacter.OpenRouterTemperature ?? orIntegration.OpenRouterTemperature)!,
-            TopP = (float)(orCharacter.OpenRouterTopP ?? orIntegration.OpenRouterTopP)!,
-            TopK = (int)(orCharacter.OpenRouterTopK ?? orIntegration.OpenRouterTopK)!,
-            FrequencyPenalty = (float)(orCharacter.OpenRouterFrequencyPenalty ?? orIntegration.OpenRouterFrequencyPenalty)!,
-            PresencePenalty = (float)(orCharacter.OpenRouterPresencePenalty ?? orIntegration.OpenRouterPresencePenalty)!,
-            RepetitionPenalty = (float)(orCharacter.OpenRouterRepetitionPenalty ?? orIntegration.OpenRouterRepetitionPenalty)!,
-            MinP = (float)(orCharacter.OpenRouterMinP ?? orIntegration.OpenRouterMinP)!,
-            TopA = (float)(orCharacter.OpenRouterTopA ?? orIntegration.OpenRouterTopA)!,
-            MaxTokens = (int)(orCharacter.OpenRouterMaxTokens ?? orIntegration.OpenRouterMaxTokens)!
+            Temperature = (float)(orSpawnedCharacter.OpenRouterTemperature ?? orIntegration.OpenRouterTemperature)!,
+            TopP = (float)(orSpawnedCharacter.OpenRouterTopP ?? orIntegration.OpenRouterTopP)!,
+            TopK = (int)(orSpawnedCharacter.OpenRouterTopK ?? orIntegration.OpenRouterTopK)!,
+            FrequencyPenalty = (float)(orSpawnedCharacter.OpenRouterFrequencyPenalty ?? orIntegration.OpenRouterFrequencyPenalty)!,
+            PresencePenalty = (float)(orSpawnedCharacter.OpenRouterPresencePenalty ?? orIntegration.OpenRouterPresencePenalty)!,
+            RepetitionPenalty = (float)(orSpawnedCharacter.OpenRouterRepetitionPenalty ?? orIntegration.OpenRouterRepetitionPenalty)!,
+            MinP = (float)(orSpawnedCharacter.OpenRouterMinP ?? orIntegration.OpenRouterMinP)!,
+            TopA = (float)(orSpawnedCharacter.OpenRouterTopA ?? orIntegration.OpenRouterTopA)!,
+            MaxTokens = (int)(orSpawnedCharacter.OpenRouterMaxTokens ?? orIntegration.OpenRouterMaxTokens)!
         };
 
-        var model = orCharacter.OpenRouterModel ?? orIntegration.OpenRouterModel!;
+        var model = orSpawnedCharacter.OpenRouterModel ?? orIntegration.OpenRouterModel!;
 
         int attempt = 0;
 
         while (attempt < 3)
         {
-            var response = await _openRouterClient.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
+            var response = await _client.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
             var characterResponse = response.Choices.FirstOrDefault(c => c.Message is not null && !string.IsNullOrWhiteSpace(c.Message.Content))?.Message?.Content;
 
             if (characterResponse is null)
@@ -104,17 +115,17 @@ public class OpenRouterModule : IChatModule
                 continue;
             }
 
-            characterResponse = characterResponse.Replace($"{spawnedCharacter.CharacterName}:", string.Empty, StringComparison.InvariantCultureIgnoreCase);
+            characterResponse = characterResponse.Replace($"{orSpawnedCharacter.CharacterName}:", string.Empty, StringComparison.InvariantCultureIgnoreCase);
 
-            var historyMessage = new CharacterChatHistory()
+            var newChatMessage = new CharacterChatHistory()
             {
                 Name = "assistant",
                 Message = characterResponse,
-                SpawnedCharacterId = spawnedCharacter.Id,
+                SpawnedCharacterId = orSpawnedCharacter.Id,
                 CreatedAt = DateTime.Now
             };
 
-            db.ChatHistories.Add(historyMessage);
+            db.ChatHistories.Add(newChatMessage);
 
             await db.SaveChangesAsync();
 

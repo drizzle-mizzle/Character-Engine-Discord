@@ -2,16 +2,20 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Infrastructure;
+using CharacterEngine.App.Repositories;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.Integrations;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Shared;
+using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -21,17 +25,29 @@ namespace CharacterEngine.App.SlashCommands;
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly DiscordSocketClient _discordClient;
+    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsMaster _integrationsMaster;
+    private readonly CacheRepository _cacheRepository;
 
 
-    public IntegrationManagementCommands(AppDbContext db, DiscordSocketClient discordClient)
+    public IntegrationManagementCommands(
+        AppDbContext db,
+        IntegrationsRepository integrationsRepository,
+        CharactersRepository charactersRepository,
+        IntegrationsMaster integrationsMaster,
+        CacheRepository cacheRepository
+    )
     {
         _db = db;
-        _discordClient = discordClient;
+        _integrationsRepository = integrationsRepository;
+        _charactersRepository = charactersRepository;
+        _integrationsMaster = integrationsMaster;
+        _cacheRepository = cacheRepository;
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("create", "Create new integration for this server")]
     public async Task Create(IntegrationType type)
     {
@@ -49,13 +65,13 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("re-login", "Re-login into the integration")]
     public async Task ReLogin(IntegrationType type)
     {
         await DeferAsync(ephemeral: true);
 
-        var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, type);
+        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
         if (guildIntegration is null)
         {
             throw new UserFriendlyException("Integration not found");
@@ -63,20 +79,20 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         await (guildIntegration switch
         {
-            SakuraAiGuildIntegration sakuraAiGuildIntegration => InteractionsHelper.SendSakuraAiMailAsync(Context.Interaction, sakuraAiGuildIntegration.SakuraEmail),
-            CaiGuildIntegration caiGuildIntegration => InteractionsHelper.SendCharacterAiMailAsync(Context.Interaction, caiGuildIntegration.CaiEmail),
+            SakuraAiGuildIntegration sakuraAiGuildIntegration => _integrationsMaster.SendSakuraAiMailAsync(Context.Interaction, sakuraAiGuildIntegration.SakuraEmail),
+            CaiGuildIntegration caiGuildIntegration => _integrationsMaster.SendCharacterAiMailAsync(Context.Interaction, caiGuildIntegration.CaiEmail),
             _ => throw new UserFriendlyException($"This command is not intended to be used with {type:G} integrations")
         });
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("copy", "Copy existing integration from another server")]
     public async Task Copy(string integrationId)
     {
         await DeferAsync();
 
-        var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Guid.Parse(integrationId));
+        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Guid.Parse(integrationId));
         if (guildIntegration is null)
         {
             throw new UserFriendlyException("Integration not found");
@@ -94,7 +110,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         }
 
         var type = guildIntegration.GetIntegrationType();
-        var existingIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, type);
+        var existingIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
         if (existingIntegration is not null)
         {
             throw new UserFriendlyException($"This server already has {type.GetIcon()}{type:G} integration");
@@ -116,19 +132,19 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
             case SakuraAiGuildIntegration sakuraAiGuildIntegration:
             {
                 _db.SakuraAiIntegrations.Add(sakuraAiGuildIntegration);
-                MetricsWriter.Create(MetricType.IntegrationCreated, sakuraAiGuildIntegration.Id, $"{sakuraAiGuildIntegration.GetIntegrationType():G} | {sakuraAiGuildIntegration.SakuraEmail}");
+                MetricsWriter.Write(MetricType.IntegrationCreated, sakuraAiGuildIntegration.Id, $"{sakuraAiGuildIntegration.GetIntegrationType():G} | {sakuraAiGuildIntegration.SakuraEmail}");
                 break;
             }
             case CaiGuildIntegration caiGuildIntegration:
             {
                 _db.CaiIntegrations.Add(caiGuildIntegration);
-                MetricsWriter.Create(MetricType.IntegrationCreated, caiGuildIntegration.Id, $"{caiGuildIntegration.GetIntegrationType():G} | {caiGuildIntegration.CaiEmail}");
+                MetricsWriter.Write(MetricType.IntegrationCreated, caiGuildIntegration.Id, $"{caiGuildIntegration.GetIntegrationType():G} | {caiGuildIntegration.CaiEmail}");
                 break;
             }
             case OpenRouterGuildIntegration openRouterGuildIntegration:
             {
                 _db.OpenRouterIntegrations.Add(openRouterGuildIntegration);
-                MetricsWriter.Create(MetricType.IntegrationCreated, openRouterGuildIntegration.Id, $"{openRouterGuildIntegration.GetIntegrationType():G} | {openRouterGuildIntegration.OpenRouterApiKey}");
+                MetricsWriter.Write(MetricType.IntegrationCreated, openRouterGuildIntegration.Id, $"{openRouterGuildIntegration.GetIntegrationType():G} | {openRouterGuildIntegration.OpenRouterApiKey}");
                 break;
             }
             default:
@@ -145,7 +161,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("confirm", "Confirm integration")]
     public async Task Confirm(IntegrationType type, string data)
     {
@@ -158,7 +174,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         {
             case IntegrationType.CharacterAI:
             {
-                var caiUser = await MemoryStorage.IntegrationModules.CaiModule.LoginByLinkAsync(data);
+                var caiUser = await IntegrationsHub.CharacterAiModule.LoginByLinkAsync(data);
 
                 var newCaiIntergration = new CaiGuildIntegration
                 {
@@ -173,7 +189,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                 _db.CaiIntegrations.Add(newCaiIntergration);
                 await _db.SaveChangesAsync();
 
-                MetricsWriter.Create(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{type:G} | {newCaiIntergration.CaiEmail}");
+                MetricsWriter.Write(MetricType.IntegrationCreated, newCaiIntergration.Id, $"{type:G} | {newCaiIntergration.CaiEmail}");
 
                 message = $"Username: **{caiUser.Username}**\n" +
                           "From now on, this account will be used for all CharacterAI interactions on this server.\n" +
@@ -198,7 +214,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("remove", "Remove integration from this server")]
     public async Task Remove(IntegrationType type, bool removeAssociatedCharacters)
     {
@@ -223,18 +239,18 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         foreach (var channel in channelsInGuild)
         {
-            var spawnedCharacters = await DatabaseHelper.GetAllSpawnedCharactersInChannelAsync(channel.Id);
+            var spawnedCharacters = await _charactersRepository.GetAllSpawnedCharactersInChannelAsync(channel.Id);
 
             foreach (var spawnedCharacter in spawnedCharacters.Where(sc => sc.GetIntegrationType() == type))
             {
 
                 if (removeAssociatedCharacters)
                 {
-                    var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+                    var deleteSpawnedCharacterAsync = _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
 
                     try
                     {
-                        var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+                        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
                         if (webhookClient is not null)
                         {
                             await webhookClient.DeleteWebhookAsync();
@@ -245,22 +261,22 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                         // care not
                     }
 
-                    MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-                    MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+                    _cacheRepository.CachedCharacters.Remove(spawnedCharacter.Id);
+                    _cacheRepository.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
                     await deleteSpawnedCharacterAsync;
                 }
                 else
                 {
-                    var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+                    var cachedCharacter = _cacheRepository.CachedCharacters.Find(spawnedCharacter.Id)!;
                     cachedCharacter.FreewillFactor = spawnedCharacter.FreewillFactor;
 
                     spawnedCharacter.FreewillFactor = 0;
-                    await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+                    await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
                 }
             }
         }
 
-        await DatabaseHelper.DeleteGuildIntegrationAsync(integration);
+        await _integrationsRepository.DeleteGuildIntegrationAsync(integration);
 
 
         await FollowupAsync(embed: $"{type.GetIcon()} {type:G} integration {(removeAssociatedCharacters ? "and all associated characters were" : "was")} successfully removed".ToInlineEmbed(Color.Green));

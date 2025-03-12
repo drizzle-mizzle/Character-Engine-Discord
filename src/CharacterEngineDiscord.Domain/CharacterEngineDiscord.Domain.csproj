@@ -37,6 +37,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\submodules\CharacterAI-Net-Client\src\CharacterAi.Client\CharacterAi.Client.csproj" />
       <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
+      <ProjectReference Include="..\CharacterEngineDiscord.Shared\CharacterEngineDiscord.Shared.csproj" />
     </ItemGroup>
 
     <ItemGroup>

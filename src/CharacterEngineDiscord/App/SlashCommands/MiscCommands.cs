@@ -6,8 +6,6 @@ using Discord.WebSocket;
 
 namespace CharacterEngine.App.SlashCommands;
 
-
-[ValidateChannelPermissions]
 [Group("misc", "MISC")]
 public class MiscCommands : InteractionModuleBase<InteractionContext>
 {
@@ -20,6 +18,7 @@ public class MiscCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateChannelPermissions]
     [SlashCommand("ping", "ping")]
     public async Task Ping()
     {

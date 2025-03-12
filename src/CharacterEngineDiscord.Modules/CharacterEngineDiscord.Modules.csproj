@@ -27,6 +27,7 @@
       <ProjectReference Include="..\..\submodules\OpenRouter-Net-Client\src\OpenRouter.Client\OpenRouter.Client.csproj" />
       <ProjectReference Include="..\..\submodules\SakuraAI-Net-Client\src\SakuraAi.Client\SakuraAi.Client.csproj" />
       <ProjectReference Include="..\CharacterEngineDiscord.Domain\CharacterEngineDiscord.Domain.csproj" />
+      <ProjectReference Include="..\CharacterEngineDiscord.Shared\CharacterEngineDiscord.Shared.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,11 +1,13 @@
 ﻿using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Repositories;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.WebSocket;
+using static CharacterEngine.App.Helpers.CommonHelper;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
 namespace CharacterEngine.App.Handlers;
@@ -14,11 +16,25 @@ namespace CharacterEngine.App.Handlers;
 public class ButtonsHandler
 {
     private readonly DiscordSocketClient _discordClient;
+    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CacheRepository _cacheRepository;
+    private readonly IntegrationsMaster _integrationsMaster;
 
 
-    public ButtonsHandler(DiscordSocketClient discordClient)
+    public ButtonsHandler(
+        DiscordSocketClient discordClient,
+        CharactersRepository charactersRepository,
+        IntegrationsRepository integrationsRepository,
+        CacheRepository cacheRepository,
+        IntegrationsMaster integrationsMaster
+    )
     {
         _discordClient = discordClient;
+        _charactersRepository = charactersRepository;
+        _integrationsRepository = integrationsRepository;
+        _cacheRepository = cacheRepository;
+        _integrationsMaster = integrationsMaster;
     }
 
 
@@ -43,7 +59,7 @@ public class ButtonsHandler
                     return;
                 }
 
-                var traceId = CommonHelper.NewTraceId();
+                var traceId = NewTraceId();
                 var owner = guild.Owner ?? await ((IGuild)guild).GetOwnerAsync();
                 var title = $"🔘ButtonsHandler Exception [{component.User.Username}]";
 
@@ -62,19 +78,19 @@ public class ButtonsHandler
     }
 
 
-    private static async Task HandleButtonAsync(SocketMessageComponent component)
+    private async Task HandleButtonAsync(SocketMessageComponent component)
     {
         await component.DeferAsync();
 
         var guildUser = (IGuildUser)component.User;
         var textChannel = (ITextChannel)component.Channel;
 
-        guildUser.EnsureCached();
-        textChannel.EnsureCached();
+        _cacheRepository.EnsureUserCached(guildUser);
+        _cacheRepository.EnsureChannelCached(textChannel);
 
-        MetricsWriter.Create(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
+        MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 
-        InteractionsHelper.ValidateUser(guildUser, textChannel);
+        ValidationsHelper.ValidateInteraction(guildUser, textChannel);
 
         var actionType = GetActionType(component.Data.CustomId);
 
@@ -87,7 +103,7 @@ public class ButtonsHandler
 
     private static ButtonActionType GetActionType(string customId)
     {
-        var i = customId.IndexOf(InteractionsHelper.COMMAND_SEPARATOR, StringComparison.Ordinal);
+        var i = customId.IndexOf(COMMAND_SEPARATOR, StringComparison.Ordinal);
         if (i == -1)
         {
             throw new ArgumentException($"Unknown Button Action Type: {customId}");
@@ -101,9 +117,9 @@ public class ButtonsHandler
     }
 
 
-    private static async Task UpdateSearchQueryAsync(SocketMessageComponent component)
+    private async Task UpdateSearchQueryAsync(SocketMessageComponent component)
     {
-        var sq = MemoryStorage.SearchQueries.Find(component.Message.Id);
+        var sq = _cacheRepository.ActiveSearchQueries.Find(component.Message.Id);
 
         if (sq is null)
         {
@@ -124,7 +140,7 @@ public class ButtonsHandler
             return;
         }
 
-        var action = component.Data.CustomId.Replace($"sq{InteractionsHelper.COMMAND_SEPARATOR}", string.Empty);
+        var action = component.Data.CustomId.Replace($"sq{COMMAND_SEPARATOR}", string.Empty);
         switch (action)
         {
             case "up":
@@ -149,7 +165,7 @@ public class ButtonsHandler
             }
             case "select":
             {
-                await InteractionsHelper.ValidateChannelPermissionsAsync(component.Channel);
+                await ValidationsHelper.ValidateChannelPermissionsAsync(component.Channel);
 
                 var modifyOriginalResponseAsync1 = component.ModifyOriginalResponseAsync(msg =>
                 {
@@ -161,24 +177,30 @@ public class ButtonsHandler
                 var selectedCharacter = sq.SelectedCharacter;
                 selectedCharacter.IntegrationType = sq.IntegrationType;
 
-                var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(channelId, selectedCharacter);
+                var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync((ulong)component.GuildId!, selectedCharacter.IntegrationType);
+                ArgumentNullException.ThrowIfNull(guildIntegration);
+
+                var newSpawnedCharacter = await _integrationsMaster.SpawnCharacterAsync(channelId, selectedCharacter, guildIntegration);
 
                 var embed = MH.BuildCharacterDescriptionCard(newSpawnedCharacter, justSpawned: true);
                 var modifyOriginalResponseAsync2 = component.ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
+                var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
+                var activeCharacter = new ActiveCharacterDecorator(newSpawnedCharacter, webhook);
+
                 if (component.Channel is IThreadChannel)
                 {
-                    await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username, channelId);
+                    await activeCharacter.SendGreetingAsync(user.DisplayName ?? user.Username, channelId);
                 }
                 else
                 {
-                    await newSpawnedCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
+                    await activeCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
                 }
 
                 await modifyOriginalResponseAsync1;
                 await modifyOriginalResponseAsync2;
 
-                MemoryStorage.SearchQueries.Remove(sq.MessageId);
+                _cacheRepository.ActiveSearchQueries.Remove(sq.MessageId);
                 return;
             }
         }

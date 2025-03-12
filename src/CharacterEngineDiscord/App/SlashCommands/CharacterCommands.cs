@@ -4,7 +4,9 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Infrastructure;
+using CharacterEngine.App.Repositories;
 using CharacterEngine.App.Static.Entities;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
@@ -12,12 +14,17 @@ using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Modules.Abstractions;
+using CharacterEngineDiscord.Shared;
+using CharacterEngineDiscord.Shared.Abstractions.Characters;
+using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
+
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -27,18 +34,34 @@ namespace CharacterEngine.App.SlashCommands;
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly DiscordSocketClient _discordSocketClient;
+    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CacheRepository _cacheRepository;
+    private readonly InteractionsMaster _interactionsMaster;
+    private readonly IntegrationsMaster _integrationsMaster;
     private const string ANY_IDENTIFIER_DESC = "Character call prefix or User ID (Webhook ID)";
     private const string NSFW_REQUIRED = "Sorry, but NSFW characters can be spawned only in age restricted channels. Please, mark channel as NSFW and try again.";
 
-    public CharacterCommands(AppDbContext db, DiscordSocketClient discordSocketClient)
+
+    public CharacterCommands(
+        AppDbContext db,
+        CharactersRepository charactersRepository,
+        IntegrationsRepository integrationsRepository,
+        CacheRepository cacheRepository,
+        InteractionsMaster interactionsMaster,
+        IntegrationsMaster integrationsMaster
+    )
     {
         _db = db;
-        _discordSocketClient = discordSocketClient;
+        _charactersRepository = charactersRepository;
+        _integrationsRepository = integrationsRepository;
+        _cacheRepository = cacheRepository;
+        _interactionsMaster = interactionsMaster;
+        _integrationsMaster = integrationsMaster;
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("spawn", "Spawn new character!")]
     public async Task SpawnCharacter([Summary(description: "A platform to base character on")] IntegrationType integrationType,
                                      [Summary(description: "A query to perform character search")] string? searchQuery = null,
@@ -80,7 +103,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException("This channel already has 15 webhooks, which is the Discord limit. To create a new character, you will need to remove an existing one from this channel; this can be done with `/character remove` command.");
         }
 
-        var guildIntegration = await DatabaseHelper.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
+        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
         {
             throw new UserFriendlyException($"You have to setup **{integrationType:G}** intergration for this server first!", bold: false);
@@ -89,11 +112,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         ISearchModule searchModule;
         if (!guildIntegration.IsChatOnly)
         {
-            searchModule = integrationType.GetSearchModule();
+            searchModule = IntegrationsHub.GetSearchModule(integrationType);
         }
         else if (useCatalog is CharacterSourceType sourceType)
         {
-            searchModule = sourceType.GetSearchModule();
+            searchModule = IntegrationsHub.GetSearchModule(sourceType);
         }
         else
         {
@@ -123,11 +146,11 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             var characters = await searchModule.SearchAsync(searchQuery!, showNsfw, guildIntegration);
             if (characters.Count == 0)
             {
-                throw new UserFriendlyException($"{integrationType.GetIcon()} No characters were found by query **\"{searchQuery}\"**", bold: false);
+                throw new UserFriendlyException($"{integrationType.GetIcon()} No characters were found by search query **\"{searchQuery}\"** [ show-nsfw: **{showNsfw}** ]", bold: false);
             }
 
             var newSq = new SearchQuery(originalResponse.Id, Context.User.Id, searchQuery!, characters, integrationType);
-            MemoryStorage.SearchQueries.Add(newSq);
+            _cacheRepository.ActiveSearchQueries.Add(newSq);
 
             await ModifyOriginalResponseAsync(msg =>
             {
@@ -146,12 +169,15 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
                 throw new UserFriendlyException(NSFW_REQUIRED, bold: true, Color.Purple);
             }
 
-            var newSpawnedCharacter = await InteractionsHelper.SpawnCharacterAsync(Context.Channel.Id, characterAdapter.ToCommonCharacter());
+            var newSpawnedCharacter = await _integrationsMaster.SpawnCharacterAsync(Context.Channel.Id, characterAdapter.ToCommonCharacter(), guildIntegration);
 
             var embed = MH.BuildCharacterDescriptionCard(newSpawnedCharacter, justSpawned: true);
             var modifyOriginalResponseAsync = ModifyOriginalResponseAsync(msg => { msg.Embed = embed; });
 
-            await newSpawnedCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
+            var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
+            var activeCharacter = new ActiveCharacterDecorator(newSpawnedCharacter, webhook);
+
+            await activeCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
             await modifyOriginalResponseAsync;
         }
     }
@@ -169,7 +195,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("reset", "Start new chat")]
     public async Task ResetCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -198,13 +224,16 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        var updateSpawnedCharacterAsync = _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
         var message = $"{MT.OK_SIGN_DISCORD} Chat with {spawnedCharacter.GetMention()} reset successfully";
 
         var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
-        var greetingMessageId = await spawnedCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
 
-        var cachedCharacter = MemoryStorage.CachedCharacters.Find(spawnedCharacter.Id)!;
+        var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
+        var activeCharacter = new ActiveCharacterDecorator(spawnedCharacter, webhook);
+        var greetingMessageId = await activeCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
+
+        var cachedCharacter = _cacheRepository.CachedCharacters.Find(spawnedCharacter.Id)!;
         cachedCharacter.WideContextLastMessageId = greetingMessageId;
 
         await updateSpawnedCharacterAsync;
@@ -212,7 +241,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("remove", "Remove character")]
     public async Task RemoveCharacter([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
     {
@@ -221,9 +250,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var spawnedCharacter = scc.spawnedCharacter;
 
-        var deleteSpawnedCharacterAsync = DatabaseHelper.DeleteSpawnedCharacterAsync(spawnedCharacter);
+        var deleteSpawnedCharacterAsync = _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
 
-        var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is not null)
         {
             try
@@ -236,12 +265,13 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
+        await deleteSpawnedCharacterAsync;
+
         var message = $"{MT.OK_SIGN_DISCORD} Character {spawnedCharacter.GetMention()} removed successfully";
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
 
-        MemoryStorage.CachedCharacters.Remove(spawnedCharacter.Id);
-        MemoryStorage.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
-        await deleteSpawnedCharacterAsync;
+        _cacheRepository.CachedCharacters.Remove(spawnedCharacter.Id);
+        _cacheRepository.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
     }
 
 
@@ -250,7 +280,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     {
         if (action is not UserAction.show)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
         }
 
         await DeferAsync();
@@ -301,7 +331,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         ulong huntedUserId;
         if (user is null)
         {
-            var otherCharacter = MemoryStorage.CachedCharacters.Find(userIdOrCharacterCallPrefix!, Context.Channel.Id);
+            var otherCharacter = _cacheRepository.CachedCharacters.Find(userIdOrCharacterCallPrefix!, Context.Channel.Id);
             huntedUserId = ulong.Parse(otherCharacter?.WebhookId ?? userIdOrCharacterCallPrefix!);
         }
         else
@@ -359,39 +389,80 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     #region configure
 
-    [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat(MessagesFormatAction action, [Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, string? newFormat = null, bool hide = false)
+    [SlashCommand("messages-format", "Change character messages format")]
+    public async Task MessagesFormat(SinglePropertyAction action, [Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, string? newFormat = null, bool hide = false)
     {
-        if (action is not MessagesFormatAction.show)
+        if (action is not SinglePropertyAction.show)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
         }
 
         await DeferAsync(ephemeral: hide);
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
 
-        string message = default!;
+        string message = null!;
 
         switch (action)
         {
-            case MessagesFormatAction.show:
+            case SinglePropertyAction.show:
             {
-                message = await InteractionsHelper.GetCharacterMessagesFormatAsync(scc.spawnedCharacter);
+                message = $"Messages format for character {scc.spawnedCharacter.GetMention()}\n" + await _interactionsMaster.BuildCharacterMessagesFormatDisplayAsync(scc.spawnedCharacter);
                 break;
             }
-            case MessagesFormatAction.update:
+            case SinglePropertyAction.update:
             {
                 if (newFormat is null)
                 {
                     throw new UserFriendlyException("Specify the new-format parameter");
                 }
 
-                message = await InteractionsHelper.UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, newFormat);
+                message = await UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, newFormat);
                 break;
             }
-            case MessagesFormatAction.resetDefault:
+            case SinglePropertyAction.resetDefault:
             {
-                message = await InteractionsHelper.UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, null);
+                message = await UpdateCharacterMessagesFormatAsync(scc.spawnedCharacter, null);
+                break;
+            }
+        }
+
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
+    }
+
+
+    [SlashCommand("system-prompt", "Change character system prompt")]
+    public async Task SystemPrompt(SinglePropertyAction action, [Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, string? newPrompt = null, bool hide = false)
+    {
+        if (action is not SinglePropertyAction.show)
+        {
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
+        }
+
+        await DeferAsync();
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+
+        string message = null!;
+
+        switch (action)
+        {
+            case SinglePropertyAction.show:
+            {
+                message = $"System prompt for character {scc.spawnedCharacter.GetMention()}\n" + await _interactionsMaster.BuildCharacterSystemPromptDisplayAsync(scc.spawnedCharacter);
+                break;
+            }
+            case SinglePropertyAction.update:
+            {
+                if (newPrompt is null)
+                {
+                    throw new UserFriendlyException("Specify the new-prompt parameter");
+                }
+
+                message = await UpdateCharacterSystemPromptAsync(scc.spawnedCharacter, newPrompt);
+                break;
+            }
+            case SinglePropertyAction.resetDefault:
+            {
+                message = await UpdateCharacterSystemPromptAsync(scc.spawnedCharacter, null);
                 break;
             }
         }
@@ -414,7 +485,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("toggle", "Enable/disable feature")]
     public async Task Toggle([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, TogglableSettings feature)
     {
@@ -425,7 +496,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var featureName = feature.ToString("G").SplitWordsBySep(' ');
 
-        bool newValue = default;
+        bool newValue = false;
         switch (feature)
         {
             case TogglableSettings.ResponseSwipes:
@@ -446,7 +517,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         var message = $"{MT.OK_SIGN_DISCORD} **{featureName}** for character {spawnedCharacter.GetMention()} was successfully changed to **{newValue}**";
-        var updateSpawnedCharacterAsync = DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        var updateSpawnedCharacterAsync = _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
         await updateSpawnedCharacterAsync;
@@ -490,7 +561,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("edit", "Update character's info, call prefix, etc")]
     public async Task Edit([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier, EditableProp property, string newValue)
     {
@@ -568,7 +639,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        await DatabaseHelper.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         var message = new StringBuilder();
         var propertyName = property.ToString("G").SplitWordsBySep(' ').ToLower().CapitalizeFirst();
@@ -587,7 +658,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     private async Task UpdateNameAsync(ISpawnedCharacter spawnedCharacter)
     {
-        var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
             await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, spawnedCharacter.CharacterImageLink);
@@ -600,7 +671,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     private async Task UpdateAvatarAsync(ISpawnedCharacter spawnedCharacter, string newAvatarUrl)
     {
-        var webhookClient = MemoryStorage.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
             await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, newAvatarUrl);
@@ -638,20 +709,49 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     #endregion
 
 
-    private static async Task<(ISpawnedCharacter spawnedCharacter, CachedCharacterInfo cachedCharacter)> FindCharacterAsync(string anyIdentifier, ulong channelId)
+    private async Task<(ISpawnedCharacter spawnedCharacter, CachedCharacterInfo cachedCharacter)> FindCharacterAsync(string anyIdentifier, ulong channelId)
     {
-        var cachedCharacter = MemoryStorage.CachedCharacters.Find(anyIdentifier, channelId);
+        var cachedCharacter = _cacheRepository.CachedCharacters.Find(anyIdentifier, channelId);
         if (cachedCharacter is null)
         {
             throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
-        var spawnedCharacter = await DatabaseHelper.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+        var spawnedCharacter = await _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
         {
             throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
         return (spawnedCharacter, cachedCharacter);
+    }
+
+
+    private async Task<string> UpdateCharacterMessagesFormatAsync(ISpawnedCharacter spawnedCharacter, string? newFormat)
+    {
+        ValidateMessagesFormat(newFormat);
+
+        spawnedCharacter.MessagesFormat = newFormat;
+        await _db.SaveChangesAsync();
+
+        return $"{MT.OK_SIGN_DISCORD} Messages format for character {spawnedCharacter.GetMention()} {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" +
+               _interactionsMaster.BuildCharacterMessagesFormatDisplayAsync(spawnedCharacter);
+    }
+
+
+    private async Task<string> UpdateCharacterSystemPromptAsync(ISpawnedCharacter spawnedCharacter, string? newPrompt)
+    {
+        // ValidateMessagesFormat(newFormat);
+
+        if (spawnedCharacter is not IAdoptedCharacter adoptedCharacter)
+        {
+            throw new UserFriendlyException($"Not available for {spawnedCharacter.GetIntegrationType().GetIcon()}**{spawnedCharacter.GetIntegrationType():G}** characters");
+        }
+
+        adoptedCharacter.AdoptedCharacterSystemPrompt = newPrompt;
+        await _db.SaveChangesAsync();
+
+        return $"{MT.OK_SIGN_DISCORD} System prompt for character {spawnedCharacter.GetMention()} {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" +
+               _interactionsMaster.BuildCharacterSystemPromptDisplayAsync(spawnedCharacter);
     }
 }

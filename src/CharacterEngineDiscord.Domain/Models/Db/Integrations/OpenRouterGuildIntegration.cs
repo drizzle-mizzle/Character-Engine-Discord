@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Domain.Models.Abstractions.OpenRouter;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
@@ -9,7 +10,7 @@ namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
 
 [PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public sealed class OpenRouterGuildIntegration : IOpenRouterIntegration
+public sealed class OpenRouterGuildIntegration : IOpenRouterIntegration, IGuildIntegration
 {
     public Guid Id { get; set; }
 
@@ -41,4 +42,7 @@ public sealed class OpenRouterGuildIntegration : IOpenRouterIntegration
 
     public bool IsChatOnly
         => true;
+
+    [MaxLength(int.MaxValue)]
+    public string? SystemPrompt { get; set; }
 }

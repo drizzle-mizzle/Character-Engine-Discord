@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.CharacterAi;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
@@ -9,7 +10,7 @@ namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
 
 [PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public sealed class CaiGuildIntegration : ICaiIntegration
+public sealed class CaiGuildIntegration : ICaiIntegration, IGuildIntegration
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

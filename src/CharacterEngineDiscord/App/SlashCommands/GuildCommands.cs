@@ -3,14 +3,18 @@ using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Repositories;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
+using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
 namespace CharacterEngine.App.SlashCommands;
 
@@ -20,46 +24,57 @@ namespace CharacterEngine.App.SlashCommands;
 public class GuildCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
+    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly InteractionsMaster _interactionsMaster;
 
 
-    public GuildCommands(AppDbContext db)
+    public GuildCommands(
+        AppDbContext db,
+        CharactersRepository charactersRepository,
+        IntegrationsRepository integrationsRepository,
+        InteractionsMaster interactionsMaster
+    )
     {
         _db = db;
+        _charactersRepository = charactersRepository;
+        _integrationsRepository = integrationsRepository;
+        _interactionsMaster = interactionsMaster;
     }
 
 
-    [SlashCommand("messages-format", "Messages format")]
-    public async Task MessagesFormat(MessagesFormatAction action, string? newFormat = null)
+    [SlashCommand("messages-format", "Default messages format for all integrations on the server")]
+    public async Task MessagesFormat(SinglePropertyAction action, string? newFormat = null)
     {
-        if (action is not MessagesFormatAction.show)
+        if (action is not SinglePropertyAction.show)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
         }
 
         await DeferAsync();
 
-        string message = default!;
+        string message = null!;
 
         switch (action)
         {
-            case MessagesFormatAction.show:
+            case SinglePropertyAction.show:
             {
-                message = await InteractionsHelper.GetGuildMessagesFormatAsync(Context.Guild.Id);
+                message = "Server-wide messages format:\n" + await _interactionsMaster.BuildGuildMessagesFormatDisplayAsync(Context.Guild.Id);
                 break;
             }
-            case MessagesFormatAction.update:
+            case SinglePropertyAction.update:
             {
                 if (newFormat is null)
                 {
                     throw new UserFriendlyException("Specify the new-format parameter");
                 }
 
-                message = await InteractionsHelper.UpdateGuildMessagesFormatAsync(Context.Guild.Id, newFormat);
+                message = await UpdateGuildMessagesFormatAsync(Context.Guild.Id, newFormat);
                 break;
             }
-            case MessagesFormatAction.resetDefault:
+            case SinglePropertyAction.resetDefault:
             {
-                message = await InteractionsHelper.UpdateGuildMessagesFormatAsync(Context.Guild.Id, null);
+                message = await UpdateGuildMessagesFormatAsync(Context.Guild.Id, null);
                 break;
             }
         }
@@ -68,7 +83,47 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     }
 
 
-    [ValidateAccessLevel(AccessLevels.Manager)]
+    [SlashCommand("system-prompt", "Change default system prompt for all integrations on the server")]
+    public async Task SystemPrompt(SinglePropertyAction action, string? newPrompt = null)
+    {
+        if (action is not SinglePropertyAction.show)
+        {
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
+        }
+
+        await DeferAsync();
+
+        string message = null!;
+
+        switch (action)
+        {
+            case SinglePropertyAction.show:
+            {
+                message = "Server-wide system prompt:\n" + await _interactionsMaster.BuildGuildSystemPromptDisplayAsync(Context.Guild.Id);
+                break;
+            }
+            case SinglePropertyAction.update:
+            {
+                if (newPrompt is null)
+                {
+                    throw new UserFriendlyException("Specify the new-prompt parameter");
+                }
+
+                message = await UpdateGuildSystemPromptAsync(Context.Guild.Id, newPrompt);
+                break;
+            }
+            case SinglePropertyAction.resetDefault:
+            {
+                message = await UpdateGuildSystemPromptAsync(Context.Guild.Id, null);
+                break;
+            }
+        }
+
+        await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, false));
+    }
+
+
+    [ValidateAccessLevel(AccessLevel.Manager)]
     [SlashCommand("no-warn", "Disable/enable permissions warning")]
     public async Task NoWarn(bool toggle)
     {
@@ -78,7 +133,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         guild.NoWarn = toggle;
         await _db.SaveChangesAsync();
 
-        var message = $"{MP.OK_SIGN_DISCORD} Permissions validations were {(toggle ? "disabled" : "enabled")}";
+        var message = $"{MT.OK_SIGN_DISCORD} Permissions validations were {(toggle ? "disabled" : "enabled")}";
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Orange));
     }
 
@@ -88,7 +143,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var characters = await DatabaseHelper.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
+        var characters = await _charactersRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
         if (characters.Count == 0)
         {
             await FollowupAsync(embed: "This server has no spawned characters".ToInlineEmbed(Color.Magenta));
@@ -107,14 +162,14 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var integrations = await DatabaseHelper.GetAllIntegrationsInGuildAsync(Context.Guild.Id);
+        var integrations = await _integrationsRepository.GetAllIntegrationsInGuildAsync(Context.Guild.Id);
         if (integrations.Count == 0)
         {
             await FollowupAsync(embed: "No integrations were found on this server".ToInlineEmbed(Color.Orange));
             return;
         }
 
-        var characters = await DatabaseHelper.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
+        var characters = await _charactersRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
         var embed = new EmbedBuilder().WithColor(Color.Gold).WithTitle("Integrations");
 
         var list = new StringBuilder();
@@ -141,7 +196,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     {
         if (action is not UserAction.show)
         {
-            await InteractionsHelper.ValidateAccessLevelAsync(AccessLevels.Manager, (SocketGuildUser)Context.User);
+            await ValidateAccessLevelAsync(AccessLevel.Manager, (SocketGuildUser)Context.User);
         }
 
         await DeferAsync();
@@ -243,5 +298,29 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
             var guildUser = await Context.Guild.GetUserAsync(blockedUserOrRoleId);
             await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: true, imageUrl: guildUser?.GetAvatarUrl(), imageAsThumb: false));
         }
+    }
+
+
+    private async Task<string> UpdateGuildMessagesFormatAsync(ulong guildId, string? newFormat)
+    {
+        ValidateMessagesFormat(newFormat);
+
+        var guild = await _db.DiscordGuilds.FirstAsync(g => g.Id == guildId);
+        guild.MessagesFormat = newFormat;
+        await _db.SaveChangesAsync();
+
+        return $"Server-wide messages format {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildMessagesFormatDisplayAsync(guild);
+    }
+
+
+    private async Task<string> UpdateGuildSystemPromptAsync(ulong guildId, string? newPrompt)
+    {
+        // ValidateMessagesFormat(newFormat);
+
+        var guild = await _db.DiscordGuilds.FirstAsync(g => g.Id == guildId);
+        guild.SystemPrompt = newPrompt;
+        await _db.SaveChangesAsync();
+
+        return $"Server-wide system prompt {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildSystemPromptDisplayAsync(guild);
     }
 }

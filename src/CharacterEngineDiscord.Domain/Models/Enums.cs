@@ -3,22 +3,6 @@
 namespace CharacterEngineDiscord.Domain.Models;
 
 
-public enum IntegrationType
-{
-    SakuraAI = 1,
-    CharacterAI = 2,
-    OpenRouter = 3,
-}
-
-
-public enum CharacterSourceType
-{
-    SakuraAI = 1,
-    // ChubAI = 3,
-    // CharacterTavern = 4
-}
-
-
 public enum ModalActionType
 {
     CreateIntegration = 1
@@ -31,7 +15,7 @@ public enum ButtonActionType
 }
 
 
-public enum MessagesFormatAction
+public enum SinglePropertyAction
 {
     show, update,
 
