@@ -1,7 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
+using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.SakuraAi;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
@@ -9,7 +10,7 @@ namespace CharacterEngineDiscord.Domain.Models.Db.Integrations;
 
 [PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public sealed class SakuraAiGuildIntegration : ISakuraIntegration
+public sealed class SakuraAiGuildIntegration : ISakuraIntegration, IGuildIntegration
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

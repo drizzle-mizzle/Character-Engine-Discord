@@ -5,11 +5,11 @@ namespace CharacterEngine.App.Helpers.Discord;
 
 public class ButtonsHelper
 {
-    private const string _upCustomId = $"sq{InteractionsHelper.COMMAND_SEPARATOR}up";
-    private const string _downCustomId = $"sq{InteractionsHelper.COMMAND_SEPARATOR}down";
-    private const string _selectCustomId = $"sq{InteractionsHelper.COMMAND_SEPARATOR}select";
-    private const string _leftCustomId = $"sq{InteractionsHelper.COMMAND_SEPARATOR}left";
-    private const string _rightCustomId = $"sq{InteractionsHelper.COMMAND_SEPARATOR}right";
+    private const string _upCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}up";
+    private const string _downCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}down";
+    private const string _selectCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}select";
+    private const string _leftCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}left";
+    private const string _rightCustomId = $"sq{CommonHelper.COMMAND_SEPARATOR}right";
 
 
     public static MessageComponent BuildSearchButtons(bool withPages)

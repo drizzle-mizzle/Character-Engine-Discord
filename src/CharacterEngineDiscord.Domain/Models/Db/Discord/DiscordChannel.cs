@@ -23,6 +23,8 @@ public sealed class DiscordChannel
     [MaxLength(300)]
     public string? MessagesFormat { get; set; }
 
+    [MaxLength(2000)]
+    public string? SystemPrompt { get; set; }
 
 
     public DiscordGuild DiscordGuild { get; set; } = null!;

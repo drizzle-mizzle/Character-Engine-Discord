@@ -2,11 +2,11 @@
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Static;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Config;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Models;
 
 namespace CharacterEngine
 {
@@ -15,12 +15,14 @@ namespace CharacterEngine
         private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
 
-        private static async Task Main(string[] args)
+        private static async Task Main()
         {
             var nlogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "NLog.config");
             LogManager.Configuration = new XmlLoggingConfiguration(nlogPath);
 
             _log.Info("[ Starting Character Engine ]");
+
+            _log.Info($"[ Used config file: {BotConfig.CONFIG_PATH.Split(Path.DirectorySeparatorChar).Last()} ]");
 
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
@@ -41,26 +43,21 @@ namespace CharacterEngine
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-            BotConfig.Initialize();
 
-            if (args.Contains("--migrate"))
+            await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+            var migrations = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+
+            if (migrations.Length != 0)
             {
-                await using var db = DatabaseHelper.GetDbContext();
-                var migrations = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+                _log.Info($"Applying database migrations:\n{string.Join("\n", migrations)}");
 
-                if (migrations.Length != 0)
-                {
-                    _log.Info($"Applying database migrations:\n{string.Join("\n", migrations)}");
+                await db.Database.MigrateAsync();
 
-                    await db.Database.MigrateAsync();
-
-                    _log.Info("Migrations applied");
-                }
+                _log.Info("Migrations applied");
             }
 
-            MetricsWriter.Create(MetricType.ApplicationLaunch);
+            MetricsWriter.Write(MetricType.ApplicationLaunch);
 
-            await WatchDog.RunAsync();
             await CharacterEngineBot.RunAsync();
         }
 

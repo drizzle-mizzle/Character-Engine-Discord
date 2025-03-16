@@ -12,6 +12,37 @@ public sealed class AppDbContext : DbContext
 {
     private readonly string CONNECTION_STRING = null!;
 
+    public AppDbContext() { }
+
+    public AppDbContext(string connectionString)
+    {
+        CONNECTION_STRING = connectionString;
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseNpgsql(CONNECTION_STRING);
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<OpenRouterSpawnedCharacter>(sc =>
+        {
+            sc.Property(s => s.OpenRouterModel).IsRequired();
+            sc.Property(s => s.OpenRouterTemperature).IsRequired();
+            sc.Property(s => s.OpenRouterTopP).IsRequired();
+            sc.Property(s => s.OpenRouterTopK).IsRequired();
+            sc.Property(s => s.OpenRouterFrequencyPenalty).IsRequired();
+            sc.Property(s => s.OpenRouterPresencePenalty).IsRequired();
+            sc.Property(s => s.OpenRouterRepetitionPenalty).IsRequired();
+            sc.Property(s => s.OpenRouterMinP).IsRequired();
+            sc.Property(s => s.OpenRouterTopA).IsRequired();
+            sc.Property(s => s.OpenRouterMaxTokens).IsRequired();
+        });
+    }
+
 
     #region Discord
 
@@ -61,35 +92,4 @@ public sealed class AppDbContext : DbContext
     public DbSet<StoredAction> StoredActions { get; init; }
 
     #endregion
-
-    public AppDbContext() { }
-
-    public AppDbContext(string connectionString)
-    {
-        CONNECTION_STRING = connectionString;
-    }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.UseNpgsql(CONNECTION_STRING);
-    }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<OpenRouterSpawnedCharacter>(sc =>
-        {
-            sc.Property(s => s.OpenRouterModel).IsRequired();
-            sc.Property(s => s.OpenRouterTemperature).IsRequired();
-            sc.Property(s => s.OpenRouterTopP).IsRequired();
-            sc.Property(s => s.OpenRouterTopK).IsRequired();
-            sc.Property(s => s.OpenRouterFrequencyPenalty).IsRequired();
-            sc.Property(s => s.OpenRouterPresencePenalty).IsRequired();
-            sc.Property(s => s.OpenRouterRepetitionPenalty).IsRequired();
-            sc.Property(s => s.OpenRouterMinP).IsRequired();
-            sc.Property(s => s.OpenRouterTopA).IsRequired();
-            sc.Property(s => s.OpenRouterMaxTokens).IsRequired();
-        });
-    }
 }

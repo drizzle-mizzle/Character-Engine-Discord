@@ -3,11 +3,13 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static.Entities;
-using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
-using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
-using CharacterEngineDiscord.Domain.Models.Abstractions.SakuraAi;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Shared;
+using CharacterEngineDiscord.Shared.Abstractions.Characters;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.CharacterAi;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.SakuraAi;
+using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.WebSocket;
 using NLog;
@@ -35,17 +37,19 @@ public static class MessagesHelper
     public static readonly Regex ROLE_MENTION_REGEX = new(@"\<@\&\d*?\>", RegexOptions.Compiled);
 
 
+
     #region Reports
 
     public static Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, Exception e, string traceId, bool writeMetric)
         => discordClient.ReportErrorAsync(title, header, $"Exception:\n{e}", traceId, writeMetric);
+
 
     private const int MSG_LIMIT = 1990;
     public static async Task ReportErrorAsync(this IDiscordClient discordClient, string title, string? header, string content, string traceId, bool writeMetric)
     {
         if (writeMetric)
         {
-            MetricsWriter.Create(MetricType.Error, payload: $"[{traceId} | {title}]\n{content}");
+            MetricsWriter.Write(MetricType.Error, payload: $"[{traceId} | {title}]\n{content}");
         }
         else
         {
@@ -210,7 +214,9 @@ public static class MessagesHelper
             var character = searchQuery.Characters.ElementAt(characterNumber - 1);
 
             var rowTitle = $"{characterNumber}. {character.CharacterName}";
-            var rowContent = $"{character.GetStatLabel()}: {character.CharacterStat} **|** [[__character link__]({character.GetCharacterLink()})] **|** Author: [[__{character.CharacterAuthor}__]({character.GetAuthorLink()})]";
+            var rowContent = $"{character.GetStatLabel()}: {character.CharacterStat} **|** "
+                           + $"[[__character link__]({character.GetCharacterLink()})] **|** "
+                           + $"Author: [[__{character.CharacterAuthor}__]({character.GetAuthorLink()})]";
             if (searchQuery.CurrentRow == row)
             {
                 rowTitle += " - ✅";
@@ -262,28 +268,20 @@ public static class MessagesHelper
     public static string GetMention(this ISpawnedCharacter spawnedCharacter)
         => $"<@{spawnedCharacter.WebhookId}>";
 
+
     #region Description cards
 
     public static Embed BuildCharacterDescriptionCard(ISpawnedCharacter spawnedCharacter, bool justSpawned)
     {
         var type = spawnedCharacter.GetIntegrationType();
+
         var embed = new EmbedBuilder();
 
-        var desc = spawnedCharacter switch
+        var description = spawnedCharacter.GetCharacterDescription();
+        if (description.Length > DESC_LIMIT)
         {
-            IAdoptedCharacter ac => ac.AdoptedCharacterDescription,
-            ISakuraCharacter sc => sc.GetSakuraDesc(),
-            ICaiCharacter cc => cc.GetCaiDesc(),
-
-            _ => throw new ArgumentOutOfRangeException(nameof(spawnedCharacter), spawnedCharacter, null)
-        };
-
-        if (desc.Length > DESC_LIMIT)
-        {
-            desc = desc[..DESC_LIMIT] + " [...]";
+            description = description[..DESC_LIMIT] + " [...]";
         }
-
-        desc += "\n\n";
 
         var details = $"*Call prefix: `{spawnedCharacter.CallPrefix}`*\n" +
                       $"*Original link: [__{spawnedCharacter.GetLinkLabel()}__]({spawnedCharacter.GetCharacterLink()})*\n" +
@@ -301,9 +299,16 @@ public static class MessagesHelper
             configuration += GetConfigurationInfo(spawnedCharacter);
         }
 
+        var icon = type.GetIcon();
+
+        if (spawnedCharacter is IAdoptedCharacter adoptedCharacter)
+        {
+            icon += $"/{adoptedCharacter.AdoptedCharacterSourceType.GetIcon()}";
+        }
+
         embed.WithColor(type.GetColor());
-        embed.WithTitle($"{type.GetIcon()} Character spawned successfully");
-        embed.WithDescription($"{desc}");
+        embed.WithTitle($"{icon} Character spawned successfully");
+        embed.WithDescription($"{description}");
         embed.AddField("Details", details);
         embed.AddField("Configuration", configuration);
 
@@ -315,47 +320,6 @@ public static class MessagesHelper
         embed.WithFooter($"Created by {spawnedCharacter.CharacterAuthor}");
 
         return embed.Build();
-    }
-
-
-    private static string GetSakuraDesc(this ISakuraCharacter sakuraCharacter)
-    {
-        var desc = sakuraCharacter.SakuraDescription.Trim(' ', '\n');
-        if (desc.Length < 2)
-        {
-            desc = "*No description*";
-        }
-
-        var scenario = sakuraCharacter.SakuraScenario.Trim(' ', '\n');
-        if (scenario.Length < 2)
-        {
-            scenario = "*No scenario*";
-        }
-
-        var result = $"**{sakuraCharacter.CharacterName}**\n{desc}\n\n" +
-                     $"**Scenario**\n{scenario}";
-
-        return result;
-    }
-
-    private static string GetCaiDesc(this ICaiCharacter caiCharacter)
-    {
-        var title = caiCharacter.CaiTitle.Trim(' ', '\n');
-        if (title.Length < 2)
-        {
-            title = "*No title*";
-        }
-
-        var desc = caiCharacter.CaiDescription.Trim(' ', '\n');
-        if (desc.Length < 2)
-        {
-            desc = "*No description*";
-        }
-
-        var result = $"**{caiCharacter.CharacterName}**\n{title}\n\n" +
-                     $"**Description**\n{desc}";
-
-        return result;
     }
 
 

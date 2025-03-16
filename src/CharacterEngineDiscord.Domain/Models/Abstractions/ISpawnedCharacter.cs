@@ -1,4 +1,5 @@
 ﻿using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared.Abstractions.Characters;
 
 namespace CharacterEngineDiscord.Domain.Models.Abstractions;
 

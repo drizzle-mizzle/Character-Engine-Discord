@@ -1,25 +1,18 @@
-using CharacterEngine.App.Helpers.Discord;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
 
 namespace CharacterEngine.App.CustomAttributes;
 
-
-public enum AccessLevels
-{
-    BotAdmin,
-    GuildAdmin,
-    Manager
-}
 
 
 /// <inheritdoc />
 public class ValidateAccessLevelAttribute : PreconditionAttribute
 {
-    private readonly AccessLevels _requiredAccessLevel;
+    private readonly AccessLevel _requiredAccessLevel;
 
-    public ValidateAccessLevelAttribute(AccessLevels accessLevel)
+    public ValidateAccessLevelAttribute(AccessLevel accessLevel)
     {
         _requiredAccessLevel = accessLevel;
     }
@@ -27,7 +20,7 @@ public class ValidateAccessLevelAttribute : PreconditionAttribute
 
     public override async Task<PreconditionResult> CheckRequirementsAsync(IInteractionContext context, ICommandInfo info, IServiceProvider services)
     {
-        await InteractionsHelper.ValidateAccessLevelAsync(_requiredAccessLevel, (SocketGuildUser)context.User);
+        await ValidateAccessLevelAsync(_requiredAccessLevel, (SocketGuildUser)context.User);
 
         return PreconditionResult.FromSuccess();
     }
@@ -37,6 +30,7 @@ public class ValidateAccessLevelAttribute : PreconditionAttribute
 /// <inheritdoc />
 public class ValidateChannelPermissionsAttribute : PreconditionAttribute
 {
+
     public override async Task<PreconditionResult> CheckRequirementsAsync(IInteractionContext context, ICommandInfo info, IServiceProvider services)
     {
         if (IsNoWarnCommand((SocketSlashCommand)context.Interaction))
@@ -44,7 +38,7 @@ public class ValidateChannelPermissionsAttribute : PreconditionAttribute
             return PreconditionResult.FromSuccess();
         }
 
-        await InteractionsHelper.ValidateChannelPermissionsAsync((IGuildChannel)context.Channel);
+        await ValidateChannelPermissionsAsync(context.Channel);
 
         return PreconditionResult.FromSuccess();
     }

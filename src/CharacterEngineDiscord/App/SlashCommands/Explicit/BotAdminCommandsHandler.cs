@@ -1,7 +1,8 @@
-using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
@@ -49,8 +50,8 @@ public class BotAdminCommandsHandler
         Metric[] metrics;
         DateTime? sinceDt = null;
 
-        await using var db = DatabaseHelper.GetDbContext();
 
+        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
         if (rangeType == 0) // all-time
         {
             metrics = await db.Metrics.ToArrayAsync();

@@ -6,15 +6,18 @@ using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Repositories;
+using CharacterEngine.App.SlashCommands.Explicit;
 using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NLog;
-using DI = CharacterEngine.App.Helpers.Infrastructure.DependencyInjectionHelper;
 
 namespace CharacterEngine.App;
 
@@ -34,16 +37,36 @@ public sealed class CharacterEngineBot
     private CharacterEngineBot(DiscordSocketClient discordSocketClient)
     {
         _discordClient = discordSocketClient;
-        _interactionService = new InteractionService(discordSocketClient.Rest);
+        _interactionService = new InteractionService(_discordClient.Rest);
 
-        _serviceProvider = DI.BuildServiceProvider(discordSocketClient, _interactionService);
+        var services = new ServiceCollection();
+        services.AddSingleton(_discordClient);
+        services.AddSingleton(_interactionService);
+        services.AddSingleton<SlashCommandsHandler>();
+        services.AddSingleton<InteractionsHandler>();
+        services.AddSingleton<MessagesHandler>();
+
+        services.AddTransient<SpecialCommandsHandler>();
+        services.AddTransient<BotAdminCommandsHandler>();
+        services.AddTransient<ButtonsHandler>();
+        services.AddTransient<ModalsHandler>();
+        services.AddTransient<AppDbContext>(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
+
+        services.AddScoped<CharactersRepository>();
+        services.AddScoped<IntegrationsRepository>();
+        services.AddScoped<CacheRepository>();
+
+        services.AddScoped<InteractionsMaster>();
+        services.AddScoped<IntegrationsMaster>();
+
+        _serviceProvider = services.BuildServiceProvider();
         _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).Wait();
 
-        Congifure();
+        CongifureShard();
     }
 
 
-    private void Congifure()
+    private void CongifureShard()
     {
         _discordClient.JoinedGuild += OnJoinedGuild;
         _discordClient.LeftGuild += OnLeftGuild;
@@ -61,7 +84,8 @@ public sealed class CharacterEngineBot
             {
                 await RegisterCommandsToAdminGuildAsync(adminGuild, _interactionService);
                 await _discordClient.ReportLogAsync($"[ {DiscordClient.CurrentUser.Username} - Online ]", logToConsole: true);
-                BackgroundWorker.Run();
+                await WatchDog.RunAsync(_serviceProvider);
+                BackgroundWorker.Run(_serviceProvider);
             }
 
             // Process all other guilds in the shard
@@ -74,10 +98,10 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            guild.EnsureCached();
+            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
             var ensureCommandsRegisteredAsync = EnsureCommandsRegisteredAsync(guild);
 
-            MetricsWriter.Create(MetricType.JoinedGuild, guild.Id);
+            MetricsWriter.Write(MetricType.JoinedGuild, guild.Id);
             var message = $"Joined server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}\nDescription: {guild.Description ?? "none"}";
 
             await _discordClient.ReportLogAsync(message, color: Color.Gold, imageUrl: guild.IconUrl);
@@ -92,11 +116,17 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            MetricsWriter.Create(MetricType.LeftGuild, guild.Id);
+            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+
+            MetricsWriter.Write(MetricType.LeftGuild, guild.Id);
             var message = $"Left server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}";
 
             await _discordClient.ReportLogAsync(message, color: Color.DarkOrange, imageUrl: guild.IconUrl);
-            await guild.MarkAsLeftAsync();
+
+            await using var db = _serviceProvider.GetRequiredService<AppDbContext>();
+            var discordGuild = await db.DiscordGuilds.FindAsync(guild.Id);
+            discordGuild!.Joined = false;
+            await db.SaveChangesAsync();
         });
 
         return Task.CompletedTask;
@@ -109,7 +139,7 @@ public sealed class CharacterEngineBot
 
     public static async Task RunAsync()
     {
-        var cacheTask = CacheUsersAndCharacters();
+        var cacheTask = CacheUsersAndCharactersAsync();
 
         DiscordClient = new DiscordShardedClient(new DiscordSocketConfig
         {
@@ -152,24 +182,41 @@ public sealed class CharacterEngineBot
     }
 
 
-    private static Task CacheUsersAndCharacters()
+    private static async Task CacheUsersAndCharactersAsync()
     {
+
         var characters = Task.Run(async () =>
         {
-            var allCharacters = await DatabaseHelper.GetAllSpawnedCharactersAsync();
+            await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+            await using var cacheRepository = new CacheRepository(db);
+            await using var charactersRepository = new CharactersRepository(db);
 
-            await MemoryStorage.CachedCharacters.AddRangeAsync(allCharacters);
+            var allCharacters = await charactersRepository.GetAllSpawnedCharactersAsync();
+            var allHuntedUsers = await db.HuntedUsers.AsNoTracking().ToArrayAsync();
+
+            await Parallel.ForEachAsync(allCharacters, (spawnedCharacter, _) =>
+            {
+                var huntedUsersIds = allHuntedUsers.Where(hu => hu.SpawnedCharacterId == spawnedCharacter.Id)
+                                                   .Select(hu => hu.DiscordUserId)
+                                                   .ToList();
+
+                cacheRepository.CachedCharacters.Add(spawnedCharacter, huntedUsersIds);
+                return ValueTask.CompletedTask;
+            });
+
             _log.Info($"Cached {allCharacters.Count} characters");
         });
 
         var users = Task.Run(async () =>
         {
-            await using var db = DatabaseHelper.GetDbContext();
-            var allUsers = await db.DiscordUsers.Select(u => u.Id).ToArrayAsync();
+            await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+            await using var cacheRepository = new CacheRepository(db);
+
+            var allUsers = await db.DiscordUsers.AsNoTracking().Select(u => u.Id).ToArrayAsync();
 
             await Parallel.ForEachAsync(allUsers, (userId, _) =>
             {
-                MemoryStorage.CachedUsers.TryAdd(userId, null);
+                cacheRepository.CacheUser(userId);
                 return ValueTask.CompletedTask;
             });
 
@@ -177,7 +224,6 @@ public sealed class CharacterEngineBot
         });
 
         Task.WaitAll(characters, users);
-        return Task.CompletedTask;
     }
 
 

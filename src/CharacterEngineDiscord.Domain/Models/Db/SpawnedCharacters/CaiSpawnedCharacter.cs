@@ -2,8 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CharacterAi.Client.Models.Common;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
-using CharacterEngineDiscord.Domain.Models.Abstractions.CharacterAi;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
+using CharacterEngineDiscord.Shared.Abstractions.Adapters;
+using CharacterEngineDiscord.Shared.Abstractions.Sources.CharacterAi;
 using Microsoft.EntityFrameworkCore;
 
 namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
@@ -11,15 +12,16 @@ namespace CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 
 [PrimaryKey(nameof(Id))]
 [Index(nameof(Id), IsUnique = true)]
-public sealed class CaiSpawnedCharacter : ISpawnedCharacter, ICaiCharacter
+public sealed class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
 {
     public CaiSpawnedCharacter()
     {
 
     }
 
-    public CaiSpawnedCharacter(CaiCharacter caiCharacter)
+    public CaiSpawnedCharacter(ICharacterAdapter caiCharacterAdapter)
     {
+        var caiCharacter = caiCharacterAdapter.GetCharacter<CaiCharacter>();
         CaiTitle = caiCharacter.title!;
         CaiDescription = caiCharacter.description!;
         CaiImageGenEnabled = caiCharacter.img_gen_enabled;
