@@ -41,22 +41,22 @@ public sealed class CharacterEngineBot
         var services = new ServiceCollection();
         services.AddSingleton(_discordClient);
         services.AddSingleton(_interactionService);
-        services.AddSingleton<SlashCommandsHandler>();
-        services.AddSingleton<InteractionsHandler>();
-        services.AddSingleton<MessagesHandler>();
 
         services.AddTransient<SpecialCommandsHandler>();
         services.AddTransient<BotAdminCommandsHandler>();
+        services.AddTransient<SlashCommandsHandler>();
+        services.AddTransient<InteractionsHandler>();
+        services.AddTransient<MessagesHandler>();
         services.AddTransient<ButtonsHandler>();
         services.AddTransient<ModalsHandler>();
         services.AddTransient<AppDbContext>(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
 
-        services.AddScoped<CharactersRepository>();
-        services.AddScoped<IntegrationsRepository>();
-        services.AddScoped<CacheRepository>();
+        services.AddTransient<CharactersRepository>();
+        services.AddTransient<IntegrationsRepository>();
+        services.AddTransient<CacheRepository>();
 
-        services.AddScoped<InteractionsMaster>();
-        services.AddScoped<IntegrationsMaster>();
+        services.AddTransient<InteractionsMaster>();
+        services.AddTransient<IntegrationsMaster>();
 
         _serviceProvider = services.BuildServiceProvider();
         _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).Wait();
