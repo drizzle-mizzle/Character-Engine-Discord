@@ -69,11 +69,21 @@ public sealed class CharacterEngineBot
     {
         _discordClient.JoinedGuild += OnJoinedGuild;
         _discordClient.LeftGuild += OnLeftGuild;
-        _discordClient.ButtonExecuted += _serviceProvider.GetRequiredService<ButtonsHandler>().HandleButton;
-        _interactionService.InteractionExecuted += _serviceProvider.GetRequiredService<InteractionsHandler>().HandleInteraction;
-        _discordClient.MessageReceived += _serviceProvider.GetRequiredService<MessagesHandler>().HandleMessage;
-        _discordClient.ModalSubmitted += _serviceProvider.GetRequiredService<ModalsHandler>().HandleModal;
-        _discordClient.SlashCommandExecuted += _serviceProvider.GetRequiredService<SlashCommandsHandler>().HandleSlashCommand;
+
+        _discordClient.ButtonExecuted += (component)
+                => _serviceProvider.GetRequiredService<ButtonsHandler>().HandleButton(component);
+
+        _interactionService.InteractionExecuted += (_, interactionContext, result)
+                => _serviceProvider.GetRequiredService<InteractionsHandler>().HandleInteraction(interactionContext, result);
+
+        _discordClient.MessageReceived += (socketMessage)
+                => _serviceProvider.GetRequiredService<MessagesHandler>().HandleMessage(socketMessage);
+
+        _discordClient.ModalSubmitted += (modal)
+                => _serviceProvider.GetRequiredService<ModalsHandler>().HandleModal(modal);
+
+        _discordClient.SlashCommandExecuted += (command)
+                => _serviceProvider.GetRequiredService<SlashCommandsHandler>().HandleSlashCommand(command);
 
         Task.Run(async () =>
         {

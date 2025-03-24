@@ -129,7 +129,8 @@ public class MessagesHandler
             var primaryChannelId = textChannel is SocketThreadChannel threadChannel ? threadChannel.ParentChannel.Id : textChannel.Id;
             var callTasks = new List<Task>();
 
-            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId) ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
+            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId)
+                               ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
 
             if (taggedCharacter is not null)
             {
@@ -239,7 +240,6 @@ public class MessagesHandler
 
                 await Task.Delay(500);
             }
-
 
             try
             {
