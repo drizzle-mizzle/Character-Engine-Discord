@@ -1,7 +1,7 @@
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 
 namespace CharacterEngine.App.CustomAttributes;
 

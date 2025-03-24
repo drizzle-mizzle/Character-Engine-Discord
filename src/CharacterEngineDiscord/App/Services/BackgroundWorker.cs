@@ -2,7 +2,6 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
-using CharacterEngine.App.Static;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Shared;
@@ -12,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using SakuraAi.Client.Exceptions;
 
-namespace CharacterEngine.App;
+namespace CharacterEngine.App.Services;
 
 
 public static class BackgroundWorker

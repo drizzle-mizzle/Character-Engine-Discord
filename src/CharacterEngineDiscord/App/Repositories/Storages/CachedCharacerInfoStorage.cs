@@ -5,7 +5,7 @@ using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.WebSocket;
 
-namespace CharacterEngine.App.Static.Entities;
+namespace CharacterEngine.App.Repositories.Storages;
 
 
 public sealed class CachedCharacerInfoStorage

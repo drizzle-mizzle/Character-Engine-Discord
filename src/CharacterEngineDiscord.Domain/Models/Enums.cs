@@ -5,7 +5,17 @@ namespace CharacterEngineDiscord.Domain.Models;
 
 public enum ModalActionType
 {
-    CreateIntegration = 1
+    CreateIntegration = 1,
+    OpenRouterSettings = 2,
+}
+
+
+public enum SettingTarget
+{
+    Guild = 1,
+    Channel = 2,
+    Integration = 4,
+    Character = 3,
 }
 
 
@@ -23,7 +33,6 @@ public enum SinglePropertyAction
     resetDefault
 }
 
-public enum MessagesFormatTarget { guild, channel, character }
 
 public enum UserAction
 {

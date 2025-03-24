@@ -3,6 +3,7 @@ using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Modules.Abstractions;
 using CharacterEngineDiscord.Modules.Abstractions.Base;
+using CharacterEngineDiscord.Modules.Helpers;
 using CharacterEngineDiscord.Shared.Abstractions;
 using CharacterEngineDiscord.Shared.Abstractions.Characters;
 using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
@@ -40,9 +41,7 @@ public class OpenRouterModule : ModuleBase<OpenRouterClient>, IChatModule
         if (history.Count == 0)
         {
             var prompt = (orSpawnedCharacter.AdoptedCharacterSystemPrompt ?? orIntegration.SystemPrompt ?? _defaultSystemPrompt)
-                        .Replace("{{CHAR}}", orSpawnedCharacter.CharacterName)
-                        .Replace("<CHAR>", orSpawnedCharacter.CharacterName)
-                        .Replace("<BOT>", orSpawnedCharacter.CharacterName);
+                   .FillCharacterPlaceholders(orSpawnedCharacter.CharacterName);
 
             var systemPrompt = $"{prompt}\n{orSpawnedCharacter.AdoptedCharacterDefinition}";
 

@@ -7,8 +7,10 @@ using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Shared;
+using CharacterEngineDiscord.Shared.Models;
 using Discord;
 using Discord.WebSocket;
+using Newtonsoft.Json;
 
 namespace CharacterEngine.App.Handlers;
 
@@ -71,8 +73,77 @@ public class ModalsHandler
 
         await (parsedModal.ActionType switch
         {
-            ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data))
+            ModalActionType.CreateIntegration => CreateIntegrationAsync(modal, int.Parse(parsedModal.Data)),
+            ModalActionType.OpenRouterSettings => UpdateOpenRouterSettingsAsync(modal, parsedModal)
         });
+    }
+
+
+    private async Task UpdateOpenRouterSettingsAsync(SocketModal modal, ModalData parsedModal)
+    {
+        var splitData = parsedModal.Data.Split('~');
+        var id = Guid.Parse(splitData[0]);
+        var settingTarget = Enum.Parse<SettingTarget>(splitData[1]);
+        var jsonSettings = modal.Data.Components.First(c => c.CustomId == "settings").Value;
+        var settings = JsonConvert.DeserializeObject<OpenRouterSettings>(jsonSettings);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        string target;
+        switch (settingTarget)
+        {
+            case SettingTarget.Guild:
+            {
+                var guildIntegration = await _db.OpenRouterIntegrations.FindAsync(id);
+                ArgumentNullException.ThrowIfNull(guildIntegration);
+
+                guildIntegration.OpenRouterModel = settings.OpenRouterModel;
+                guildIntegration.OpenRouterTemperature = settings.OpenRouterTemperature;
+                guildIntegration.OpenRouterTopP = settings.OpenRouterTopP;
+                guildIntegration.OpenRouterTopK = settings.OpenRouterTopK;
+                guildIntegration.OpenRouterFrequencyPenalty = settings.OpenRouterFrequencyPenalty;
+                guildIntegration.OpenRouterPresencePenalty = settings.OpenRouterPresencePenalty;
+                guildIntegration.OpenRouterRepetitionPenalty = settings.OpenRouterRepetitionPenalty;
+                guildIntegration.OpenRouterMinP = settings.OpenRouterMinP;
+                guildIntegration.OpenRouterTopA = settings.OpenRouterTopA;
+                guildIntegration.OpenRouterMaxTokens = settings.OpenRouterMaxTokens;
+
+                target = "current server";
+
+                break;
+            }
+            case SettingTarget.Character:
+            {
+                var spawnedCharacter = await _db.OpenRouterSpawnedCharacters.FindAsync(id);
+                ArgumentNullException.ThrowIfNull(spawnedCharacter);
+
+                spawnedCharacter.OpenRouterModel = settings.OpenRouterModel;
+                spawnedCharacter.OpenRouterTemperature = settings.OpenRouterTemperature;
+                spawnedCharacter.OpenRouterTopP = settings.OpenRouterTopP;
+                spawnedCharacter.OpenRouterTopK = settings.OpenRouterTopK;
+                spawnedCharacter.OpenRouterFrequencyPenalty = settings.OpenRouterFrequencyPenalty;
+                spawnedCharacter.OpenRouterPresencePenalty = settings.OpenRouterPresencePenalty;
+                spawnedCharacter.OpenRouterRepetitionPenalty = settings.OpenRouterRepetitionPenalty;
+                spawnedCharacter.OpenRouterMinP = settings.OpenRouterMinP;
+                spawnedCharacter.OpenRouterTopA = settings.OpenRouterTopA;
+                spawnedCharacter.OpenRouterMaxTokens = settings.OpenRouterMaxTokens;
+
+                target = $"character {spawnedCharacter.GetMention()}";
+
+                break;
+            }
+            default:
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        var embed = new EmbedBuilder().WithTitle($"{IntegrationType.OpenRouter.GetIcon()} OpenRouter settings for {target} were updated successfully.")
+                                      .WithColor(IntegrationType.OpenRouter.GetColor())
+                                      .WithDescription($"```json\n{jsonSettings}\n```");
+
+        await modal.FollowupAsync(embed: embed.Build());
     }
 
 

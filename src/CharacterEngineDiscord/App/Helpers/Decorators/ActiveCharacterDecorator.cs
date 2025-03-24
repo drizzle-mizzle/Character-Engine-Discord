@@ -1,8 +1,9 @@
 using CharacterEngineDiscord.Domain.Models.Abstractions;
+using CharacterEngineDiscord.Modules.Helpers;
 using Discord;
 using Discord.Webhook;
 
-namespace CharacterEngine.App.Helpers;
+namespace CharacterEngine.App.Helpers.Decorators;
 
 
 public class ActiveCharacterDecorator
@@ -18,26 +19,27 @@ public class ActiveCharacterDecorator
     }
 
 
-    public async Task<ulong> SendGreetingAsync(string username, ulong? threadId = null)
+    public ValueTask<ulong> SendGreetingAsync(string userMention, ulong? threadId = null)
     {
         if (string.IsNullOrWhiteSpace(_spawnedCharacter.CharacterFirstMessage))
         {
-            return 0;
+            return new(0);
         }
 
-        var characterMessage = _spawnedCharacter.CharacterFirstMessage
-                                                .Replace("{{char}}", _spawnedCharacter.CharacterName)
-                                                .Replace("{{user}}", $"**{username}**");
+        var characterMessage = _spawnedCharacter.CharacterFirstMessage.FillCharacterPlaceholders(_spawnedCharacter.CharacterName);
 
-        return await SendMessageAsync(characterMessage, threadId);
+        return SendMessageAsync(characterMessage, userMention, threadId);
     }
 
 
-    public async Task<ulong> SendMessageAsync(string characterMessage, ulong? threadId = null)
+    public async ValueTask<ulong> SendMessageAsync(string characterMessage, string userMention, ulong? threadId = null)
     {
+        characterMessage = characterMessage.FillUserPlaceholders(userMention);
         if (characterMessage.Length <= 2000)
         {
-            return await (threadId is null ? _discordWebhookClient.SendMessageAsync(characterMessage) : _discordWebhookClient.SendMessageAsync(characterMessage, threadId: threadId));
+            return await (threadId is null
+                    ? _discordWebhookClient.SendMessageAsync(characterMessage)
+                    : _discordWebhookClient.SendMessageAsync(characterMessage, threadId: threadId));
         }
 
         var chunkSize = characterMessage.Length > 3990 ? 1990 : characterMessage.Length / 2;
@@ -64,7 +66,6 @@ public class ActiveCharacterDecorator
         }
 
         return messageId;
-
     }
 
 }

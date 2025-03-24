@@ -4,7 +4,7 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 [Group("misc", "MISC")]
 public class MiscCommands : InteractionModuleBase<InteractionContext>

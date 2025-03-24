@@ -1,15 +1,16 @@
 ﻿using CharacterEngine.App.Exceptions;
+using CharacterEngine.App.Handlers.SlashCommands.Explicit;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.SlashCommands.Explicit;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 
 namespace CharacterEngine.App.Handlers;
 

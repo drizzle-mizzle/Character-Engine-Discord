@@ -1,8 +1,10 @@
 ﻿using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Decorators;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Db;
 using Discord;
@@ -190,11 +192,11 @@ public class ButtonsHandler
 
                 if (component.Channel is IThreadChannel)
                 {
-                    await activeCharacter.SendGreetingAsync(user.DisplayName ?? user.Username, channelId);
+                    await activeCharacter.SendGreetingAsync(user.Mention, channelId);
                 }
                 else
                 {
-                    await activeCharacter.SendGreetingAsync(user.DisplayName ?? user.Username);
+                    await activeCharacter.SendGreetingAsync(user.Mention);
                 }
 
                 await modifyOriginalResponseAsync1;

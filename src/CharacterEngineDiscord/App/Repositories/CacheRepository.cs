@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using CharacterEngine.App.Repositories.Abstractions;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Repositories.Storages;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;

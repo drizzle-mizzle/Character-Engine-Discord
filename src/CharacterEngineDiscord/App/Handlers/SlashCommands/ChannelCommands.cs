@@ -1,6 +1,5 @@
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
-using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
@@ -10,10 +9,10 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 using MP = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 
 [ValidateChannelPermissions]

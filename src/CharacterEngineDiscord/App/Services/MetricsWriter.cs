@@ -1,11 +1,11 @@
 using System.Text;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using NLog;
 
-namespace CharacterEngine.App.Helpers;
+namespace CharacterEngine.App.Services;
 
 
 public static class MetricsWriter

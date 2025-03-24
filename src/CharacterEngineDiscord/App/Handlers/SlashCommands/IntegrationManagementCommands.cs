@@ -3,8 +3,8 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
-using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
@@ -15,9 +15,9 @@ using CharacterEngineDiscord.Shared.Helpers;
 using Discord;
 using Discord.Interactions;
 using Microsoft.EntityFrameworkCore;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 
 [ValidateChannelPermissions]

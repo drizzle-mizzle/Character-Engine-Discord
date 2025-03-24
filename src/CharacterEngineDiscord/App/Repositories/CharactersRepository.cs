@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using CharacterEngine.App.Exceptions;
-using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories.Abstractions;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using CharacterEngineDiscord.Models;
@@ -13,7 +13,7 @@ using CharacterEngineDiscord.Shared.Models;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngine.App.Helpers;
+namespace CharacterEngine.App.Repositories;
 
 
 public class CharactersRepository : RepositoryBase

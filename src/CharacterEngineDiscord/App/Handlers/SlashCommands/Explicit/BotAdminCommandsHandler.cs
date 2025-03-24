@@ -1,13 +1,13 @@
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Infrastructure;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 
-namespace CharacterEngine.App.SlashCommands.Explicit;
+namespace CharacterEngine.App.Handlers.SlashCommands.Explicit;
 
 
 public class BotAdminCommandsHandler

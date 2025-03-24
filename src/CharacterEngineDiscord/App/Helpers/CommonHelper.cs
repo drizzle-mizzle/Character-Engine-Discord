@@ -34,7 +34,7 @@ public static class CommonHelper
     }
 
 
-    public static (bool valid, string? message) ValidateUserFriendlyException(this Exception exception)
+    public static (bool Pass, string? Message) ValidateUserFriendlyException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))
@@ -49,7 +49,7 @@ public static class CommonHelper
     }
 
 
-    public static (bool valid, string? message) ValidateWebhookException(this Exception exception)
+    public static (bool Pass, string? Message) ValidateWebhookException(this Exception exception)
     {
         var ie = exception.InnerException;
         if (ie is not null && Check(ie))

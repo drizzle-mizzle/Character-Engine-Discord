@@ -1,5 +1,5 @@
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using CharacterEngineDiscord.Models;

@@ -1,7 +1,7 @@
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.Integrations;

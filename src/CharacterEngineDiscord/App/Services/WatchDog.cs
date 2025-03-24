@@ -1,14 +1,13 @@
 using System.Collections.Concurrent;
-using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CharacterEngine.App.Static;
+namespace CharacterEngine.App.Services;
 
 
 public enum WatchDogValidationResult

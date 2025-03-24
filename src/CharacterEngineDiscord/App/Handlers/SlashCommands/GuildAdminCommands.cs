@@ -8,9 +8,9 @@ using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 
 public class GuildAdminCommands : InteractionModuleBase<InteractionContext>
