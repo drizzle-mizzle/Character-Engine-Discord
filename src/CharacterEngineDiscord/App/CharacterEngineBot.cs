@@ -71,19 +71,24 @@ public sealed class CharacterEngineBot
         _discordClient.LeftGuild += OnLeftGuild;
 
         _discordClient.ButtonExecuted += (component)
-                => _serviceProvider.GetRequiredService<ButtonsHandler>().HandleButton(component);
+            => _serviceProvider.GetRequiredService<ButtonsHandler>()
+                               .HandleButton(component);
 
         _interactionService.InteractionExecuted += (_, interactionContext, result)
-                => _serviceProvider.GetRequiredService<InteractionsHandler>().HandleInteraction(interactionContext, result);
+            => _serviceProvider.GetRequiredService<InteractionsHandler>()
+                               .HandleInteraction(interactionContext, result);
 
         _discordClient.MessageReceived += (socketMessage)
-                => _serviceProvider.GetRequiredService<MessagesHandler>().HandleMessage(socketMessage);
+            => _serviceProvider.GetRequiredService<MessagesHandler>()
+                               .HandleMessage(socketMessage);
 
         _discordClient.ModalSubmitted += (modal)
-                => _serviceProvider.GetRequiredService<ModalsHandler>().HandleModal(modal);
+            => _serviceProvider.GetRequiredService<ModalsHandler>()
+                               .HandleModal(modal);
 
         _discordClient.SlashCommandExecuted += (command)
-                => _serviceProvider.GetRequiredService<SlashCommandsHandler>().HandleSlashCommand(command);
+            => _serviceProvider.GetRequiredService<SlashCommandsHandler>()
+                               .HandleSlashCommand(command);
 
         Task.Run(async () =>
         {
