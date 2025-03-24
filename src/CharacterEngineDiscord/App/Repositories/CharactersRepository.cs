@@ -20,7 +20,6 @@ public class CharactersRepository : RepositoryBase
 {
     public CharactersRepository(AppDbContext db) : base(db) { }
 
-
     public async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
         var result = new List<ISpawnedCharacter>();

@@ -9,7 +9,6 @@ public static class Templates
     {
         var sb = new StringBuilder($"**{characterName}**\n");
 
-
         var tagline = characterTagline?.Trim(' ', '\n');
         if (!string.IsNullOrEmpty(tagline))
         {
@@ -24,7 +23,7 @@ public static class Templates
         sb.AppendLine(description.Length < 2 ? "*No description*" : description);
 
         var scenario = characterScenario?.Trim(' ', '\n');
-        if (!string.IsNullOrEmpty(scenario))
+        if (!string.IsNullOrEmpty(scenario) && !scenario.StartsWith("{{char}} is", StringComparison.InvariantCultureIgnoreCase))
         {
             sb.AppendLine();
             sb.AppendLine("**Scenario**");

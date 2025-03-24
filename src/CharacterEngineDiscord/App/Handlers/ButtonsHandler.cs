@@ -87,8 +87,8 @@ public class ButtonsHandler
         var guildUser = (IGuildUser)component.User;
         var textChannel = (ITextChannel)component.Channel;
 
-        _cacheRepository.EnsureUserCached(guildUser);
-        _cacheRepository.EnsureChannelCached(textChannel);
+        _ = _cacheRepository.EnsureUserCached(guildUser);
+        _ = _cacheRepository.EnsureChannelCached(textChannel);
 
         MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.Button:G}:{textChannel.Id}:{textChannel.GuildId}", true);
 

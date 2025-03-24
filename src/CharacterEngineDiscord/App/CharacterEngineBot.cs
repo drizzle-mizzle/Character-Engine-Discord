@@ -97,7 +97,7 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
             var ensureCommandsRegisteredAsync = EnsureCommandsRegisteredAsync(guild);
 
             MetricsWriter.Write(MetricType.JoinedGuild, guild.Id);
@@ -115,7 +115,7 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
 
             MetricsWriter.Write(MetricType.LeftGuild, guild.Id);
             var message = $"Left server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}";
@@ -138,7 +138,7 @@ public sealed class CharacterEngineBot
 
     public static async Task RunAsync()
     {
-        var cacheTask = CacheUsersAndCharactersAsync();
+        CacheUsersAndCharacters();
 
         DiscordClient = new DiscordShardedClient(new DiscordSocketConfig
         {
@@ -166,8 +166,6 @@ public sealed class CharacterEngineBot
 
         await DiscordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN);
 
-        await cacheTask; // Don't start until caching complete
-
         await DiscordClient.StartAsync();
 
         if (BotConfig.PLAYING_STATUS.Length != 0)
@@ -181,9 +179,8 @@ public sealed class CharacterEngineBot
     }
 
 
-    private static async Task CacheUsersAndCharactersAsync()
+    private static void CacheUsersAndCharacters()
     {
-
         var characters = Task.Run(async () =>
         {
             await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);

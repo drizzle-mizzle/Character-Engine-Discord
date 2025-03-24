@@ -27,6 +27,7 @@ public class MessagesHandler
     private readonly DiscordSocketClient _discordClient;
     private readonly IntegrationsRepository _integrationsRepository;
     private readonly CharactersRepository _charactersRepository;
+    private readonly SemaphoreSlim _dbCallsSemaphore = new(1, 1);
     private readonly CacheRepository _cacheRepository;
 
 
@@ -115,7 +116,7 @@ public class MessagesHandler
             throw new UserFriendlyException("Bot can operate only in text channels");
         }
 
-        _cacheRepository.EnsureChannelCached(textChannel);
+        _ = _cacheRepository.EnsureChannelCached(textChannel);
 
         var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
         if (validation.Result is not WatchDogValidationResult.Passed)
@@ -157,7 +158,7 @@ public class MessagesHandler
 
             if (callTasks.Count != 0 && !(guildUser.IsBot || guildUser.IsWebhook))
             {
-                _cacheRepository.EnsureUserCached(guildUser);
+                _ = _cacheRepository.EnsureUserCached(guildUser);
                 MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
             }
 
@@ -199,14 +200,25 @@ public class MessagesHandler
             return;
         }
 
-        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(spawnedCharacter);
+        IGuildIntegration? guildIntegration;
+        try
+        {
+            await _dbCallsSemaphore.WaitAsync();
+            guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(spawnedCharacter);
+        }
+        finally
+        {
+            _dbCallsSemaphore.Release();
+        }
+
         if (guildIntegration is null)
         {
             return;
         }
 
-        var author = socketUserMessage.Author;
         var cachedCharacter = _cacheRepository.CachedCharacters.Find(spawnedCharacter.Id)!;
+
+        var author = socketUserMessage.Author;
         if (cachedCharacter.QueueIsFullFor(author.Id))
         {
             return;
@@ -228,7 +240,17 @@ public class MessagesHandler
                 await Task.Delay(500);
             }
 
-            spawnedCharacter = (await _charactersRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id))!; // force data reload
+
+            try
+            {
+                await _dbCallsSemaphore.WaitAsync();
+                spawnedCharacter = (await _charactersRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id))!; // force data reload
+            }
+            finally
+            {
+                _dbCallsSemaphore.Release();
+            }
+
             if (spawnedCharacter is null)
             {
                 return;
@@ -244,16 +266,25 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var formats = await _db.DiscordChannels
-                                      .Include(c => c.DiscordGuild)
-                                      .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
-                                      .Select(c => new
-                                       {
-                                           ChannelMessagesFormat = c.MessagesFormat,
-                                           GuildMessagesFormat = c.DiscordGuild.MessagesFormat
-                                       })
-                                      .FirstAsync();
-                messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                try
+                {
+                    await _dbCallsSemaphore.WaitAsync();
+                    var formats = await _db.DiscordChannels
+                                           .Include(c => c.DiscordGuild)
+                                           .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
+                                           .Select(c => new
+                                            {
+                                                ChannelMessagesFormat = c.MessagesFormat,
+                                                GuildMessagesFormat = c.DiscordGuild.MessagesFormat
+                                            })
+                                           .FirstAsync();
+
+                    messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                }
+                finally
+                {
+                    _dbCallsSemaphore.Release();
+                }
             }
 
             string userMessage;
@@ -314,10 +345,18 @@ public class MessagesHandler
                 var webhookExceptionCheck = e.ValidateWebhookException();
                 if (webhookExceptionCheck.Pass)
                 {
-                    _cacheRepository.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
-                    _cacheRepository.CachedCharacters.Remove(spawnedCharacter.Id);
+                    try
+                    {
+                        await _dbCallsSemaphore.WaitAsync();
+                        _cacheRepository.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
+                        _cacheRepository.CachedCharacters.Remove(spawnedCharacter.Id);
 
-                    await _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                        await _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                    }
+                    finally
+                    {
+                        _dbCallsSemaphore.Release();
+                    }
                 }
 
                 throw;
@@ -327,7 +366,16 @@ public class MessagesHandler
             spawnedCharacter.LastDiscordMessageId = messageId;
             spawnedCharacter.LastCallTime = DateTime.Now;
             spawnedCharacter.MessagesSent++;
-            await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+            try
+            {
+                await _dbCallsSemaphore.WaitAsync();
+                await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+            }
+            finally
+            {
+                _dbCallsSemaphore.Release();
+            }
 
             MetricsWriter.Write(MetricType.CharacterCalled, spawnedCharacter.Id, $"{channel.Id}:{channel.Guild.Id}", silent: true);
         }
