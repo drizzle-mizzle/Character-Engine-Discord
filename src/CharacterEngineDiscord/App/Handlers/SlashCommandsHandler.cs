@@ -72,8 +72,8 @@ public class SlashCommandsHandler
 
         var guildUser = (IGuildUser)command.User;
 
-        _cacheRepository.EnsureChannelCached(textChannel);
-        _cacheRepository.EnsureUserCached(guildUser);
+        _ = _cacheRepository.EnsureChannelCached(textChannel);
+        _ = _cacheRepository.EnsureUserCached(guildUser);
 
         ValidateInteraction(guildUser, textChannel);
 

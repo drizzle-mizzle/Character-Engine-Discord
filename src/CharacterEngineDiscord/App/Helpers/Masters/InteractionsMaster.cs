@@ -92,10 +92,10 @@ public class InteractionsMaster
     public async Task<string> BuildGuildMessagesFormatDisplayAsync(ulong discordGuildId)
     {
         var discordGuild = await _db.DiscordGuilds.FindAsync(discordGuildId);
-        return await BuildGuildMessagesFormatDisplayAsync(discordGuild!);
+        return BuildGuildMessagesFormatDisplay(discordGuild!);
     }
 
-    public async Task<string> BuildGuildMessagesFormatDisplayAsync(DiscordGuild discordGuild)
+    public string BuildGuildMessagesFormatDisplay(DiscordGuild discordGuild)
     {
         if (discordGuild.MessagesFormat is not null)
         {
@@ -176,10 +176,10 @@ public class InteractionsMaster
     public async Task<string> BuildGuildSystemPromptDisplayAsync(ulong guildId)
     {
         var discordGuild = await _db.DiscordGuilds.FindAsync(guildId);
-        return await BuildGuildSystemPromptDisplayAsync(discordGuild!);
+        return BuildGuildSystemPromptDisplay(discordGuild!);
     }
 
-    public async Task<string> BuildGuildSystemPromptDisplayAsync(DiscordGuild discordGuild)
+    public string BuildGuildSystemPromptDisplay(DiscordGuild discordGuild)
     {
         if (discordGuild.SystemPrompt is not null)
         {

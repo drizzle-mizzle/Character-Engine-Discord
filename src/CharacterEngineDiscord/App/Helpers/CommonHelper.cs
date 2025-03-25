@@ -45,7 +45,7 @@ public static class CommonHelper
         return Check(exception) ? (true, exception.Message) : (false, null);
 
         bool Check(Exception e)
-            => e is UserFriendlyException or ChatModuleException or SakuraException or CharacterAiException;
+            => e is UserFriendlyException or ChatModuleException or SakuraException or CharacterAiException or HttpRequestException;
     }
 
 

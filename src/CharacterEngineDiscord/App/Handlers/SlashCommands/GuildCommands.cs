@@ -8,7 +8,6 @@ using CharacterEngine.App.Repositories;
 using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
-using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
 using CharacterEngineDiscord.Shared.Helpers;
 using CharacterEngineDiscord.Shared.Models;
 using Discord;
@@ -16,7 +15,6 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using static CharacterEngine.App.Helpers.ValidationsHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
@@ -335,7 +333,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         guild.MessagesFormat = newFormat;
         await _db.SaveChangesAsync();
 
-        return $"Server-wide messages format {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildMessagesFormatDisplayAsync(guild);
+        return $"Server-wide messages format {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildMessagesFormatDisplay(guild);
     }
 
 
@@ -347,6 +345,6 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         guild.SystemPrompt = newPrompt;
         await _db.SaveChangesAsync();
 
-        return $"Server-wide system prompt {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildSystemPromptDisplayAsync(guild);
+        return $"Server-wide system prompt {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildSystemPromptDisplay(guild);
     }
 }
