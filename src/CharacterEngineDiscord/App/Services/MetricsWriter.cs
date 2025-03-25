@@ -12,7 +12,7 @@ public static class MetricsWriter
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
-    private static DateTime _lastAutoMetricReport;
+    private static DateTime _lastAutoMetricReport = DateTime.Now;
 
 
     public static DateTime GetLastAutoMetricReport()

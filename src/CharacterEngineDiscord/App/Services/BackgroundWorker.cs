@@ -36,6 +36,7 @@ public static class BackgroundWorker
 
         RunInLoop(RunStoredActions, duration: TimeSpan.FromSeconds(20), log: false);
         RunInLoop(MetricsReport, TimeSpan.FromHours(1));
+        RunInLoop(RevalidateBlockedUsers, TimeSpan.FromMinutes(1));
     }
 
 
@@ -168,23 +169,15 @@ public static class BackgroundWorker
 
     private static async Task MetricsReport(string traceId)
     {
-        Metric[] metrics;
         var sinceDt = MetricsWriter.GetLastAutoMetricReport();
 
-        if (MetricsWriter.GetLastAutoMetricReport() == default)
-        {
-            return;
-        }
-
         await using var db = _serviceProvider.GetRequiredService<AppDbContext>();
-        metrics = await db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
+        var metricsTask = db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
 
         MetricsWriter.SetLastAutoMetricReport(DateTime.Now);
 
-        var metricsReport = MessagesHelper.BuildMetricsReport(metrics, sinceDt);
-
-        var client = CharacterEngineBot.DiscordClient;
-        await client.ReportLogAsync($"[{traceId}] Hourly Metrics Report", metricsReport);
+        var metricsReport = MessagesHelper.BuildMetricsReport(await metricsTask, sinceDt);
+        await CharacterEngineBot.DiscordClient.ReportLogAsync($"[{traceId}] Hourly Metrics Report", metricsReport);
     }
 
 
