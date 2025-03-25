@@ -3,7 +3,9 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
+using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Domain.Models.Db.Integrations;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Shared;
@@ -203,6 +205,8 @@ public class ModalsHandler
 
         _db.OpenRouterIntegrations.Add(newIntegration);
         await _db.SaveChangesAsync();
+
+        MetricsWriter.Write(MetricType.IntegrationCreated, newIntegration.Id, $"{IntegrationType.OpenRouter:G}");
 
         var embed = new EmbedBuilder().WithTitle($"{type.GetIcon()} {type:G} API key registered")
                                       .WithColor(IntegrationType.CharacterAI.GetColor())
