@@ -76,6 +76,12 @@ public class ChubAiClient
     public async Task<ChubAiCharacter> GetCharacterInfoAsync(string fullPath)
     {
         var id = fullPath.Trim('/', ' ');
+        if (id.Count(c => c == '/') > 1)
+        {
+            var parts = id.Split('/');
+            id = parts[^2] + '/' + parts[^1];
+        }
+
         var url = $"{URL_BASE}/api/characters/{id}?full=true";
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);

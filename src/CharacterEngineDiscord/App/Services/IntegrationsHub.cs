@@ -1,11 +1,11 @@
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Modules.Abstractions;
 using CharacterEngineDiscord.Modules.Modules.Chat;
 using CharacterEngineDiscord.Modules.Modules.Search;
 using CharacterEngineDiscord.Modules.Modules.Universal;
 using CharacterEngineDiscord.Shared;
 
-namespace CharacterEngine.App.Infrastructure;
+namespace CharacterEngine.App.Services;
 
 
 public static class IntegrationsHub

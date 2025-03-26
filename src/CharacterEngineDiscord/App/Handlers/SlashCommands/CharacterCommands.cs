@@ -3,11 +3,12 @@ using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.CustomAttributes;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Decorators;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
-using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Repositories.Storages;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
@@ -17,16 +18,18 @@ using CharacterEngineDiscord.Modules.Abstractions;
 using CharacterEngineDiscord.Shared;
 using CharacterEngineDiscord.Shared.Abstractions.Characters;
 using CharacterEngineDiscord.Shared.Helpers;
+using CharacterEngineDiscord.Shared.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using Newtonsoft.Json;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 
 [ValidateChannelPermissions]
@@ -177,7 +180,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(newSpawnedCharacter.WebhookId, newSpawnedCharacter.WebhookToken);
             var activeCharacter = new ActiveCharacterDecorator(newSpawnedCharacter, webhook);
 
-            await activeCharacter.SendGreetingAsync(((SocketGuildUser)Context.User).DisplayName, threadId: isThread ? channel.Id : null);
+            await activeCharacter.SendGreetingAsync(Context.User.Mention, threadId: isThread ? channel.Id : null);
             await modifyOriginalResponseAsync;
         }
     }
@@ -231,7 +234,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
         var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
         var activeCharacter = new ActiveCharacterDecorator(spawnedCharacter, webhook);
-        var greetingMessageId = await activeCharacter.SendGreetingAsync(((IGuildUser)Context.User).DisplayName);
+        var greetingMessageId = await activeCharacter.SendGreetingAsync(Context.User.Mention);
 
         var cachedCharacter = _cacheRepository.CachedCharacters.Find(spawnedCharacter.Id)!;
         cachedCharacter.WideContextLastMessageId = greetingMessageId;
@@ -471,6 +474,30 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevel.Manager)]
+    [SlashCommand("openrouter-settings", "Display character OpenRouter settings")]
+    public async Task OpenRouterSettings([Summary(description: ANY_IDENTIFIER_DESC)] string anyIdentifier)
+    {
+        var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
+
+        var jsonCharacter = JsonConvert.SerializeObject(scc.spawnedCharacter, Formatting.Indented);
+        var settings = JsonConvert.DeserializeObject<OpenRouterSettings>(jsonCharacter);
+        var jsonSettings = JsonConvert.SerializeObject(settings, Formatting.Indented);
+
+        var customId = InteractionsHelper.NewCustomId(ModalActionType.OpenRouterSettings, $"{scc.spawnedCharacter.Id}~{SettingTarget.Character:D}");
+        var characterName = scc.spawnedCharacter.CharacterName.Length <= 18 ? scc.spawnedCharacter.CharacterName : scc.spawnedCharacter.CharacterName[..18];
+
+        var modal = new ModalBuilder().WithTitle($"Edit {characterName}'s OpenRouter settings")
+                                      .WithCustomId(customId)
+                                      .AddTextInput("Settings:", "settings", TextInputStyle.Paragraph, value: jsonSettings)
+                                      .Build();
+
+        await RespondWithModalAsync(modal); // next in EnsureSakuraAiLoginAsync()
+    }
+
+    #endregion
+
+
     #region Toggle
     public enum TogglableSettings
     {
@@ -525,10 +552,6 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
 
     #endregion
-
-
-    #endregion
-
 
 
     #region Edits

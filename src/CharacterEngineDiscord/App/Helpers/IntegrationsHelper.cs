@@ -1,4 +1,4 @@
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Modules.Adapters;
 using CharacterEngineDiscord.Shared;
 using CharacterEngineDiscord.Shared.Abstractions.Characters;

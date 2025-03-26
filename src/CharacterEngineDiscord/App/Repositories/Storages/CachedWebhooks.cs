@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Discord.Webhook;
 
-namespace CharacterEngine.App.Static.Entities;
+namespace CharacterEngine.App.Repositories.Storages;
 
 
 public sealed class CachedWebhookClientsStorage

@@ -1,12 +1,13 @@
 using System.Diagnostics;
+using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Helpers.Decorators;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.Static;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Repositories.Storages;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
@@ -27,6 +28,7 @@ public class MessagesHandler
     private readonly IntegrationsRepository _integrationsRepository;
     private readonly CharactersRepository _charactersRepository;
     private readonly CacheRepository _cacheRepository;
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
 
     public MessagesHandler(
@@ -114,7 +116,7 @@ public class MessagesHandler
             throw new UserFriendlyException("Bot can operate only in text channels");
         }
 
-        _cacheRepository.EnsureChannelCached(textChannel);
+        _ = _cacheRepository.EnsureChannelCached(textChannel);
 
         var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
         if (validation.Result is not WatchDogValidationResult.Passed)
@@ -127,33 +129,37 @@ public class MessagesHandler
             var primaryChannelId = textChannel is SocketThreadChannel threadChannel ? threadChannel.ParentChannel.Id : textChannel.Id;
             var callTasks = new List<Task>();
 
-            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId) ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
+            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId)
+                               ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
+
             if (taggedCharacter is not null)
             {
                 callTasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
             var cachedCharacters = _cacheRepository.CachedCharacters
-                                                  .ToList(primaryChannelId)
-                                                  .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
-                                                  .ToList();
+                                                   .ToList(primaryChannelId)
+                                                   .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
+                                                   .ToList();
 
             var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
+
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
-                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, randomCall: true));
+                callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, isIndirectCall: true));
             }
 
             var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
+
             if (hunterCharacters.Count != 0)
             {
-                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, randomCall: false));
+                var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, isIndirectCall: false));
                 callTasks.AddRange(callCharactersByHuntedUsersAsync);
             }
 
             if (callTasks.Count != 0 && !(guildUser.IsBot || guildUser.IsWebhook))
             {
-                _cacheRepository.EnsureUserCached(guildUser);
+                _ = _cacheRepository.EnsureUserCached(guildUser);
                 MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
             }
 
@@ -161,11 +167,20 @@ public class MessagesHandler
         }
         catch (Exception e)
         {
-            var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
-            if (userFriendlyExceptionCheck.valid)
+            if (e is CharacterAiException characterAiException)
             {
-                var message = $"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response: {userFriendlyExceptionCheck.message}";
-                await socketUserMessage.ReplyAsync(embed: message.ToInlineEmbed(Color.Orange));
+                _ = _discordClient.ReportErrorAsync($"{BotConfig.CHARACTER_AI_EMOJI} C.AI Exception", characterAiException.Message, characterAiException, "", true);
+            }
+
+            var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
+            if (userFriendlyExceptionCheck.Pass)
+            {
+                var embed = new EmbedBuilder().WithColor(Color.Orange)
+                                              .WithTitle($"{MessagesTemplates.WARN_SIGN_DISCORD} Failed to fetch character response")
+                                              .WithDescription($"Details:\n```\n{userFriendlyExceptionCheck.Message}\n```")
+                                              .WithFooter($"ERROR TRACE ID: {CommonHelper.NewTraceId()}");
+
+                await socketUserMessage.ReplyAsync(embed: embed.Build());
             }
             else
             {
@@ -175,7 +190,7 @@ public class MessagesHandler
     }
 
 
-    private async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool randomCall)
+    private async Task CallCharacterAsync(ISpawnedCharacter spawnedCharacter, SocketUserMessage socketUserMessage, bool isIndirectCall)
     {
         var channel = (ITextChannel)socketUserMessage.Channel;
 
@@ -186,14 +201,26 @@ public class MessagesHandler
             return;
         }
 
-        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(spawnedCharacter);
+        IGuildIntegration? guildIntegration;
+
+        await _semaphoreSlim.WaitAsync();
+        try
+        {
+            guildIntegration = _integrationsRepository.GetGuildIntegrationAsync(spawnedCharacter).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _semaphoreSlim.Release();
+        }
+
         if (guildIntegration is null)
         {
             return;
         }
 
-        var author = socketUserMessage.Author;
         var cachedCharacter = _cacheRepository.CachedCharacters.Find(spawnedCharacter.Id)!;
+
+        var author = socketUserMessage.Author;
         if (cachedCharacter.QueueIsFullFor(author.Id))
         {
             return;
@@ -215,7 +242,17 @@ public class MessagesHandler
                 await Task.Delay(500);
             }
 
-            spawnedCharacter = (await _charactersRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id))!; // force data reload
+            await _semaphoreSlim.WaitAsync();
+            try
+            {
+                spawnedCharacter = _charactersRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id).GetAwaiter().GetResult()!; // force data reload
+            }
+            finally
+            {
+                _semaphoreSlim.Release();
+            }
+
+
             if (spawnedCharacter is null)
             {
                 return;
@@ -231,22 +268,31 @@ public class MessagesHandler
             var messageFormat = spawnedCharacter.MessagesFormat;
             if (messageFormat is null)
             {
-                var formats = await _db.DiscordChannels
-                                      .Include(c => c.DiscordGuild)
-                                      .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
-                                      .Select(c => new
-                                       {
-                                           ChannelMessagesFormat = c.MessagesFormat,
-                                           GuildMessagesFormat = c.DiscordGuild.MessagesFormat
-                                       })
-                                      .FirstAsync();
-                messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                await _semaphoreSlim.WaitAsync();
+                try
+                {
+                    var formats = await _db.DiscordChannels
+                                           .Include(c => c.DiscordGuild)
+                                           .Where(c => c.Id == spawnedCharacter.DiscordChannelId)
+                                           .Select(c => new
+                                            {
+                                                ChannelMessagesFormat = c.MessagesFormat,
+                                                GuildMessagesFormat = c.DiscordGuild.MessagesFormat
+                                            })
+                                           .FirstAsync();
+
+                    messageFormat = formats.ChannelMessagesFormat ?? formats.GuildMessagesFormat ?? BotConfig.DEFAULT_MESSAGES_FORMAT;
+                }
+                finally
+                {
+                    _semaphoreSlim.Release();
+                }
             }
 
             string userMessage;
-            if (randomCall && spawnedCharacter.FreewillContextSize != 0)
+            if (isIndirectCall && spawnedCharacter.FreewillContextSize != 0)
             {
-                userMessage = "";
+                userMessage = string.Empty;
                 var messageLength = 0;
                 var downloadedMessages = (await channel.GetMessagesAsync(20).FlattenAsync()).ToList();
 
@@ -283,26 +329,36 @@ public class MessagesHandler
 
             var integrationType = spawnedCharacter.GetIntegrationType();
             var response = await IntegrationsHub.GetChatModule(integrationType)
-                                                   .CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
+                                                .CallCharacterAsync(spawnedCharacter, guildIntegration, userMessage);
 
-            var responseMessage = randomCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
+            var responseMessage = isIndirectCall ? response.Content : $"{socketUserMessage.Author.Mention} {response.Content}";
             ulong messageId;
 
             try
             {
                 var webhook = _cacheRepository.CachedWebhookClients.FindOrCreate(spawnedCharacter.WebhookId, spawnedCharacter.WebhookToken);
                 var activeCharacter = new ActiveCharacterDecorator(spawnedCharacter, webhook);
-                messageId = await activeCharacter.SendMessageAsync(responseMessage, threadId: socketUserMessage.Channel is SocketThreadChannel threadChannel ? threadChannel.Id : null);
+                ulong? threadId = socketUserMessage.Channel is SocketThreadChannel threadChannel ? threadChannel.Id : null;
+
+                messageId = await activeCharacter.SendMessageAsync(responseMessage, socketUserMessage.Author.Mention, threadId);
             }
             catch (Exception e)
             {
                 var webhookExceptionCheck = e.ValidateWebhookException();
-                if (webhookExceptionCheck.valid)
+                if (webhookExceptionCheck.Pass)
                 {
                     _cacheRepository.CachedWebhookClients.Remove(spawnedCharacter.WebhookId);
                     _cacheRepository.CachedCharacters.Remove(spawnedCharacter.Id);
 
-                    await _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                    await _semaphoreSlim.WaitAsync();
+                    try
+                    {
+                        await _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                    }
+                    finally
+                    {
+                        _semaphoreSlim.Release();
+                    }
                 }
 
                 throw;
@@ -312,7 +368,16 @@ public class MessagesHandler
             spawnedCharacter.LastDiscordMessageId = messageId;
             spawnedCharacter.LastCallTime = DateTime.Now;
             spawnedCharacter.MessagesSent++;
-            await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+
+            await _semaphoreSlim.WaitAsync();
+            try
+            {
+                await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+            }
+            finally
+            {
+                _semaphoreSlim.Release();
+            }
 
             MetricsWriter.Write(MetricType.CharacterCalled, spawnedCharacter.Id, $"{channel.Id}:{channel.Guild.Id}", silent: true);
         }

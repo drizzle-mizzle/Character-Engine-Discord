@@ -1,18 +1,18 @@
 using System.Text;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using NLog;
 
-namespace CharacterEngine.App.Helpers;
+namespace CharacterEngine.App.Services;
 
 
 public static class MetricsWriter
 {
     private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
-    private static DateTime _lastAutoMetricReport;
+    private static DateTime _lastAutoMetricReport = DateTime.Now;
 
 
     public static DateTime GetLastAutoMetricReport()

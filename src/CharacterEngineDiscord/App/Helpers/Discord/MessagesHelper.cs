@@ -1,8 +1,9 @@
 ﻿using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using CharacterEngine.App.Helpers.Infrastructure;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Infrastructure;
+using CharacterEngine.App.Repositories.Storages;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Shared;
@@ -143,8 +144,10 @@ public static class MessagesHelper
         var newIntegrations = metrics.Where(m => m.MetricType == MetricType.IntegrationCreated).ToArray();
         var newSakuraIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.SakuraAI:G}"));
         var newCaiIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.CharacterAI:G}"));
+        var newOpenRouterIntegrations = newIntegrations.Count(i => i.Payload is string payload && payload.StartsWith($"{IntegrationType.OpenRouter:G}"));
         var integrationsLine = $"{IntegrationType.SakuraAI.GetIcon()}: **{newSakuraIntegrations}** | " +
-                               $"{IntegrationType.CharacterAI.GetIcon()}: **{newCaiIntegrations}**";
+                               $"{IntegrationType.CharacterAI.GetIcon()}: **{newCaiIntegrations}** | " +
+                               $"{IntegrationType.OpenRouter.GetIcon()}: **{newOpenRouterIntegrations}**";
 
         var spawnedCharacters = metrics.Count(m => m.MetricType == MetricType.CharacterSpawned);
         var calledCharactersMetrics = metrics.Where(m => m.MetricType == MetricType.CharacterCalled)

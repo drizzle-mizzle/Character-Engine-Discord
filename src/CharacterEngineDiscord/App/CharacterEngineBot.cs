@@ -3,13 +3,12 @@ using System.Diagnostics;
 using System.Reflection;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Handlers;
-using CharacterEngine.App.Helpers;
+using CharacterEngine.App.Handlers.SlashCommands.Explicit;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
 using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.SlashCommands.Explicit;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using Discord;
@@ -42,22 +41,22 @@ public sealed class CharacterEngineBot
         var services = new ServiceCollection();
         services.AddSingleton(_discordClient);
         services.AddSingleton(_interactionService);
-        services.AddSingleton<SlashCommandsHandler>();
-        services.AddSingleton<InteractionsHandler>();
-        services.AddSingleton<MessagesHandler>();
 
         services.AddTransient<SpecialCommandsHandler>();
         services.AddTransient<BotAdminCommandsHandler>();
+        services.AddTransient<SlashCommandsHandler>();
+        services.AddTransient<InteractionsHandler>();
+        services.AddTransient<MessagesHandler>();
         services.AddTransient<ButtonsHandler>();
         services.AddTransient<ModalsHandler>();
         services.AddTransient<AppDbContext>(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
 
-        services.AddScoped<CharactersRepository>();
-        services.AddScoped<IntegrationsRepository>();
-        services.AddScoped<CacheRepository>();
+        services.AddTransient<CharactersRepository>();
+        services.AddTransient<IntegrationsRepository>();
+        services.AddTransient<CacheRepository>();
 
-        services.AddScoped<InteractionsMaster>();
-        services.AddScoped<IntegrationsMaster>();
+        services.AddTransient<InteractionsMaster>();
+        services.AddTransient<IntegrationsMaster>();
 
         _serviceProvider = services.BuildServiceProvider();
         _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _serviceProvider).Wait();
@@ -70,11 +69,26 @@ public sealed class CharacterEngineBot
     {
         _discordClient.JoinedGuild += OnJoinedGuild;
         _discordClient.LeftGuild += OnLeftGuild;
-        _discordClient.ButtonExecuted += _serviceProvider.GetRequiredService<ButtonsHandler>().HandleButton;
-        _interactionService.InteractionExecuted += _serviceProvider.GetRequiredService<InteractionsHandler>().HandleInteraction;
-        _discordClient.MessageReceived += _serviceProvider.GetRequiredService<MessagesHandler>().HandleMessage;
-        _discordClient.ModalSubmitted += _serviceProvider.GetRequiredService<ModalsHandler>().HandleModal;
-        _discordClient.SlashCommandExecuted += _serviceProvider.GetRequiredService<SlashCommandsHandler>().HandleSlashCommand;
+
+        _discordClient.ButtonExecuted += (component)
+            => _serviceProvider.GetRequiredService<ButtonsHandler>()
+                               .HandleButton(component);
+
+        _interactionService.InteractionExecuted += (_, interactionContext, result)
+            => _serviceProvider.GetRequiredService<InteractionsHandler>()
+                               .HandleInteraction(interactionContext, result);
+
+        _discordClient.MessageReceived += (socketMessage)
+            => _serviceProvider.GetRequiredService<MessagesHandler>()
+                               .HandleMessage(socketMessage);
+
+        _discordClient.ModalSubmitted += (modal)
+            => _serviceProvider.GetRequiredService<ModalsHandler>()
+                               .HandleModal(modal);
+
+        _discordClient.SlashCommandExecuted += (command)
+            => _serviceProvider.GetRequiredService<SlashCommandsHandler>()
+                               .HandleSlashCommand(command);
 
         Task.Run(async () =>
         {
@@ -98,7 +112,7 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
             var ensureCommandsRegisteredAsync = EnsureCommandsRegisteredAsync(guild);
 
             MetricsWriter.Write(MetricType.JoinedGuild, guild.Id);
@@ -116,7 +130,7 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
 
             MetricsWriter.Write(MetricType.LeftGuild, guild.Id);
             var message = $"Left server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}";
@@ -139,7 +153,7 @@ public sealed class CharacterEngineBot
 
     public static async Task RunAsync()
     {
-        var cacheTask = CacheUsersAndCharactersAsync();
+        CacheUsersAndCharacters();
 
         DiscordClient = new DiscordShardedClient(new DiscordSocketConfig
         {
@@ -167,8 +181,6 @@ public sealed class CharacterEngineBot
 
         await DiscordClient.LoginAsync(TokenType.Bot, BotConfig.BOT_TOKEN);
 
-        await cacheTask; // Don't start until caching complete
-
         await DiscordClient.StartAsync();
 
         if (BotConfig.PLAYING_STATUS.Length != 0)
@@ -182,9 +194,8 @@ public sealed class CharacterEngineBot
     }
 
 
-    private static async Task CacheUsersAndCharactersAsync()
+    private static void CacheUsersAndCharacters()
     {
-
         var characters = Task.Run(async () =>
         {
             await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);

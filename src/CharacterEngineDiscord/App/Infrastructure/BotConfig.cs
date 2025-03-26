@@ -1,4 +1,4 @@
-﻿namespace CharacterEngine.App.Helpers.Infrastructure;
+﻿namespace CharacterEngine.App.Infrastructure;
 
 public static class BotConfig
 {

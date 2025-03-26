@@ -1,7 +1,7 @@
 ﻿using CharacterEngine.App;
 using CharacterEngine.App.Exceptions;
-using CharacterEngine.App.Helpers;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
+using CharacterEngine.App.Services;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Config;

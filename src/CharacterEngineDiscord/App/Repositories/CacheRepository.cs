@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using CharacterEngine.App.Repositories.Abstractions;
-using CharacterEngine.App.Static.Entities;
+using CharacterEngine.App.Repositories.Storages;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using CharacterEngineDiscord.Models;
 using Discord;
@@ -30,6 +30,7 @@ public class CacheRepository : RepositoryBase
 
     public ActiveSearchQueriesStorage ActiveSearchQueries { get; } = new();
 
+    private readonly SemaphoreSlim _dbCallsSemaphore = new(1, 1);
 
     public CacheRepository(AppDbContext db) : base(db) { }
 
@@ -39,120 +40,141 @@ public class CacheRepository : RepositoryBase
         _cachedUsers.TryAdd(userId, null);
     }
 
-    public void EnsureUserCached(IGuildUser guildUser)
+    public Task EnsureUserCached(IGuildUser guildUser)
     {
         if (!_cachedUsers.TryAdd(guildUser.Id, null))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        Task.Run(async () =>
+        return Task.Run(async () =>
         {
-            EnsureGuildCached(guildUser.Guild, wait: true);
+            await EnsureGuildCached(guildUser.Guild);
 
-
-            DB.DiscordUsers.Add(new DiscordUser
+            await _dbCallsSemaphore.WaitAsync();
+            try
             {
-                Id = guildUser.Id
-            });
 
-            await DB.SaveChangesAsync();
+
+                DB.DiscordUsers.Add(new DiscordUser
+                {
+                    Id = guildUser.Id
+                });
+
+                await DB.SaveChangesAsync();
+            }
+            finally
+            {
+                _dbCallsSemaphore.Release();
+            }
         });
     }
 
-    public void EnsureChannelCached(IGuildChannel channel)
+    public Task EnsureChannelCached(IGuildChannel channel)
     {
         if (!_cachedChannels.TryAdd(channel.Id, false))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        Task.Run(async () =>
+        return Task.Run(async () =>
         {
-            EnsureGuildCached(channel.Guild, wait: true);
+            await EnsureGuildCached(channel.Guild);
 
-            var discordChannel = await DB.DiscordChannels.FindAsync(channel.Id);
-
-            if (discordChannel is null)
+            await _dbCallsSemaphore.WaitAsync();
+            try
             {
-                var newChannel = new DiscordChannel
+                var discordChannel = await DB.DiscordChannels.FindAsync(channel.Id);
+                if (discordChannel is null)
                 {
-                    Id = channel.Id,
-                    ChannelName = channel.Name,
-                    DiscordGuildId = channel.GuildId,
-                    NoWarn = false
-                };
+                    var newChannel = new DiscordChannel
+                    {
+                        Id = channel.Id,
+                        ChannelName = channel.Name,
+                        DiscordGuildId = channel.GuildId,
+                        NoWarn = false
+                    };
 
-                DB.DiscordChannels.Add(newChannel);
-                await DB.SaveChangesAsync();
-            }
-            else
-            {
-                _cachedChannels[channel.Id] = discordChannel.NoWarn;
-                if (discordChannel.ChannelName != channel.Name)
-                {
-                    discordChannel.ChannelName = channel.Name;
+                    DB.DiscordChannels.Add(newChannel);
                     await DB.SaveChangesAsync();
                 }
+                else
+                {
+                    _cachedChannels[channel.Id] = discordChannel.NoWarn;
+
+                    if (discordChannel.ChannelName != channel.Name)
+                    {
+                        discordChannel.ChannelName = channel.Name;
+                        await DB.SaveChangesAsync();
+                    }
+                }
+            }
+            finally
+            {
+                _dbCallsSemaphore.Release();
             }
         });
     }
 
 
-    public void EnsureGuildCached(IGuild guild, bool wait = false)
+    public Task EnsureGuildCached(IGuild guild)
     {
         if (!_cachedGuilds.TryAdd(guild.Id, null))
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var task = Task.Run(async () =>
+        return Task.Run(async () =>
         {
-            var discordGuild = await DB.DiscordGuilds.FindAsync(guild.Id);
-
-            string? ownerUsername = null;
-            int? memberCount = null;
-            if (guild is SocketGuild socketGuild)
+            await _dbCallsSemaphore.WaitAsync();
+            try
             {
-                ownerUsername = socketGuild.Owner?.Username;
-                memberCount = socketGuild.MemberCount;
-            }
+                var discordGuild = await DB.DiscordGuilds.FindAsync(guild.Id);
 
-            ownerUsername ??= (await guild.GetOwnerAsync())?.Username;
-            memberCount ??= guild.ApproximateMemberCount;
+                string? ownerUsername = null;
+                int? memberCount = null;
 
-            if (discordGuild is null)
-            {
-                var newGuild = new DiscordGuild
+                if (guild is SocketGuild socketGuild)
                 {
-                    Id = guild.Id,
-                    GuildName = guild.Name,
-                    MessagesSent = 0,
-                    NoWarn = false,
-                    OwnerId = guild.OwnerId,
-                    OwnerUsername = ownerUsername,
-                    MemberCount = memberCount ?? 0,
-                    Joined = true,
-                    FirstJoinDate = DateTime.Now
-                };
+                    ownerUsername = socketGuild.Owner?.Username;
+                    memberCount = socketGuild.MemberCount;
+                }
 
-                DB.DiscordGuilds.Add(newGuild);
+                ownerUsername ??= (await guild.GetOwnerAsync())?.Username;
+                memberCount ??= guild.ApproximateMemberCount;
+
+                if (discordGuild is null)
+                {
+                    var newGuild = new DiscordGuild
+                    {
+                        Id = guild.Id,
+                        GuildName = guild.Name,
+                        MessagesSent = 0,
+                        NoWarn = false,
+                        OwnerId = guild.OwnerId,
+                        OwnerUsername = ownerUsername,
+                        MemberCount = memberCount ?? 0,
+                        Joined = true,
+                        FirstJoinDate = DateTime.Now
+                    };
+
+                    DB.DiscordGuilds.Add(newGuild);
+                }
+                else
+                {
+                    discordGuild.Joined = true;
+                    discordGuild.GuildName = guild.Name ?? "";
+                    discordGuild.OwnerId = guild.OwnerId;
+                    discordGuild.OwnerUsername = ownerUsername;
+                    discordGuild.MemberCount = memberCount ?? 0;
+                }
+
+                await DB.SaveChangesAsync();
             }
-            else
+            finally
             {
-                discordGuild.Joined = true;
-                discordGuild.GuildName = guild.Name ?? "";
-                discordGuild.OwnerId = guild.OwnerId;
-                discordGuild.OwnerUsername = ownerUsername;
-                discordGuild.MemberCount = memberCount ?? 0;
+                _dbCallsSemaphore.Release();
             }
-
-            await DB.SaveChangesAsync();
         });
-
-        if (wait)
-        {
-            task.Wait();
-        }
     }
 }

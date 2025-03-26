@@ -1,7 +1,8 @@
 using CharacterEngine.App.Exceptions;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Helpers.Discord;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Models;
 using Discord;
 using Discord.WebSocket;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 using MH = CharacterEngine.App.Helpers.Discord.MessagesHelper;
 
-namespace CharacterEngine.App.Helpers.Discord;
+namespace CharacterEngine.App.Helpers;
 
 
 public static class ValidationsHelper

@@ -9,7 +9,6 @@ public static class Templates
     {
         var sb = new StringBuilder($"**{characterName}**\n");
 
-
         var tagline = characterTagline?.Trim(' ', '\n');
         if (!string.IsNullOrEmpty(tagline))
         {
@@ -24,7 +23,7 @@ public static class Templates
         sb.AppendLine(description.Length < 2 ? "*No description*" : description);
 
         var scenario = characterScenario?.Trim(' ', '\n');
-        if (!string.IsNullOrEmpty(scenario))
+        if (!string.IsNullOrEmpty(scenario) && !scenario.StartsWith("{{char}} is", StringComparison.InvariantCultureIgnoreCase))
         {
             sb.AppendLine();
             sb.AppendLine("**Scenario**");
@@ -54,7 +53,7 @@ public static class Templates
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"About {characterName}:\n");
+        sb.AppendLine($"About {characterName}:");
 
         var personality = characterPersonality.Trim(' ', '\n');
         if (!string.IsNullOrWhiteSpace(personality))
@@ -79,6 +78,19 @@ public static class Templates
             sb.AppendLine("[SCENARIO_END]");
         }
 
-        return sb.ToString().Replace("{{CHAR}}", characterName).Replace("<CHAR>", characterName).Replace("<BOT>", characterName);
+        return sb.ToString().FillCharacterPlaceholders(characterName);
+
     }
+
+
+    public static string FillCharacterPlaceholders(this string source, string characterName)
+        => source.Replace("{{CHAR}}", characterName, StringComparison.InvariantCultureIgnoreCase)
+                 .Replace("{{BOT}}", characterName, StringComparison.InvariantCultureIgnoreCase)
+                 .Replace("<CHAR>", characterName, StringComparison.InvariantCultureIgnoreCase)
+                 .Replace("<BOT>", characterName, StringComparison.InvariantCultureIgnoreCase);
+
+
+    public static string FillUserPlaceholders(this string source, string userMention)
+        => source.Replace("{{user}}", userMention, StringComparison.InvariantCultureIgnoreCase)
+                 .Replace("<user>", userMention, StringComparison.InvariantCultureIgnoreCase);
 }

@@ -1,12 +1,12 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Shared;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 
-namespace CharacterEngine.App.SlashCommands.Explicit;
+namespace CharacterEngine.App.Handlers.SlashCommands.Explicit;
 
 
 public class SpecialCommandsHandler

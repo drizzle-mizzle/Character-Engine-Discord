@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using CharacterEngine.App.Exceptions;
-using CharacterEngine.App.Helpers.Infrastructure;
+using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models;
 using Discord;
 using Discord.WebSocket;
@@ -18,20 +18,15 @@ public static class InteractionsHelper
 
     #region CustomId
 
+
     public static string NewCustomId(ModalActionType action, string data)
-        => NewCustomId(Guid.NewGuid(), action, data);
-
-    public static string NewCustomId(ModalData modalData)
-        => NewCustomId(modalData.Id, modalData.ActionType, modalData.Data);
-
-    public static string NewCustomId(Guid id, ModalActionType action, string data)
-        => $"{id}{COMMAND_SEPARATOR}{action}{COMMAND_SEPARATOR}{data}";
+        => $"{action:D}{COMMAND_SEPARATOR}{data}";
 
 
     public static ModalData ParseCustomId(string customId)
     {
         var parts = customId.Split(COMMAND_SEPARATOR);
-        return new ModalData(Guid.Parse(parts[0]), Enum.Parse<ModalActionType>(parts[1]), parts[2]);
+        return new ModalData(Enum.Parse<ModalActionType>(parts[0]), parts[1]);
     }
 
     #endregion
@@ -93,23 +88,23 @@ public static class InteractionsHelper
                 ? await parentChannel.CreateWebhookAsync(characterName, avatarOutput)
                 : await channel.CreateWebhookAsync(characterName, avatarOutput);
     }
-public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
+    public static async Task RespondWithErrorAsync(IDiscordInteraction interaction, Exception e, string traceId)
     {
         var userFriendlyExceptionCheck = e.ValidateUserFriendlyException();
 
         Embed embed;
 
-        if (userFriendlyExceptionCheck.valid)
+        if (userFriendlyExceptionCheck.Pass)
         {
-            var ufEx = (e as UserFriendlyException ?? e.InnerException as UserFriendlyException)!;
+            var ufEx = e as UserFriendlyException ?? e.InnerException as UserFriendlyException;
 
-            var message = ufEx.Bold ? $"**{userFriendlyExceptionCheck.message}**" : userFriendlyExceptionCheck.message!;
+            var message = (ufEx?.Bold ?? true) ? $"**{userFriendlyExceptionCheck.Message}**" : userFriendlyExceptionCheck.Message!;
             if (!(message.StartsWith(MT.X_SIGN_DISCORD) || message.StartsWith(MT.WARN_SIGN_DISCORD)))
             {
                 message = $"{MT.X_SIGN_DISCORD} {message}";
             }
 
-            embed = new EmbedBuilder().WithColor(ufEx.Color).WithDescription(message).Build();
+            embed = new EmbedBuilder().WithColor(ufEx?.Color ?? Color.Red).WithDescription(message).Build();
         }
         else
         {

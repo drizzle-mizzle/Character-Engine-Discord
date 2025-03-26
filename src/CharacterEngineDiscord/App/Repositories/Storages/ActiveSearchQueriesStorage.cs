@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using CharacterEngineDiscord.Shared;
 using CharacterEngineDiscord.Shared.Models;
 
-namespace CharacterEngine.App.Static.Entities;
+namespace CharacterEngine.App.Repositories.Storages;
 
 
 public sealed class ActiveSearchQueriesStorage

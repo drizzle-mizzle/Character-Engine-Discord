@@ -5,18 +5,20 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
-using CharacterEngine.App.Static;
+using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Shared.Helpers;
+using CharacterEngineDiscord.Shared.Models;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using static CharacterEngine.App.Helpers.Discord.ValidationsHelper;
+using Newtonsoft.Json;
+using static CharacterEngine.App.Helpers.ValidationsHelper;
 using MT = CharacterEngine.App.Helpers.Discord.MessagesTemplates;
 
-namespace CharacterEngine.App.SlashCommands;
+namespace CharacterEngine.App.Handlers.SlashCommands;
 
 
 [Group("server", "Server-wide settings configuration")]
@@ -301,15 +303,37 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     }
 
 
+    [ValidateAccessLevel(AccessLevel.Manager)]
+    [SlashCommand("openrouter-settings", "Display server-wide OpenRouter settings")]
+    public async Task OpenRouterSettings()
+    {
+        var integration = await _db.OpenRouterIntegrations.FirstOrDefaultAsync(i => i.DiscordGuildId == Context.Guild.Id);
+        ArgumentNullException.ThrowIfNull(integration);
+
+        var jsonIntegration = JsonConvert.SerializeObject(integration, Formatting.Indented);
+        var settings = JsonConvert.DeserializeObject<OpenRouterSettings>(jsonIntegration);
+        var jsonSettings = JsonConvert.SerializeObject(settings, Formatting.Indented);
+
+        var customId = InteractionsHelper.NewCustomId(ModalActionType.OpenRouterSettings, $"{integration.Id}~{SettingTarget.Guild:D}");
+        var modal = new ModalBuilder().WithTitle("Edit server-wide OpenRouter settings")
+                                      .WithCustomId(customId)
+                                      .AddTextInput("Settings:", "settings", TextInputStyle.Paragraph, value: jsonSettings)
+                                      .Build();
+
+        await RespondWithModalAsync(modal); // next in EnsureSakuraAiLoginAsync()
+    }
+
     private async Task<string> UpdateGuildMessagesFormatAsync(ulong guildId, string? newFormat)
     {
         ValidateMessagesFormat(newFormat);
 
-        var guild = await _db.DiscordGuilds.FirstAsync(g => g.Id == guildId);
+        var guild = await _db.DiscordGuilds.FindAsync(guildId);
+        ArgumentNullException.ThrowIfNull(guild);
+
         guild.MessagesFormat = newFormat;
         await _db.SaveChangesAsync();
 
-        return $"Server-wide messages format {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildMessagesFormatDisplayAsync(guild);
+        return $"Server-wide messages format {(newFormat is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildMessagesFormatDisplay(guild);
     }
 
 
@@ -321,6 +345,6 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
         guild.SystemPrompt = newPrompt;
         await _db.SaveChangesAsync();
 
-        return $"Server-wide system prompt {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildSystemPromptDisplayAsync(guild);
+        return $"Server-wide system prompt {(newPrompt is null ? "reset to default value" : "was changed")} successfully:\n" + _interactionsMaster.BuildGuildSystemPromptDisplay(guild);
     }
 }

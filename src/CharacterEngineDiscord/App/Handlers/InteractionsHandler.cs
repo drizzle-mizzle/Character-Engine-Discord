@@ -20,7 +20,7 @@ public class InteractionsHandler
     }
 
 
-    public Task HandleInteraction(ICommandInfo _, IInteractionContext interactionContext, IResult result)
+    public Task HandleInteraction(IInteractionContext interactionContext, IResult result)
     {
         var traceId = CommonHelper.NewTraceId();
         Task.Run(async () =>
