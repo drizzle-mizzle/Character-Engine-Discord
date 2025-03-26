@@ -9,6 +9,8 @@ using CharacterEngineDiscord.Shared.Abstractions.Characters;
 using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
 using CharacterEngineDiscord.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using NLog;
 using OpenRouter.Client;
 using UniversalOpenAi.Client.Models;
 
@@ -19,6 +21,7 @@ public class OpenRouterModule : ModuleBase<OpenRouterClient>, IChatModule
 {
     private readonly string _connectionString;
     private readonly string _defaultSystemPrompt;
+    private readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
 
     public OpenRouterModule(string connectionString, string defaultSystemPrompt)
@@ -105,7 +108,18 @@ public class OpenRouterModule : ModuleBase<OpenRouterClient>, IChatModule
 
         while (attempt < 3)
         {
-            var response = await _client.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
+            CompletionsResponse response;
+
+            try
+            {
+                response = await _client.CompleteAsync(orIntegration.OpenRouterApiKey, model, chatMessages, settings);
+            }
+            catch (JsonReaderException e)
+            {
+                _logger.Error(e, "Could not parse OpenRouter API response");
+                continue;
+            }
+
             var characterResponse = response.Choices.FirstOrDefault(c => c.Message is not null && !string.IsNullOrWhiteSpace(c.Message.Content))?.Message?.Content;
 
             if (characterResponse is null)
@@ -134,6 +148,6 @@ public class OpenRouterModule : ModuleBase<OpenRouterClient>, IChatModule
             };
         }
 
-        throw new ChatModuleException("No response from OpenRouter");
+        throw new ChatModuleException("Failed to get response from OpenRouter");
     }
 }

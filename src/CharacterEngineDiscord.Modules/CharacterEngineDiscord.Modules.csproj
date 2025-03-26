@@ -30,4 +30,8 @@
       <ProjectReference Include="..\CharacterEngineDiscord.Shared\CharacterEngineDiscord.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="NLog" Version="5.4.0" />
+    </ItemGroup>
+
 </Project>
