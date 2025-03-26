@@ -12,13 +12,19 @@ using CharacterEngineDiscord.Shared.Abstractions.Sources.OpenRouter;
 using CharacterEngineDiscord.Shared.Models;
 using Discord;
 using Microsoft.EntityFrameworkCore;
+using NLog;
 
 namespace CharacterEngine.App.Repositories;
 
 
 public class CharactersRepository : RepositoryBase
 {
+    private readonly Logger _logger = LogManager.GetCurrentClassLogger();
+    private readonly SemaphoreSlim _deletionLock = new(1, 1);
+
+
     public CharactersRepository(AppDbContext db) : base(db) { }
+
 
     public async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
     {
@@ -91,26 +97,52 @@ public class CharactersRepository : RepositoryBase
 
     public async Task DeleteSpawnedCharacterAsync(Guid spawnedCharacterId)
     {
-        var spawnedCharacter = await GetSpawnedCharacterByIdAsync(spawnedCharacterId);
+        await _deletionLock.WaitAsync();
 
-        if (spawnedCharacter is null)
+        try
         {
-            return;
-        }
+            var spawnedCharacter = await GetSpawnedCharacterByIdAsync(spawnedCharacterId);
 
-        await DeleteSpawnedCharacterAsync(spawnedCharacter);
-        await DB.SaveChangesAsync();
+            if (spawnedCharacter is null)
+            {
+                return;
+            }
+
+            await DeleteSpawnedCharacterAsync(spawnedCharacter);
+            await DB.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            _logger.Warn(e.ToString);
+        }
+        finally
+        {
+            _deletionLock.Release();
+        }
     }
 
 
     public async Task DeleteSpawnedCharactersAsync(IReadOnlyCollection<ISpawnedCharacter> spawnedCharacters)
     {
-        foreach (var spawnedCharacter in spawnedCharacters)
-        {
-            await DeleteSpawnedCharacterAsync(spawnedCharacter);
-        }
+        await _deletionLock.WaitAsync();
 
-        await DB.SaveChangesAsync();
+        try
+        {
+            foreach (var spawnedCharacter in spawnedCharacters)
+            {
+                await DeleteSpawnedCharacterAsync(spawnedCharacter);
+            }
+
+            await DB.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            _logger.Warn(e.ToString);
+        }
+        finally
+        {
+            _deletionLock.Release();
+        }
     }
 
     private async Task DeleteSpawnedCharacterAsync(ISpawnedCharacter spawnedCharacter)

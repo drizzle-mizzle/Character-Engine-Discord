@@ -96,15 +96,15 @@ public static class InteractionsHelper
 
         if (userFriendlyExceptionCheck.Pass)
         {
-            var ufEx = (e as UserFriendlyException ?? e.InnerException as UserFriendlyException)!;
+            var ufEx = e as UserFriendlyException ?? e.InnerException as UserFriendlyException;
 
-            var message = ufEx.Bold ? $"**{userFriendlyExceptionCheck.Message}**" : userFriendlyExceptionCheck.Message!;
+            var message = (ufEx?.Bold ?? true) ? $"**{userFriendlyExceptionCheck.Message}**" : userFriendlyExceptionCheck.Message!;
             if (!(message.StartsWith(MT.X_SIGN_DISCORD) || message.StartsWith(MT.WARN_SIGN_DISCORD)))
             {
                 message = $"{MT.X_SIGN_DISCORD} {message}";
             }
 
-            embed = new EmbedBuilder().WithColor(ufEx.Color).WithDescription(message).Build();
+            embed = new EmbedBuilder().WithColor(ufEx?.Color ?? Color.Red).WithDescription(message).Build();
         }
         else
         {
