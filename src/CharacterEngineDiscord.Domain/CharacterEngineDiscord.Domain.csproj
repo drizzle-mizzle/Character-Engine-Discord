@@ -23,15 +23,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Discord.Net.Interactions" Version="3.16.0" />
-      <PackageReference Include="Discord.Net.Webhook" Version="3.16.0" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PackageReference Include="Discord.Net.Interactions" Version="3.17.2" />
+      <PackageReference Include="Discord.Net.Webhook" Version="3.17.2" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.3" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.3">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.3" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     </ItemGroup>
 
     <ItemGroup>
