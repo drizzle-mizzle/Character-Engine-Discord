@@ -35,10 +35,10 @@ public static class BackgroundWorker
         _log.Info("[ Launching Background Worker ]");
         _running = true;
 
-        RunInLoop(RunStoredActions, duration: TimeSpan.FromSeconds(20), log: false);
+        RunInLoop(RunStoredActions, TimeSpan.FromSeconds(20), log: false);
         RunInLoop(MetricsReport, TimeSpan.FromHours(1));
         RunInLoop(RevalidateBlockedUsers, TimeSpan.FromMinutes(1), log: false);
-        RunInLoop(ClearCache, TimeSpan.FromMinutes(30), log: false);
+        RunInLoop(ClearCache, TimeSpan.FromMinutes(5), log: false);
     }
 
 

@@ -116,8 +116,6 @@ public class MessagesHandler
             throw new UserFriendlyException("Bot can operate only in text channels");
         }
 
-        _ = _cacheRepository.EnsureChannelCached(textChannel);
-
         var validation = WatchDog.ValidateUser(guildUser, null, justCheck: true);
         if (validation.Result is not WatchDogValidationResult.Passed)
         {
@@ -159,6 +157,7 @@ public class MessagesHandler
 
             if (callTasks.Count != 0 && !(guildUser.IsBot || guildUser.IsWebhook))
             {
+                _ = _cacheRepository.EnsureChannelCached(textChannel);
                 _ = _cacheRepository.EnsureUserCached(guildUser);
                 MetricsWriter.Write(MetricType.NewInteraction, guildUser.Id, $"{MetricUserSource.CharacterCall:G}:{textChannel.Id}:{textChannel.GuildId}", true);
             }
