@@ -38,7 +38,7 @@ public static class BackgroundWorker
         RunInLoop(RunStoredActions, duration: TimeSpan.FromSeconds(20), log: false);
         RunInLoop(MetricsReport, TimeSpan.FromHours(1));
         RunInLoop(RevalidateBlockedUsers, TimeSpan.FromMinutes(1), log: false);
-        RunInLoop(ClearCache, TimeSpan.FromMinutes(1), log: false);
+        RunInLoop(ClearCache, TimeSpan.FromMinutes(30), log: false);
     }
 
 
@@ -192,6 +192,7 @@ public static class BackgroundWorker
             try
             {
                 await WatchDog.UnblockUserGloballyAsync(id);
+                _log.Info($"[{traceId}] User unblocked: {id}");
             }
             catch (Exception e)
             {
@@ -205,7 +206,7 @@ public static class BackgroundWorker
     {
         var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
 
-        var webhookIds = cacheRepo.CachedWebhookClients.GetAll().Where(c => (DateTime.Now - c.Value.CachedAt).TotalMinutes > 10).Select(c => c.Key).ToArray();
+        var webhookIds = cacheRepo.CachedWebhookClients.GetAll().Where(c => (DateTime.Now - c.Value.LastHitAt).TotalMinutes > 10).Select(c => c.Key).ToArray();
         foreach (var webhookId in webhookIds)
         {
             cacheRepo.CachedWebhookClients.Remove(webhookId);

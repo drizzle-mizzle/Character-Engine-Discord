@@ -15,7 +15,7 @@ public class CacheRepository : RepositoryBase
     /// <summary>
     /// ChannelId : NoWarn
     /// </summary>
-    private static readonly ConcurrentDictionary<ulong, (bool NoWarn, DateTime CachedAt)> _cachedChannels = [];
+    private static readonly ConcurrentDictionary<ulong, (bool NoWarn, DateTime LastHitAt)> _cachedChannels = [];
 
     private static readonly ConcurrentDictionary<ulong, DateTime> _cachedGuilds = [];
 

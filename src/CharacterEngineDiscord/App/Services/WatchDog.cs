@@ -144,7 +144,6 @@ public static class WatchDog
             return false;
         }
 
-
         MetricsWriter.Write(MetricType.UserUnblocked, userId);
 
         db.BlockedUsers.Remove(blockedUser);

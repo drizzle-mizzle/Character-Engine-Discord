@@ -21,7 +21,7 @@ public sealed class CachedWebhookClientsStorage
         var newCachedClient = new CachedWebhookClient()
         {
             WebhookClient = webhookClient,
-            CachedAt = DateTime.Now
+            LastHitAt = DateTime.Now
         };
 
         _webhookClients.TryAdd(webhookId, newCachedClient);
@@ -39,6 +39,7 @@ public sealed class CachedWebhookClientsStorage
 
         if (cachedClient is not null)
         {
+            cachedClient.LastHitAt = DateTime.Now;
             return cachedClient.WebhookClient;
         }
 
@@ -46,7 +47,7 @@ public sealed class CachedWebhookClientsStorage
         var newCachedClient = new CachedWebhookClient()
         {
             WebhookClient = newWebhookClient,
-            CachedAt = DateTime.Now
+            LastHitAt = DateTime.Now
         };
 
         _webhookClients.TryAdd(webhookId, newCachedClient);
@@ -63,6 +64,6 @@ public sealed class CachedWebhookClientsStorage
     {
         public required DiscordWebhookClient WebhookClient { get; init; }
 
-        public required DateTime CachedAt { get; init; }
+        public required DateTime LastHitAt { get; set; }
     }
 }
