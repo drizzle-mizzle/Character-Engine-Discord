@@ -51,8 +51,8 @@ public sealed class CharacterEngineBot
         services.AddTransient<ModalsHandler>();
         services.AddTransient<AppDbContext>(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
 
-        services.AddTransient<CharactersRepository>();
-        services.AddTransient<IntegrationsRepository>();
+        services.AddTransient<CharactersDbRepository>();
+        services.AddTransient<IntegrationsDbRepository>();
         services.AddTransient<CacheRepository>();
 
         services.AddTransient<InteractionsMaster>();
@@ -200,7 +200,7 @@ public sealed class CharacterEngineBot
         {
             await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
             await using var cacheRepository = new CacheRepository(db);
-            await using var charactersRepository = new CharactersRepository(db);
+            await using var charactersRepository = new CharactersDbRepository(db);
 
             var allCharacters = await charactersRepository.GetAllSpawnedCharactersAsync();
             var allHuntedUsers = await db.HuntedUsers.AsNoTracking().ToArrayAsync();

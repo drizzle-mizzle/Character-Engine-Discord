@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using CharacterEngineDiscord.Shared;
 using CharacterEngineDiscord.Shared.Models;
 
@@ -8,6 +9,9 @@ namespace CharacterEngine.App.Repositories.Storages;
 public sealed class ActiveSearchQueriesStorage
 {
     private static readonly ConcurrentDictionary<ulong, SearchQuery> _searchQueries = [];
+
+    public ImmutableDictionary<ulong, SearchQuery> GetAll()
+        => _searchQueries.ToImmutableDictionary();
 
 
     public void Add(SearchQuery searchQuery)

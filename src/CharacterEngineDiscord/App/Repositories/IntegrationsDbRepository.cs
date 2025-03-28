@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CharacterEngine.App.Repositories;
 
 
-public class IntegrationsRepository(AppDbContext db) : RepositoryBase(db)
+public class IntegrationsDbRepository(AppDbContext db) : RepositoryBase(db)
 {
     public async Task<IGuildIntegration?> GetGuildIntegrationAsync(Guid integrationId)
     {

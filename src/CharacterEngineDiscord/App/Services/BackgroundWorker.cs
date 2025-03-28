@@ -2,6 +2,7 @@
 using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
+using CharacterEngine.App.Repositories;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;
 using CharacterEngineDiscord.Shared;
@@ -36,7 +37,8 @@ public static class BackgroundWorker
 
         RunInLoop(RunStoredActions, duration: TimeSpan.FromSeconds(20), log: false);
         RunInLoop(MetricsReport, TimeSpan.FromHours(1));
-        RunInLoop(RevalidateBlockedUsers, TimeSpan.FromMinutes(1));
+        RunInLoop(RevalidateBlockedUsers, TimeSpan.FromMinutes(1), log: false);
+        RunInLoop(ClearCache, TimeSpan.FromMinutes(1), log: false);
     }
 
 
@@ -196,6 +198,70 @@ public static class BackgroundWorker
                 await CharacterEngineBot.DiscordClient.ReportErrorAsync("Exception in RevalidateBlockedUsers", null, e, traceId, writeMetric: true);
             }
         }
+    }
+
+
+    private static Task ClearCache(string traceId)
+    {
+        var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
+
+        var webhookIds = cacheRepo.CachedWebhookClients.GetAll().Where(c => (DateTime.Now - c.Value.CachedAt).TotalMinutes > 10).Select(c => c.Key).ToArray();
+        foreach (var webhookId in webhookIds)
+        {
+            cacheRepo.CachedWebhookClients.Remove(webhookId);
+        }
+
+        if (webhookIds.Length != 0)
+        {
+            _log.Info($"[{traceId}] Cleared {webhookIds.Length} cached webhook clients");
+        }
+
+        var messageIds = cacheRepo.ActiveSearchQueries.GetAll().Where(sq => (DateTime.Now - sq.Value.CreatedAt).TotalMinutes > 5).Select(sq => sq.Key).ToArray();
+        foreach (var messageId in messageIds)
+        {
+            cacheRepo.ActiveSearchQueries.Remove(messageId);
+        }
+
+        if (messageIds.Length != 0)
+        {
+            _log.Info($"[{traceId}] Cleared {messageIds.Length} cached search queries");
+        }
+
+        var channelIds = cacheRepo.GetAllCachedChannels.Where(cc => (DateTime.Now - cc.Value.CachedAt).TotalMinutes > 10).Select(cc => cc.Key).ToArray();
+        foreach (var channelId in channelIds)
+        {
+            cacheRepo.RemoveCachedChannel(channelId);
+        }
+
+        if (channelIds.Length != 0)
+        {
+            _log.Info($"[{traceId}] Cleared {channelIds.Length} cached channels");
+        }
+
+        var guildsIds = cacheRepo.GetAllCachedGuilds.Where(cg => (DateTime.Now - cg.Value).TotalMinutes > 5).Select(cc => cc.Key).ToArray();
+        foreach (var guildId in guildsIds)
+        {
+            cacheRepo.RemoveCachedGuild(guildId);
+        }
+
+        if (guildsIds.Length != 0)
+        {
+            _log.Info($"[{traceId}] Cleared {guildsIds.Length} cached guilds");
+        }
+
+        var userIds = cacheRepo.GetAllCachedUsers.Where(cu => (DateTime.Now - cu.Value).TotalMinutes > 5).Select(cc => cc.Key).ToArray();
+        foreach (var userId in userIds)
+        {
+            cacheRepo.RemoveCachedUser(userId);
+        }
+
+        if (userIds.Length != 0)
+        {
+            _log.Info($"[{traceId}] Cleared {userIds.Length} cached users");
+        }
+
+
+        return Task.CompletedTask;
     }
 
 

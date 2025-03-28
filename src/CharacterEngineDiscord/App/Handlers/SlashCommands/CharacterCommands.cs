@@ -37,8 +37,8 @@ namespace CharacterEngine.App.Handlers.SlashCommands;
 public class CharacterCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly CharactersRepository _charactersRepository;
-    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
     private readonly CacheRepository _cacheRepository;
     private readonly InteractionsMaster _interactionsMaster;
     private readonly IntegrationsMaster _integrationsMaster;
@@ -48,16 +48,16 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     public CharacterCommands(
         AppDbContext db,
-        CharactersRepository charactersRepository,
-        IntegrationsRepository integrationsRepository,
+        CharactersDbRepository charactersDbRepository,
+        IntegrationsDbRepository integrationsDbRepository,
         CacheRepository cacheRepository,
         InteractionsMaster interactionsMaster,
         IntegrationsMaster integrationsMaster
     )
     {
         _db = db;
-        _charactersRepository = charactersRepository;
-        _integrationsRepository = integrationsRepository;
+        _charactersDbRepository = charactersDbRepository;
+        _integrationsDbRepository = integrationsDbRepository;
         _cacheRepository = cacheRepository;
         _interactionsMaster = interactionsMaster;
         _integrationsMaster = integrationsMaster;
@@ -106,7 +106,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException("This channel already has 15 webhooks, which is the Discord limit. To create a new character, you will need to remove an existing one from this channel; this can be done with `/character remove` command.");
         }
 
-        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
+        var guildIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync(Context.Guild.Id, integrationType);
         if (guildIntegration is null)
         {
             throw new UserFriendlyException($"You have to setup **{integrationType:G}** intergration for this server first!", bold: false);
@@ -227,7 +227,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        var updateSpawnedCharacterAsync = _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        var updateSpawnedCharacterAsync = _charactersDbRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
         var message = $"{MT.OK_SIGN_DISCORD} Chat with {spawnedCharacter.GetMention()} reset successfully";
 
         var followupAsync = FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
@@ -253,9 +253,9 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         var scc = await FindCharacterAsync(anyIdentifier, Context.Channel.Id);
         var spawnedCharacter = scc.spawnedCharacter;
 
-        var deleteSpawnedCharacterAsync = _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+        var deleteSpawnedCharacterAsync = _charactersDbRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
 
-        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = CachedWebhookClientsStorage.Find(spawnedCharacter.WebhookId);
         if (webhookClient is not null)
         {
             try
@@ -544,7 +544,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
         }
 
         var message = $"{MT.OK_SIGN_DISCORD} **{featureName}** for character {spawnedCharacter.GetMention()} was successfully changed to **{newValue}**";
-        var updateSpawnedCharacterAsync = _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        var updateSpawnedCharacterAsync = _charactersDbRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         await FollowupAsync(embed: message.ToInlineEmbed(Color.Green, bold: false));
         await updateSpawnedCharacterAsync;
@@ -662,7 +662,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             }
         }
 
-        await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+        await _charactersDbRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
 
         var message = new StringBuilder();
         var propertyName = property.ToString("G").SplitWordsBySep(' ').ToLower().CapitalizeFirst();
@@ -681,7 +681,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     private async Task UpdateNameAsync(ISpawnedCharacter spawnedCharacter)
     {
-        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = CachedWebhookClientsStorage.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
             await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, spawnedCharacter.CharacterImageLink);
@@ -694,7 +694,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
 
     private async Task UpdateAvatarAsync(ISpawnedCharacter spawnedCharacter, string newAvatarUrl)
     {
-        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+        var webhookClient = CachedWebhookClientsStorage.Find(spawnedCharacter.WebhookId);
         if (webhookClient is null)
         {
             await InteractionsHelper.CreateDiscordWebhookAsync((IIntegrationChannel)Context.Channel, spawnedCharacter.CharacterName, newAvatarUrl);
@@ -740,7 +740,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);
         }
 
-        var spawnedCharacter = await _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+        var spawnedCharacter = await _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
         if (spawnedCharacter is null)
         {
             throw new UserFriendlyException($"Character **{anyIdentifier}** not found", bold: false);

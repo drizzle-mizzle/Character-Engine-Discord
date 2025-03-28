@@ -13,7 +13,7 @@ public sealed class CachedCharacerInfoStorage
     private static readonly ConcurrentDictionary<Guid, CachedCharacterInfo> _cachedCharacters = [];
 
 
-    public CachedCharacterInfo Add(ISpawnedCharacter spawnedCharacter, List<ulong> huntedUserIds)
+    public CachedCharacterInfo Add(ISpawnedCharacter spawnedCharacter, List<ulong>? huntedUserIds = null)
     {
         _cachedCharacters.TryRemove(spawnedCharacter.Id, out _);
 
@@ -25,9 +25,11 @@ public sealed class CachedCharacerInfoStorage
             WebhookId = spawnedCharacter.WebhookId.ToString(),
             IntegrationType = spawnedCharacter.GetIntegrationType(),
             FreewillFactor = spawnedCharacter.FreewillFactor,
-            HuntedUsers = huntedUserIds
+            HuntedUsers = huntedUserIds ?? [],
+            CachedAt = DateTime.Now
             // CachedUserMessages = new CachedUserMessages(),
             // Conversations = new ActiveConversation(spawnedCharacter.EnableSwipes)
+
         };
 
         _cachedCharacters.TryAdd(spawnedCharacter.Id, newCachedCharacter);
@@ -112,6 +114,8 @@ public record CachedCharacterInfo
 
     // public required CachedUserMessages CachedUserMessages { get; init; }
     // public required ActiveConversation Conversations { get; init; }
+
+    public required DateTime CachedAt { get; init; }
 }
 
 

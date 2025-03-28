@@ -25,8 +25,8 @@ public class MessagesHandler
 {
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    private readonly IntegrationsRepository _integrationsRepository;
-    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
     private readonly CacheRepository _cacheRepository;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
@@ -34,15 +34,15 @@ public class MessagesHandler
     public MessagesHandler(
         AppDbContext db,
         DiscordSocketClient discordClient,
-        IntegrationsRepository integrationsRepository,
-        CharactersRepository charactersRepository,
+        IntegrationsDbRepository integrationsDbRepository,
+        CharactersDbRepository charactersDbRepository,
         CacheRepository cacheRepository
     )
     {
         _db = db;
         _discordClient = discordClient;
-        _integrationsRepository = integrationsRepository;
-        _charactersRepository = charactersRepository;
+        _integrationsDbRepository = integrationsDbRepository;
+        _charactersDbRepository = charactersDbRepository;
         _cacheRepository = cacheRepository;
     }
 
@@ -206,7 +206,7 @@ public class MessagesHandler
         await _semaphoreSlim.WaitAsync();
         try
         {
-            guildIntegration = _integrationsRepository.GetGuildIntegrationAsync(spawnedCharacter).GetAwaiter().GetResult();
+            guildIntegration = _integrationsDbRepository.GetGuildIntegrationAsync(spawnedCharacter).GetAwaiter().GetResult();
         }
         finally
         {
@@ -245,7 +245,7 @@ public class MessagesHandler
             await _semaphoreSlim.WaitAsync();
             try
             {
-                spawnedCharacter = _charactersRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id).GetAwaiter().GetResult()!; // force data reload
+                spawnedCharacter = _charactersDbRepository.GetSpawnedCharacterByIdAsync(spawnedCharacter.Id).GetAwaiter().GetResult()!; // force data reload
             }
             finally
             {
@@ -353,7 +353,7 @@ public class MessagesHandler
                     await _semaphoreSlim.WaitAsync();
                     try
                     {
-                        await _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                        await _charactersDbRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
                     }
                     finally
                     {
@@ -372,7 +372,7 @@ public class MessagesHandler
             await _semaphoreSlim.WaitAsync();
             try
             {
-                await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+                await _charactersDbRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
             }
             finally
             {
@@ -434,7 +434,7 @@ public class MessagesHandler
             return Task.FromResult<ISpawnedCharacter?>(null);
         }
 
-        return _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+        return _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
     }
 
 
@@ -454,7 +454,7 @@ public class MessagesHandler
             return Task.FromResult<ISpawnedCharacter?>(null);
         }
 
-        return _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+        return _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
     }
 
 
@@ -475,7 +475,7 @@ public class MessagesHandler
             // 1.00 - claim = chance that character will NOT be called
             if (bet <= claim)
             {
-                var spawnedCharacter = await _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+                var spawnedCharacter = await _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
                 randomlyCalledCharacters.Add(spawnedCharacter!);
             }
         }
@@ -517,7 +517,7 @@ public class MessagesHandler
         {
             if (cachedCharacter.HuntedUsers.Contains(socketUserMessage.Author.Id))
             {
-                var spawnedCharacter = await _charactersRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
+                var spawnedCharacter = await _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
                 spawnedCharacters.Add(spawnedCharacter!);
             }
         }

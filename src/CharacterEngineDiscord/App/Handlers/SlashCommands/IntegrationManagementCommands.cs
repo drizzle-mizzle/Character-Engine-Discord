@@ -4,6 +4,7 @@ using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Repositories.Storages;
 using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Domain.Models.Abstractions;
@@ -25,23 +26,23 @@ namespace CharacterEngine.App.Handlers.SlashCommands;
 public class IntegrationManagementCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly IntegrationsRepository _integrationsRepository;
-    private readonly CharactersRepository _charactersRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
     private readonly IntegrationsMaster _integrationsMaster;
     private readonly CacheRepository _cacheRepository;
 
 
     public IntegrationManagementCommands(
         AppDbContext db,
-        IntegrationsRepository integrationsRepository,
-        CharactersRepository charactersRepository,
+        IntegrationsDbRepository integrationsDbRepository,
+        CharactersDbRepository charactersDbRepository,
         IntegrationsMaster integrationsMaster,
         CacheRepository cacheRepository
     )
     {
         _db = db;
-        _integrationsRepository = integrationsRepository;
-        _charactersRepository = charactersRepository;
+        _integrationsDbRepository = integrationsDbRepository;
+        _charactersDbRepository = charactersDbRepository;
         _integrationsMaster = integrationsMaster;
         _cacheRepository = cacheRepository;
     }
@@ -71,7 +72,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     {
         await DeferAsync(ephemeral: true);
 
-        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
+        var guildIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
         if (guildIntegration is null)
         {
             throw new UserFriendlyException("Integration not found");
@@ -92,7 +93,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
     {
         await DeferAsync();
 
-        var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Guid.Parse(integrationId));
+        var guildIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync(Guid.Parse(integrationId));
         if (guildIntegration is null)
         {
             throw new UserFriendlyException("Integration not found");
@@ -110,7 +111,7 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
         }
 
         var type = guildIntegration.GetIntegrationType();
-        var existingIntegration = await _integrationsRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
+        var existingIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync(Context.Guild.Id, type);
         if (existingIntegration is not null)
         {
             throw new UserFriendlyException($"This server already has {type.GetIcon()}{type:G} integration");
@@ -239,18 +240,18 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
 
         foreach (var channel in channelsInGuild)
         {
-            var spawnedCharacters = await _charactersRepository.GetAllSpawnedCharactersInChannelAsync(channel.Id);
+            var spawnedCharacters = await _charactersDbRepository.GetAllSpawnedCharactersInChannelAsync(channel.Id);
 
             foreach (var spawnedCharacter in spawnedCharacters.Where(sc => sc.GetIntegrationType() == type))
             {
 
                 if (removeAssociatedCharacters)
                 {
-                    var deleteSpawnedCharacterAsync = _charactersRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
+                    var deleteSpawnedCharacterAsync = _charactersDbRepository.DeleteSpawnedCharacterAsync(spawnedCharacter.Id);
 
                     try
                     {
-                        var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+                        var webhookClient = CachedWebhookClientsStorage.Find(spawnedCharacter.WebhookId);
                         if (webhookClient is not null)
                         {
                             await webhookClient.DeleteWebhookAsync();
@@ -271,12 +272,12 @@ public class IntegrationManagementCommands : InteractionModuleBase<InteractionCo
                     cachedCharacter.FreewillFactor = spawnedCharacter.FreewillFactor;
 
                     spawnedCharacter.FreewillFactor = 0;
-                    await _charactersRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
+                    await _charactersDbRepository.UpdateSpawnedCharacterAsync(spawnedCharacter);
                 }
             }
         }
 
-        await _integrationsRepository.DeleteGuildIntegrationAsync(integration);
+        await _integrationsDbRepository.DeleteGuildIntegrationAsync(integration);
 
 
         await FollowupAsync(embed: $"{type.GetIcon()} {type:G} integration {(removeAssociatedCharacters ? "and all associated characters were" : "was")} successfully removed".ToInlineEmbed(Color.Green));

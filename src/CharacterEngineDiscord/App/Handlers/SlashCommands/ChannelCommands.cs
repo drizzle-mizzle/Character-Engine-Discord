@@ -3,6 +3,7 @@ using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Repositories;
+using CharacterEngine.App.Repositories.Storages;
 using CharacterEngineDiscord.Domain.Models;
 using CharacterEngineDiscord.Models;
 using Discord;
@@ -20,20 +21,20 @@ namespace CharacterEngine.App.Handlers.SlashCommands;
 public class ChannelCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly CharactersRepository _charactersRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
     private readonly CacheRepository _cacheRepository;
     private readonly InteractionsMaster _interactionsMaster;
 
 
     public ChannelCommands(
         AppDbContext db,
-        CharactersRepository charactersRepository,
+        CharactersDbRepository charactersDbRepository,
         CacheRepository cacheRepository,
         InteractionsMaster interactionsMaster
     )
     {
         _db = db;
-        _charactersRepository = charactersRepository;
+        _charactersDbRepository = charactersDbRepository;
         _cacheRepository = cacheRepository;
         _interactionsMaster = interactionsMaster;
     }
@@ -143,7 +144,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync(ephemeral: hide);
 
-        var spawnedCharacters = await _charactersRepository.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
+        var spawnedCharacters = await _charactersDbRepository.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
         if (spawnedCharacters.Count == 0)
         {
             await FollowupAsync(embed: "This channel has no spawned characters".ToInlineEmbed(Color.Magenta));
@@ -162,8 +163,8 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
     {
         await RespondAsync(embed: MP.WAIT_MESSAGE);
 
-        var spawnedCharacters = await _charactersRepository.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
-        var deleteSpawnedCharactersAsync = _charactersRepository.DeleteSpawnedCharactersAsync(spawnedCharacters);
+        var spawnedCharacters = await _charactersDbRepository.GetAllSpawnedCharactersInChannelAsync(PrimaryChannelId);
+        var deleteSpawnedCharactersAsync = _charactersDbRepository.DeleteSpawnedCharactersAsync(spawnedCharacters);
 
         foreach (var spawnedCharacter in spawnedCharacters)
         {
@@ -171,7 +172,7 @@ public class ChannelCommands : InteractionModuleBase<InteractionContext>
 
             try
             {
-                var webhookClient = _cacheRepository.CachedWebhookClients.Find(spawnedCharacter.WebhookId);
+                var webhookClient = CachedWebhookClientsStorage.Find(spawnedCharacter.WebhookId);
                 if (webhookClient is not null)
                 {
                     await webhookClient.DeleteWebhookAsync();

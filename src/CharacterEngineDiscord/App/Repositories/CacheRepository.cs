@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using CharacterEngine.App.Repositories.Abstractions;
 using CharacterEngine.App.Repositories.Storages;
 using CharacterEngineDiscord.Domain.Models.Db.Discord;
@@ -14,14 +15,30 @@ public class CacheRepository : RepositoryBase
     /// <summary>
     /// ChannelId : NoWarn
     /// </summary>
-    private static readonly ConcurrentDictionary<ulong, bool> _cachedChannels = [];
+    private static readonly ConcurrentDictionary<ulong, (bool NoWarn, DateTime CachedAt)> _cachedChannels = [];
+
+    private static readonly ConcurrentDictionary<ulong, DateTime> _cachedGuilds = [];
+
+    private static readonly ConcurrentDictionary<ulong, DateTime> _cachedUsers = [];
+
+
+    // TODO: rework to human look
+    public ImmutableDictionary<ulong, (bool NoWarn, DateTime CachedAt)> GetAllCachedChannels => _cachedChannels.ToImmutableDictionary();
+    public ImmutableDictionary<ulong, DateTime> GetAllCachedGuilds => _cachedGuilds.ToImmutableDictionary();
+    public ImmutableDictionary<ulong, DateTime> GetAllCachedUsers => _cachedUsers.ToImmutableDictionary();
+
+    public void RemoveCachedChannel(ulong channelId)
+        => _cachedChannels.TryRemove(channelId, out _);
+
+    public void RemoveCachedGuild(ulong guildId)
+        => _cachedGuilds.TryRemove(guildId, out _);
+
+    public void RemoveCachedUser(ulong userId)
+        => _cachedUsers.TryRemove(userId, out _);
+
     public static bool GetCachedChannelNoWarnState(ulong channelId)
-        => _cachedChannels.TryGetValue(channelId, out var noWarn) && noWarn;
+        => _cachedChannels.TryGetValue(channelId, out var channel) && channel.NoWarn;
 
-
-    private static readonly ConcurrentDictionary<ulong, object?> _cachedGuilds = [];
-
-    private static readonly ConcurrentDictionary<ulong, object?> _cachedUsers = [];
 
 
     public CachedCharacerInfoStorage CachedCharacters { get; } = new();
@@ -30,6 +47,7 @@ public class CacheRepository : RepositoryBase
 
     public ActiveSearchQueriesStorage ActiveSearchQueries { get; } = new();
 
+
     private readonly SemaphoreSlim _dbCallsSemaphore = new(1, 1);
 
     public CacheRepository(AppDbContext db) : base(db) { }
@@ -37,12 +55,13 @@ public class CacheRepository : RepositoryBase
 
     public void CacheUser(ulong userId)
     {
-        _cachedUsers.TryAdd(userId, null);
+        _cachedUsers.TryAdd(userId, DateTime.Now);
     }
+
 
     public Task EnsureUserCached(IGuildUser guildUser)
     {
-        if (!_cachedUsers.TryAdd(guildUser.Id, null))
+        if (!_cachedUsers.TryAdd(guildUser.Id, DateTime.Now))
         {
             return Task.CompletedTask;
         }
@@ -54,14 +73,19 @@ public class CacheRepository : RepositoryBase
             await _dbCallsSemaphore.WaitAsync();
             try
             {
+                var discordUser = await DB.DiscordUsers.FindAsync(guildUser.Id);
 
-
-                DB.DiscordUsers.Add(new DiscordUser
+                if (discordUser is null)
                 {
-                    Id = guildUser.Id
-                });
+                    DB.DiscordUsers.Add(new DiscordUser
+                    {
+                        Id = guildUser.Id
+                    });
 
-                await DB.SaveChangesAsync();
+                    await DB.SaveChangesAsync();
+                }
+
+                _cachedUsers[guildUser.Id] = DateTime.Now;
             }
             finally
             {
@@ -72,7 +96,7 @@ public class CacheRepository : RepositoryBase
 
     public Task EnsureChannelCached(IGuildChannel channel)
     {
-        if (!_cachedChannels.TryAdd(channel.Id, false))
+        if (!_cachedChannels.TryAdd(channel.Id, (false, DateTime.Now)))
         {
             return Task.CompletedTask;
         }
@@ -87,7 +111,7 @@ public class CacheRepository : RepositoryBase
                 var discordChannel = await DB.DiscordChannels.FindAsync(channel.Id);
                 if (discordChannel is null)
                 {
-                    var newChannel = new DiscordChannel
+                    discordChannel = new DiscordChannel
                     {
                         Id = channel.Id,
                         ChannelName = channel.Name,
@@ -95,19 +119,16 @@ public class CacheRepository : RepositoryBase
                         NoWarn = false
                     };
 
-                    DB.DiscordChannels.Add(newChannel);
-                    await DB.SaveChangesAsync();
+                    DB.DiscordChannels.Add(discordChannel);
                 }
-                else
+                else if (discordChannel.ChannelName != channel.Name)
                 {
-                    _cachedChannels[channel.Id] = discordChannel.NoWarn;
-
-                    if (discordChannel.ChannelName != channel.Name)
-                    {
-                        discordChannel.ChannelName = channel.Name;
-                        await DB.SaveChangesAsync();
-                    }
+                    discordChannel.ChannelName = channel.Name;
                 }
+
+                await DB.SaveChangesAsync();
+
+                _cachedChannels[channel.Id] = (discordChannel.NoWarn, DateTime.Now);
             }
             finally
             {
@@ -119,7 +140,7 @@ public class CacheRepository : RepositoryBase
 
     public Task EnsureGuildCached(IGuild guild)
     {
-        if (!_cachedGuilds.TryAdd(guild.Id, null))
+        if (!_cachedGuilds.TryAdd(guild.Id, DateTime.Now))
         {
             return Task.CompletedTask;
         }
@@ -145,7 +166,7 @@ public class CacheRepository : RepositoryBase
 
                 if (discordGuild is null)
                 {
-                    var newGuild = new DiscordGuild
+                    discordGuild = new DiscordGuild
                     {
                         Id = guild.Id,
                         GuildName = guild.Name,
@@ -158,7 +179,7 @@ public class CacheRepository : RepositoryBase
                         FirstJoinDate = DateTime.Now
                     };
 
-                    DB.DiscordGuilds.Add(newGuild);
+                    DB.DiscordGuilds.Add(discordGuild);
                 }
                 else
                 {
@@ -170,6 +191,8 @@ public class CacheRepository : RepositoryBase
                 }
 
                 await DB.SaveChangesAsync();
+
+                _cachedGuilds[guild.Id] = DateTime.Now;
             }
             finally
             {

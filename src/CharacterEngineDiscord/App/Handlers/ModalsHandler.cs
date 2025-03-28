@@ -21,7 +21,7 @@ public class ModalsHandler
 {
     private readonly AppDbContext _db;
     private readonly DiscordSocketClient _discordClient;
-    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
     private readonly IntegrationsMaster _integrationsMaster;
 
     // private readonly CharactersRepository _charactersRepository;
@@ -31,7 +31,7 @@ public class ModalsHandler
     public ModalsHandler(
         AppDbContext db,
         DiscordSocketClient discordClient,
-        IntegrationsRepository integrationsRepository,
+        IntegrationsDbRepository integrationsDbRepository,
         IntegrationsMaster integrationsMaster
         // CharactersRepository charactersRepository,
         // CacheRepository cacheRepository
@@ -39,7 +39,7 @@ public class ModalsHandler
     {
         _db = db;
         _discordClient = discordClient;
-        _integrationsRepository = integrationsRepository;
+        _integrationsDbRepository = integrationsDbRepository;
         _integrationsMaster = integrationsMaster;
 
         // _charactersRepository = charactersRepository;
@@ -152,7 +152,7 @@ public class ModalsHandler
     private async Task CreateIntegrationAsync(SocketModal modal, int intergrationType)
     {
         var type = (IntegrationType)intergrationType;
-        var existingIntegration = await _integrationsRepository.GetGuildIntegrationAsync((ulong)modal.GuildId!, type);
+        var existingIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync((ulong)modal.GuildId!, type);
         if (existingIntegration is not null)
         {
             throw new UserFriendlyException($"This server already has {type.GetIcon()}{type:G} integration");

@@ -18,23 +18,23 @@ namespace CharacterEngine.App.Handlers;
 public class ButtonsHandler
 {
     private readonly DiscordSocketClient _discordClient;
-    private readonly CharactersRepository _charactersRepository;
-    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
     private readonly CacheRepository _cacheRepository;
     private readonly IntegrationsMaster _integrationsMaster;
 
 
     public ButtonsHandler(
         DiscordSocketClient discordClient,
-        CharactersRepository charactersRepository,
-        IntegrationsRepository integrationsRepository,
+        CharactersDbRepository charactersDbRepository,
+        IntegrationsDbRepository integrationsDbRepository,
         CacheRepository cacheRepository,
         IntegrationsMaster integrationsMaster
     )
     {
         _discordClient = discordClient;
-        _charactersRepository = charactersRepository;
-        _integrationsRepository = integrationsRepository;
+        _charactersDbRepository = charactersDbRepository;
+        _integrationsDbRepository = integrationsDbRepository;
         _cacheRepository = cacheRepository;
         _integrationsMaster = integrationsMaster;
     }
@@ -179,7 +179,7 @@ public class ButtonsHandler
                 var selectedCharacter = sq.SelectedCharacter;
                 selectedCharacter.IntegrationType = sq.IntegrationType;
 
-                var guildIntegration = await _integrationsRepository.GetGuildIntegrationAsync((ulong)component.GuildId!, selectedCharacter.IntegrationType);
+                var guildIntegration = await _integrationsDbRepository.GetGuildIntegrationAsync((ulong)component.GuildId!, selectedCharacter.IntegrationType);
                 ArgumentNullException.ThrowIfNull(guildIntegration);
 
                 var newSpawnedCharacter = await _integrationsMaster.SpawnCharacterAsync(channelId, selectedCharacter, guildIntegration);

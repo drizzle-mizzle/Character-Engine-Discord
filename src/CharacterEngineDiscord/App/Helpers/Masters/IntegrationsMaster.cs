@@ -21,13 +21,13 @@ public class IntegrationsMaster
 {
     private readonly AppDbContext _db;
     private readonly CacheRepository _cacheRepository;
-    private readonly CharactersRepository _charactersRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
 
-    public IntegrationsMaster(AppDbContext db, CacheRepository cacheRepository, CharactersRepository charactersRepository)
+    public IntegrationsMaster(AppDbContext db, CacheRepository cacheRepository, CharactersDbRepository charactersDbRepository)
     {
         _db = db;
         _cacheRepository = cacheRepository;
-        _charactersRepository = charactersRepository;
+        _charactersDbRepository = charactersDbRepository;
     }
 
 
@@ -45,7 +45,7 @@ public class IntegrationsMaster
         ISpawnedCharacter newSpawnedCharacter;
         try
         {
-            newSpawnedCharacter = await _charactersRepository.CreateSpawnedCharacterAsync(commonCharacter, webhook, guildIntegration);
+            newSpawnedCharacter = await _charactersDbRepository.CreateSpawnedCharacterAsync(commonCharacter, webhook, guildIntegration);
         }
         catch
         {
@@ -63,7 +63,7 @@ public class IntegrationsMaster
             throw;
         }
 
-        _cacheRepository.CachedCharacters.Add(newSpawnedCharacter, []);
+        _cacheRepository.CachedCharacters.Add(newSpawnedCharacter);
         MetricsWriter.Write(MetricType.CharacterSpawned, newSpawnedCharacter.Id, $"{newSpawnedCharacter.GetIntegrationType():G} | {newSpawnedCharacter.CharacterName}");
         return newSpawnedCharacter;
     }

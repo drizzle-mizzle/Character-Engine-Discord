@@ -26,21 +26,21 @@ namespace CharacterEngine.App.Handlers.SlashCommands;
 public class GuildCommands : InteractionModuleBase<InteractionContext>
 {
     private readonly AppDbContext _db;
-    private readonly CharactersRepository _charactersRepository;
-    private readonly IntegrationsRepository _integrationsRepository;
+    private readonly CharactersDbRepository _charactersDbRepository;
+    private readonly IntegrationsDbRepository _integrationsDbRepository;
     private readonly InteractionsMaster _interactionsMaster;
 
 
     public GuildCommands(
         AppDbContext db,
-        CharactersRepository charactersRepository,
-        IntegrationsRepository integrationsRepository,
+        CharactersDbRepository charactersDbRepository,
+        IntegrationsDbRepository integrationsDbRepository,
         InteractionsMaster interactionsMaster
     )
     {
         _db = db;
-        _charactersRepository = charactersRepository;
-        _integrationsRepository = integrationsRepository;
+        _charactersDbRepository = charactersDbRepository;
+        _integrationsDbRepository = integrationsDbRepository;
         _interactionsMaster = interactionsMaster;
     }
 
@@ -145,7 +145,7 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var characters = await _charactersRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
+        var characters = await _charactersDbRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
         if (characters.Count == 0)
         {
             await FollowupAsync(embed: "This server has no spawned characters".ToInlineEmbed(Color.Magenta));
@@ -164,14 +164,14 @@ public class GuildCommands : InteractionModuleBase<InteractionContext>
     {
         await DeferAsync();
 
-        var integrations = await _integrationsRepository.GetAllIntegrationsInGuildAsync(Context.Guild.Id);
+        var integrations = await _integrationsDbRepository.GetAllIntegrationsInGuildAsync(Context.Guild.Id);
         if (integrations.Count == 0)
         {
             await FollowupAsync(embed: "No integrations were found on this server".ToInlineEmbed(Color.Orange));
             return;
         }
 
-        var characters = await _charactersRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
+        var characters = await _charactersDbRepository.GetAllSpawnedCharactersInGuildAsync(Context.Guild.Id);
         var embed = new EmbedBuilder().WithColor(Color.Gold).WithTitle("Integrations");
 
         var list = new StringBuilder();

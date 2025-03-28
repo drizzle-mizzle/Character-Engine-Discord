@@ -17,13 +17,13 @@ using NLog;
 namespace CharacterEngine.App.Repositories;
 
 
-public class CharactersRepository : RepositoryBase
+public class CharactersDbRepository : RepositoryBase
 {
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly SemaphoreSlim _deletionLock = new(1, 1);
 
 
-    public CharactersRepository(AppDbContext db) : base(db) { }
+    public CharactersDbRepository(AppDbContext db) : base(db) { }
 
 
     public async Task<List<ISpawnedCharacter>> GetAllSpawnedCharactersAsync()
