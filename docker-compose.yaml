@@ -1,0 +1,10 @@
+services:
+  character_engine:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
