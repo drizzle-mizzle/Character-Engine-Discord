@@ -54,9 +54,9 @@ public class CharactersDbRepository : RepositoryBase
     {
         var result = new List<ISpawnedCharacter>();
 
-        result.AddRange(await DB.SakuraAiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
-        result.AddRange(await DB.CaiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
-        result.AddRange(await DB.OpenRouterSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel.DiscordGuildId == guildId).ToListAsync());
+        result.AddRange(await DB.SakuraAiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel!.DiscordGuildId == guildId).ToListAsync());
+        result.AddRange(await DB.CaiSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel!.DiscordGuildId == guildId).ToListAsync());
+        result.AddRange(await DB.OpenRouterSpawnedCharacters.Include(c => c.DiscordChannel).Where(c => c.DiscordChannel!.DiscordGuildId == guildId).ToListAsync());
 
         return result;
     }
@@ -66,7 +66,7 @@ public class CharactersDbRepository : RepositoryBase
     {
         return await DB.SakuraAiSpawnedCharacters.FindAsync(spawnedCharacterId) as ISpawnedCharacter
             ?? await DB.CaiSpawnedCharacters.FindAsync(spawnedCharacterId) as ISpawnedCharacter
-            ?? await DB.OpenRouterSpawnedCharacters.FindAsync(spawnedCharacterId) as ISpawnedCharacter;
+            ?? await DB.OpenRouterSpawnedCharacters.FindAsync(spawnedCharacterId);
     }
 
 

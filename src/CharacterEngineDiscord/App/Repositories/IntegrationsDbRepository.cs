@@ -15,7 +15,7 @@ public class IntegrationsDbRepository(AppDbContext db) : RepositoryBase(db)
     {
         return await DB.SakuraAiIntegrations.FindAsync(integrationId) as IGuildIntegration
             ?? await DB.CaiIntegrations.FindAsync(integrationId) as IGuildIntegration
-            ?? await DB.OpenRouterIntegrations.FindAsync(integrationId) as IGuildIntegration;
+            ?? await DB.OpenRouterIntegrations.FindAsync(integrationId);
     }
 
 

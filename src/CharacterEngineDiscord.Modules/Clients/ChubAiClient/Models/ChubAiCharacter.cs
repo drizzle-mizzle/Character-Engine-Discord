@@ -1,3 +1,4 @@
+#nullable disable
 namespace CharacterEngineDiscord.Modules.Clients.ChubAiClient.Models;
 
 

@@ -85,6 +85,6 @@ public sealed class CaiSpawnedCharacter : ICaiCharacter, ISpawnedCharacter
     [MaxLength(40)]
     public string? CaiChatId { get; set; }
 
-    public DiscordChannel DiscordChannel { get; set; } = null!;
+    public DiscordChannel? DiscordChannel { get; set; }
 
 }

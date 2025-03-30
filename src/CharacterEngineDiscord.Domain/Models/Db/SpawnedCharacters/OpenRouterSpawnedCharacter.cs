@@ -110,14 +110,14 @@ public class OpenRouterSpawnedCharacter : IOpenRouterCharacter, ISpawnedCharacte
     public string? AdoptedCharacterSystemPrompt { get; set; }
 
     [MaxLength(int.MaxValue)]
-    public string AdoptedCharacterDefinition { get; set; }
+    public string AdoptedCharacterDefinition { get; set; } = null!;
 
     [MaxLength(int.MaxValue)]
-    public string AdoptedCharacterDescription { get; set; }
+    public string AdoptedCharacterDescription { get; set; } = null!;
 
     [MaxLength(500)]
-    public string AdoptedCharacterLink { get; set; }
+    public string AdoptedCharacterLink { get; set; } = null!;
 
     [MaxLength(200)]
-    public string AdoptedCharacterAuthorLink { get; set; }
+    public string AdoptedCharacterAuthorLink { get; set; } = null!;
 }

@@ -26,7 +26,7 @@ public class ChubCharacterAdapter : AdoptableCharacterAdapter<ChubAiCharacter>
     {
         CharacterId = Character.FullPath,
         CharacterName = Character.Name,
-        CharacterFirstMessage = Character.Definition?.First_message,
+        CharacterFirstMessage = Character.Definition?.First_message ?? $"*{Character.Name} has joined the server*",
         CharacterAuthor = Character.FullPath.Contains('/') ? Character.FullPath.Split('/').First() : Character.FullPath,
         CharacterImageLink = Character.Avatar_url,
         IsNfsw = Character.Nsfw_image,

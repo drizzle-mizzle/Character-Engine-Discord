@@ -1,5 +1,4 @@
 using CharacterEngine.App.Helpers.Discord;
-using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Services;
 using CharacterEngineDiscord.Domain.Models.Db;
 using CharacterEngineDiscord.Models;

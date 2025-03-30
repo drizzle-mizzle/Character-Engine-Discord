@@ -18,7 +18,7 @@ public sealed class CaiGuildIntegration : ICaiIntegration, IGuildIntegration
     public required ulong DiscordGuildId { get; set; }
 
     [MaxLength(300)]
-    public string? GlobalMessagesFormat { get; set; } = null;
+    public string? GlobalMessagesFormat { get; set; }
 
     public required DateTime CreatedAt { get; set; }
 

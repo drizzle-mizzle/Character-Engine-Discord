@@ -374,7 +374,7 @@ public static class MessagesHelper
         }
 
         var refContent = refMessage.Value.content;
-        var refAuthor = refMessage.Value.authorName.Replace(' ', '_');;
+        var refAuthor = refMessage.Value.authorName.Replace(' ', '_');
 
         // Replace @mentions with normal names
         var userMentions = USER_MENTION_REGEX.Matches(refContent).ToArray();

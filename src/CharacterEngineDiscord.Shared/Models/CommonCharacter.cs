@@ -7,7 +7,7 @@ public record CommonCharacter : ICharacter
 {
     public required string CharacterId { get; set; }
     public required string CharacterName { get; set; }
-    public required string? CharacterFirstMessage { get; set; }
+    public required string CharacterFirstMessage { get; set; }
     public required string CharacterAuthor { get; set; }
     public required string? CharacterImageLink { get; set; }
 

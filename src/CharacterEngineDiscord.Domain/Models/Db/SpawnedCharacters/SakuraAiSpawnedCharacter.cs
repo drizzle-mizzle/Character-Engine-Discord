@@ -100,6 +100,6 @@ public sealed class SakuraAiSpawnedCharacter : ISakuraCharacter, ISpawnedCharact
 
 
 
-    public DiscordChannel DiscordChannel { get; set; } = null!;
+    public DiscordChannel? DiscordChannel { get; set; }
 
 }
