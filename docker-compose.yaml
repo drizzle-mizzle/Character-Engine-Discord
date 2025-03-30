@@ -1,6 +1,7 @@
 services:
   character_engine:
     restart: unless-stopped
+    network_mode: host
     build:
       context: .
       dockerfile: Dockerfile
