@@ -388,9 +388,9 @@ public class MessagesHandler
 
 
 
-    private static string ReformatUserMessage(IUserMessage socketUserMessage, string characterCallPrefix, string messageFormat)
+    private static string ReformatUserMessage(IUserMessage userMessage, string characterCallPrefix, string messageFormat)
     {
-        var message = socketUserMessage.Content.Trim(' ', '\n');
+        var message = userMessage.Content.Trim(' ', '\n');
 
         if (message.StartsWith(characterCallPrefix, StringComparison.Ordinal))
         {
@@ -403,17 +403,17 @@ public class MessagesHandler
         }
 
         (string, string)? refMessage = null;
-        if (socketUserMessage.ReferencedMessage is not null && !string.IsNullOrWhiteSpace(socketUserMessage.ReferencedMessage.Content))
+        if (userMessage.ReferencedMessage is not null && !string.IsNullOrWhiteSpace(userMessage.ReferencedMessage.Content))
         {
-            var refAuthor = socketUserMessage.ReferencedMessage.Author;
-            var refMsg = socketUserMessage.ReferencedMessage.Content.Trim(' ', '\n').Replace('\n', ' ');
+            var refAuthor = userMessage.ReferencedMessage.Author;
+            var refMsg = userMessage.ReferencedMessage.Content.Trim(' ', '\n').Replace('\n', ' ');
 
             var refAuthorName = refAuthor is IGuildUser gu ? gu.DisplayName ?? gu.Username : refAuthor.GlobalName ?? refAuthor.Username;
             refMessage = (refAuthorName, refMsg);
         }
 
-        var channel = (ITextChannel)socketUserMessage.Channel;
-        var author = socketUserMessage.Author;
+        var channel = (ITextChannel)userMessage.Channel;
+        var author = userMessage.Author;
         var authorName = author is IGuildUser gAuthor ? gAuthor.DisplayName ?? gAuthor.Username : author.GlobalName ?? author.Username;
 
         return MH.BringMessageToFormat(messageFormat, channel, (authorName, author.Mention, message), refMessage);

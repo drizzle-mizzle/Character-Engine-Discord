@@ -213,6 +213,7 @@ public class CharacterCommands : InteractionModuleBase<InteractionContext>
             {
                 var history = _db.ChatHistories.Where(message => message.SpawnedCharacterId == spawnedCharacter.Id);
                 _db.ChatHistories.RemoveRange(history);
+                await _db.SaveChangesAsync();
                 break;
             }
             case CaiSpawnedCharacter caiSpawnedCharacter:

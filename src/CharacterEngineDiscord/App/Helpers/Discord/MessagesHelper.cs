@@ -355,7 +355,7 @@ public static class MessagesHelper
                                               (string authorName, string content)? refMessage = null)
     {
         var result = messageFormat.Replace("\\n", "\n")
-                                  .Replace(MF_USER, message.authorName)
+                                  .Replace(MF_USER, message.authorName.Replace(' ', '_'))
                                   .Replace(MF_USER_MENTION_HINT, message.authorMention)
                                   .Replace(MF_MSG, message.content)
                                   .Replace(MF_DATETIME, DateTime.Now.Humanize());
@@ -374,7 +374,7 @@ public static class MessagesHelper
         }
 
         var refContent = refMessage.Value.content;
-        var refAuthor = refMessage.Value.authorName;
+        var refAuthor = refMessage.Value.authorName.Replace(' ', '_');;
 
         // Replace @mentions with normal names
         var userMentions = USER_MENTION_REGEX.Matches(refContent).ToArray();
@@ -386,7 +386,7 @@ public static class MessagesHelper
                 continue;
             }
 
-            refContent = refContent.Replace(mention.Value, '@' + mentionedUser.DisplayName);
+            refContent = refContent.Replace(mention.Value, '@' + mentionedUser.DisplayName.Replace(' ', '_'));
         }
 
         // Replace @roles with normal role names
@@ -400,7 +400,7 @@ public static class MessagesHelper
                 continue;
             }
 
-            refContent = refContent.Replace(mention.Value, '@' + mentionedRole.Name);
+            refContent = refContent.Replace(mention.Value, '@' + mentionedRole.Name.Replace(' ', '_'));
         }
 
         if (refContent.Length > 155)

@@ -26,10 +26,7 @@ public static class MetricsWriter
 
     public static void Write(MetricType metricType, object? entityId = null, string? payload = null, bool silent = false)
     {
-        Task.Run(async () =>
-        {
-            _ = await WriteAsync(metricType, entityId, payload, silent);
-        });
+        _ = WriteAsync(metricType, entityId, payload, silent);
     }
 
 

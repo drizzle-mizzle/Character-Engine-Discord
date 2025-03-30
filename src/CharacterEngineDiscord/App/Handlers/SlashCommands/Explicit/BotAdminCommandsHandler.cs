@@ -12,6 +12,15 @@ namespace CharacterEngine.App.Handlers.SlashCommands.Explicit;
 
 public class BotAdminCommandsHandler
 {
+    private readonly AppDbContext _db;
+
+
+    public BotAdminCommandsHandler(AppDbContext db)
+    {
+        _db = db;
+    }
+
+
     public async Task ShutdownAsync(SocketSlashCommand command)
     {
         await command.RespondAsync(embed: "T_T".ToInlineEmbed(Color.Green));
@@ -50,11 +59,9 @@ public class BotAdminCommandsHandler
         Metric[] metrics;
         DateTime? sinceDt = null;
 
-
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
         if (rangeType == 0) // all-time
         {
-            metrics = await db.Metrics.ToArrayAsync();
+            metrics = await _db.Metrics.ToArrayAsync();
         }
         else
         {
@@ -67,7 +74,7 @@ public class BotAdminCommandsHandler
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            metrics = await db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
+            metrics = await _db.Metrics.Where(m => m.CreatedAt >= sinceDt).ToArrayAsync();
         }
 
         var metricsReport = MessagesHelper.BuildMetricsReport(metrics, sinceDt);
