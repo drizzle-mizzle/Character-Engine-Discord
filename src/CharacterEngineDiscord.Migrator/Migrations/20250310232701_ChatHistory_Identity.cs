@@ -4,7 +4,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     /// <inheritdoc />
     public partial class ChatHistory_Identity : Migration

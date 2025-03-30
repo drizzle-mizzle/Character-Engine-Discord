@@ -18,7 +18,12 @@ internal static class Program
 
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-        var connectionStringPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "connection-string");
+        var connectionStringPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "env.connection-string");
+        if (!File.Exists(connectionStringPath))
+        {
+            connectionStringPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "connection-string");
+        }
+
         var connectionString = await File.ReadAllTextAsync(connectionStringPath);
 
         await using var db = new AppDbContext(connectionString);

@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20250310232811_ChatHistory_Index")]

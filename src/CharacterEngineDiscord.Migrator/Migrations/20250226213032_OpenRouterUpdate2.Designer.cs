@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250310231338_ChatHistory_PK")]
-    partial class ChatHistory_PK
+    [Migration("20250226213032_OpenRouterUpdate2")]
+    partial class OpenRouterUpdate2
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -74,8 +74,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Domain.Models.Db.CharacterChatHistory", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("SpawnedCharacterId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -83,7 +82,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
@@ -91,10 +89,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("SpawnedCharacterId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
+                    b.HasKey("SpawnedCharacterId", "CreatedAt");
 
                     b.HasIndex("SpawnedCharacterId");
 
@@ -328,10 +323,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<float?>("OpenRouterTopP")
                         .HasColumnType("real");
 
-                    b.Property<string>("SystemPrompt")
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
                     b.HasIndex("DiscordGuildId");
@@ -538,11 +529,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<string>("AdoptedCharacterDefinition")
-                        .IsRequired()
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
-
-                    b.Property<string>("AdoptedCharacterDescription")
                         .IsRequired()
                         .HasMaxLength(2147483647)
                         .HasColumnType("text");
@@ -775,8 +761,17 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
+                    b.Property<string>("SakuraExampleDialog")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
                     b.Property<int>("SakuraMessagesCount")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SakuraPersona")
+                        .IsRequired()
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
 
                     b.Property<string>("SakuraScenario")
                         .IsRequired()

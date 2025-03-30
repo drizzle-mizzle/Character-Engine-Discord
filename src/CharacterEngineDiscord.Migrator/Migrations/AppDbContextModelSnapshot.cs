@@ -3,24 +3,21 @@ using System;
 using CharacterEngineDiscord.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250226203404_Initial")]
-    partial class Initial
+    partial class AppDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.10")
+                .HasAnnotation("ProductVersion", "9.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -74,6 +71,12 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Domain.Models.Db.CharacterChatHistory", b =>
                 {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
                     b.Property<Guid>("SpawnedCharacterId")
                         .HasColumnType("uuid");
 
@@ -82,6 +85,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("Message")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
@@ -89,9 +93,9 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.HasKey("SpawnedCharacterId", "CreatedAt");
+                    b.HasKey("Id", "SpawnedCharacterId");
 
-                    b.HasIndex("SpawnedCharacterId");
+                    b.HasIndex("Id", "SpawnedCharacterId");
 
                     b.ToTable("ChatHistories");
                 });
@@ -116,6 +120,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<bool>("NoWarn")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -162,6 +170,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<string>("OwnerUsername")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -323,6 +335,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<float?>("OpenRouterTopP")
                         .HasColumnType("real");
 
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DiscordGuildId");
@@ -405,16 +421,15 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("CaiChatId")
-                        .HasColumnType("text");
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<int>("CaiChatsCount")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CaiDefinition")
-                        .HasColumnType("text");
-
                     b.Property<string>("CaiDescription")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<bool>("CaiImageGenEnabled")
@@ -422,7 +437,8 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("CaiTitle")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
 
                     b.Property<string>("CallPrefix")
                         .IsRequired()
@@ -436,6 +452,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("CharacterFirstMessage")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("CharacterId")
@@ -444,7 +461,8 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("CharacterImageLink")
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("CharacterName")
                         .IsRequired()
@@ -521,13 +539,37 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AdoptedCharacterAuthorLink")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AdoptedCharacterDefinition")
+                        .IsRequired()
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdoptedCharacterDescription")
+                        .IsRequired()
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdoptedCharacterLink")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("AdoptedCharacterSourceType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AdoptedCharacterSystemPrompt")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
                     b.Property<string>("CallPrefix")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<string>("CardCharacterDescription")
-                        .HasColumnType("text");
 
                     b.Property<string>("CharacterAuthor")
                         .IsRequired()
@@ -536,6 +578,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("CharacterFirstMessage")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("CharacterId")
@@ -544,19 +587,13 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("CharacterImageLink")
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("CharacterName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<int>("CharacterSourceType")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("CharacterStat")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<decimal>("DiscordChannelId")
                         .HasColumnType("numeric(20,0)");
@@ -598,16 +635,13 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<long>("MessagesSent")
                         .HasColumnType("bigint");
 
-                    b.Property<float?>("OpenRouterFrequencyPenalty")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterFrequencyPenalty")
                         .HasColumnType("real");
 
-                    b.Property<int?>("OpenRouterMaxTokens")
-                        .IsRequired()
+                    b.Property<int>("OpenRouterMaxTokens")
                         .HasColumnType("integer");
 
-                    b.Property<float?>("OpenRouterMinP")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterMinP")
                         .HasColumnType("real");
 
                     b.Property<string>("OpenRouterModel")
@@ -615,28 +649,22 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<float?>("OpenRouterPresencePenalty")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterPresencePenalty")
                         .HasColumnType("real");
 
-                    b.Property<float?>("OpenRouterRepetitionPenalty")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterRepetitionPenalty")
                         .HasColumnType("real");
 
-                    b.Property<float?>("OpenRouterTemperature")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterTemperature")
                         .HasColumnType("real");
 
-                    b.Property<float?>("OpenRouterTopA")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterTopA")
                         .HasColumnType("real");
 
-                    b.Property<int?>("OpenRouterTopK")
-                        .IsRequired()
+                    b.Property<int>("OpenRouterTopK")
                         .HasColumnType("integer");
 
-                    b.Property<float?>("OpenRouterTopP")
-                        .IsRequired()
+                    b.Property<float>("OpenRouterTopP")
                         .HasColumnType("real");
 
                     b.Property<long>("ResponseDelay")
@@ -681,6 +709,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("CharacterFirstMessage")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("CharacterId")
@@ -689,7 +718,8 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("CharacterImageLink")
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("CharacterName")
                         .IsRequired()
@@ -744,17 +774,15 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("SakuraDescription")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<int>("SakuraMessagesCount")
                         .HasColumnType("integer");
 
-                    b.Property<string>("SakuraPersona")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("SakuraScenario")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<bool>("SkipNextBotMessage")

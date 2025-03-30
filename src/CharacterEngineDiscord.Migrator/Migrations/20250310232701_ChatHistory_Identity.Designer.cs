@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250312211017_SystemPrompts")]
-    partial class SystemPrompts
+    [Migration("20250310232701_ChatHistory_Identity")]
+    partial class ChatHistory_Identity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -98,7 +98,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.HasKey("Id", "SpawnedCharacterId");
 
-                    b.HasIndex("Id", "SpawnedCharacterId");
+                    b.HasIndex("SpawnedCharacterId");
 
                     b.ToTable("ChatHistories");
                 });
@@ -123,10 +123,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<bool>("NoWarn")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("SystemPrompt")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -173,10 +169,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<string>("OwnerUsername")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SystemPrompt")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -564,10 +556,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<int>("AdoptedCharacterSourceType")
                         .HasColumnType("integer");
-
-                    b.Property<string>("AdoptedCharacterSystemPrompt")
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
 
                     b.Property<string>("CallPrefix")
                         .IsRequired()

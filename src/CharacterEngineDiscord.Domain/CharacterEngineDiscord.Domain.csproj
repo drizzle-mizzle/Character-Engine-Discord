@@ -40,8 +40,4 @@
       <ProjectReference Include="..\CharacterEngineDiscord.Shared\CharacterEngineDiscord.Shared.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Migrations\" />
-    </ItemGroup>
-
 </Project>

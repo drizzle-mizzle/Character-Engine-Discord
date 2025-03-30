@@ -2,19 +2,19 @@
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     /// <inheritdoc />
-    public partial class OpenRouterUpdate2 : Migration
+    public partial class Add_AdoptedCharacterDescription : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "AdoptedCharacterAuthorLink",
+                name: "AdoptedCharacterDescription",
                 table: "OpenRouterSpawnedCharacters",
-                type: "character varying(200)",
-                maxLength: 200,
+                type: "text",
+                maxLength: 2147483647,
                 nullable: false,
                 defaultValue: "");
         }
@@ -23,7 +23,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "AdoptedCharacterAuthorLink",
+                name: "AdoptedCharacterDescription",
                 table: "OpenRouterSpawnedCharacters");
         }
     }

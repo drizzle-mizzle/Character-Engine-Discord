@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250226213032_OpenRouterUpdate2")]
-    partial class OpenRouterUpdate2
+    [Migration("20250310225834_Add_SystemPrompt")]
+    partial class Add_SystemPrompt
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -82,6 +82,7 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<string>("Message")
                         .IsRequired()
+                        .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
@@ -323,6 +324,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<float?>("OpenRouterTopP")
                         .HasColumnType("real");
 
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DiscordGuildId");
@@ -529,6 +534,11 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<string>("AdoptedCharacterDefinition")
+                        .IsRequired()
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
+
+                    b.Property<string>("AdoptedCharacterDescription")
                         .IsRequired()
                         .HasMaxLength(2147483647)
                         .HasColumnType("text");
@@ -761,17 +771,8 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(2147483647)
                         .HasColumnType("text");
 
-                    b.Property<string>("SakuraExampleDialog")
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
-
                     b.Property<int>("SakuraMessagesCount")
                         .HasColumnType("integer");
-
-                    b.Property<string>("SakuraPersona")
-                        .IsRequired()
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
 
                     b.Property<string>("SakuraScenario")
                         .IsRequired()

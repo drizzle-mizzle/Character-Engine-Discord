@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     /// <inheritdoc />
     public partial class Add_SystemPrompt : Migration

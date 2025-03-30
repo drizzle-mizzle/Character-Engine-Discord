@@ -3,17 +3,20 @@ using System;
 using CharacterEngineDiscord.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250310231338_ChatHistory_PK")]
+    partial class ChatHistory_PK
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -71,13 +74,8 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Domain.Models.Db.CharacterChatHistory", b =>
                 {
-                    b.Property<long>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<Guid>("SpawnedCharacterId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -93,9 +91,12 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.HasKey("Id", "SpawnedCharacterId");
+                    b.Property<Guid>("SpawnedCharacterId")
+                        .HasColumnType("uuid");
 
-                    b.HasIndex("Id", "SpawnedCharacterId");
+                    b.HasKey("Id");
+
+                    b.HasIndex("SpawnedCharacterId");
 
                     b.ToTable("ChatHistories");
                 });
@@ -120,10 +121,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<bool>("NoWarn")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("SystemPrompt")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -170,10 +167,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<string>("OwnerUsername")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SystemPrompt")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -561,10 +554,6 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<int>("AdoptedCharacterSourceType")
                         .HasColumnType("integer");
-
-                    b.Property<string>("AdoptedCharacterSystemPrompt")
-                        .HasMaxLength(2147483647)
-                        .HasColumnType("text");
 
                     b.Property<string>("CallPrefix")
                         .IsRequired()

@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace CharacterEngineDiscord.Domain.Migrations
+namespace CharacterEngineDiscord.Migrator.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250310225834_Add_SystemPrompt")]
-    partial class Add_SystemPrompt
+    [Migration("20250312211017_SystemPrompts")]
+    partial class SystemPrompts
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -74,6 +74,12 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
             modelBuilder.Entity("CharacterEngineDiscord.Domain.Models.Db.CharacterChatHistory", b =>
                 {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
                     b.Property<Guid>("SpawnedCharacterId")
                         .HasColumnType("uuid");
 
@@ -90,9 +96,9 @@ namespace CharacterEngineDiscord.Domain.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.HasKey("SpawnedCharacterId", "CreatedAt");
+                    b.HasKey("Id", "SpawnedCharacterId");
 
-                    b.HasIndex("SpawnedCharacterId");
+                    b.HasIndex("Id", "SpawnedCharacterId");
 
                     b.ToTable("ChatHistories");
                 });
@@ -117,6 +123,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<bool>("NoWarn")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -163,6 +173,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
                     b.Property<string>("OwnerUsername")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SystemPrompt")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
@@ -550,6 +564,10 @@ namespace CharacterEngineDiscord.Domain.Migrations
 
                     b.Property<int>("AdoptedCharacterSourceType")
                         .HasColumnType("integer");
+
+                    b.Property<string>("AdoptedCharacterSystemPrompt")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("text");
 
                     b.Property<string>("CallPrefix")
                         .IsRequired()

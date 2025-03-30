@@ -3,6 +3,7 @@ using CharacterEngineDiscord.Domain.Models.Db.Discord;
 using CharacterEngineDiscord.Domain.Models.Db.Integrations;
 using CharacterEngineDiscord.Domain.Models.Db.SpawnedCharacters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 // ReSharper disable once CheckNamespace
 namespace CharacterEngineDiscord.Models;
@@ -21,7 +22,8 @@ public sealed class AppDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseNpgsql(CONNECTION_STRING);
+        optionsBuilder.UseNpgsql(CONNECTION_STRING, options => options.MigrationsAssembly("CharacterEngineDiscord.Migrator"))
+                      .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
