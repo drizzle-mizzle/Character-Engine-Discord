@@ -1,5 +1,6 @@
 services:
   character_engine:
+    container_name: character-engine
     restart: unless-stopped
     network_mode: host
     build:
