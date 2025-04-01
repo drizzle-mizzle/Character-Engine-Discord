@@ -55,6 +55,10 @@ public class ModalsHandler
             {
                 await HandleModalAsync(modal);
             }
+            catch (OutOfMemoryException)
+            {
+                Environment.Exit(666);
+            }
             catch (Exception e)
             {
                 var traceId = CommonHelper.NewTraceId();

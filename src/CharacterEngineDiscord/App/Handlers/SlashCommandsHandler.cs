@@ -48,6 +48,10 @@ public class SlashCommandsHandler
             {
                 await HandleSlashCommandAsync(command);
             }
+            catch (OutOfMemoryException)
+            {
+                Environment.Exit(666);
+            }
             catch (Exception e)
             {
                 if (e is UnauthorizedAccessException or UserFriendlyException)

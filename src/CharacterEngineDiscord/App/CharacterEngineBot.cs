@@ -112,14 +112,15 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
-            var ensureCommandsRegisteredAsync = EnsureCommandsRegisteredAsync(guild);
+            await using var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
+
+            _ = cacheRepo.EnsureGuildCached(guild);
+            _ = EnsureCommandsRegisteredAsync(guild);
 
             MetricsWriter.Write(MetricType.JoinedGuild, guild.Id);
             var message = $"Joined server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}\nDescription: {guild.Description ?? "none"}";
 
             await _discordClient.ReportLogAsync(message, color: Color.Gold, imageUrl: guild.IconUrl);
-            await ensureCommandsRegisteredAsync;
         });
 
         return Task.CompletedTask;
@@ -130,7 +131,8 @@ public sealed class CharacterEngineBot
     {
         Task.Run(async () =>
         {
-            _ = _serviceProvider.GetRequiredService<CacheRepository>().EnsureGuildCached(guild);
+            await using var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
+            _ = cacheRepo.EnsureGuildCached(guild);
 
             MetricsWriter.Write(MetricType.LeftGuild, guild.Id);
             var message = $"Left server **{guild.Name}** ({guild.Id})\nOwner: {await GetGuildOwnerNameAsync(guild)}\nMembers: {guild.MemberCount}";
@@ -282,7 +284,7 @@ public sealed class CharacterEngineBot
     }
 
 
-    private async Task EnsureCommandsRegisteredAsync(SocketGuild guild)
+    private async ValueTask EnsureCommandsRegisteredAsync(SocketGuild guild)
     {
         var commands = await guild.GetApplicationCommandsAsync();
         if (commands.Count == 0)

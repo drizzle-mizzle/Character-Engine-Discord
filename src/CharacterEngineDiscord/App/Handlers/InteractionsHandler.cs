@@ -33,6 +33,10 @@ public class InteractionsHandler
             {
                 // care not
             }
+            catch (OutOfMemoryException)
+            {
+                Environment.Exit(666);
+            }
             catch (Exception e)
             {
                 await _discordClient.ReportErrorAsync("HandleInteraction", null, e, traceId, false);

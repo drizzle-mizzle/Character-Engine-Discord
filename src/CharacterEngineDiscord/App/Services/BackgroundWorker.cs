@@ -204,7 +204,7 @@ public static class BackgroundWorker
 
     private static Task ClearCache(string traceId)
     {
-        var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
+        using var cacheRepo = _serviceProvider.GetRequiredService<CacheRepository>();
 
         var webhookIds = cacheRepo.CachedWebhookClients.GetAll().Where(c => (DateTime.Now - c.Value.LastHitAt).TotalMinutes > 10).Select(c => c.Key).ToArray();
         foreach (var webhookId in webhookIds)
