@@ -45,6 +45,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\CharacterEngineDiscord.Migrator\CharacterEngineDiscord.Migrator.csproj" />
       <ProjectReference Include="..\CharacterEngineDiscord.Modules\CharacterEngineDiscord.Modules.csproj" />
       <ProjectReference Include="..\CharacterEngineDiscord.Domain\CharacterEngineDiscord.Domain.csproj" />
     </ItemGroup>

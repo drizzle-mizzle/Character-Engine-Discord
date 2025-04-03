@@ -1,10 +1,9 @@
 services:
   character_engine:
-    container_name: character-engine
+    container_name: ce_app
     restart: unless-stopped
-    network_mode: host
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     build:
       context: .
@@ -13,7 +12,8 @@ services:
       resources:
         limits:
           memory: 3072M
-  postgres:
+          
+  db:
     image: postgres:latest
     container_name: pg
     env_file:

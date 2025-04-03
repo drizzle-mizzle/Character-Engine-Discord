@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using NLog;
 using NLog.Config;
 using CharacterEngineDiscord.Domain.Models.Db;
+using CharacterEngineDiscord.Migrator;
 using CharacterEngineDiscord.Models;
 
 namespace CharacterEngine
@@ -43,6 +44,8 @@ namespace CharacterEngine
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+            Migrator.Run(BotConfig.DATABASE_CONNECTION_STRING);
+
             MetricsWriter.Write(MetricType.ApplicationLaunch);
 
             await CharacterEngineBot.RunAsync();
