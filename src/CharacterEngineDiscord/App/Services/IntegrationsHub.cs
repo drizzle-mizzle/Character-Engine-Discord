@@ -1,3 +1,4 @@
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Modules.Abstractions;
 using CharacterEngineDiscord.Modules.Modules.Chat;
@@ -14,7 +15,7 @@ public static class IntegrationsHub
 
     public static CaiModule CharacterAiModule { get; } = new();
 
-    public static OpenRouterModule OpenRouterModule { get; } = new(BotConfig.DATABASE_CONNECTION_STRING, BotConfig.DEFAULT_SYSTEM_PROMPT);
+    public static OpenRouterModule OpenRouterModule { get; } = new(DatabaseHelper.DbConnectionString, BotConfig.DEFAULT_SYSTEM_PROMPT);
 
     public static ChubAiModule ChubAiModule { get; } = new();
 

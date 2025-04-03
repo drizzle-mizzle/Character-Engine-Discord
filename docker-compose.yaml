@@ -1,10 +1,6 @@
 services:
   character_engine:
     container_name: ce_app
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,6 +8,16 @@ services:
       resources:
         limits:
           memory: 3072M
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    restart: unless-stopped
           
   db:
     image: postgres:latest
@@ -24,9 +30,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5532:5432"
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped

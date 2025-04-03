@@ -1,5 +1,6 @@
 ﻿using CharacterEngine.App;
 using CharacterEngine.App.Exceptions;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Infrastructure;
 using CharacterEngine.App.Services;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +45,7 @@ namespace CharacterEngine
             };
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-            Migrator.Run(BotConfig.DATABASE_CONNECTION_STRING);
+            Migrator.Run(DatabaseHelper.DbConnectionString);
 
             MetricsWriter.Write(MetricType.ApplicationLaunch);
 

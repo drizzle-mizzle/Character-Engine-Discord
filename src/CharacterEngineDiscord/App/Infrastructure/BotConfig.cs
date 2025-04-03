@@ -34,8 +34,6 @@ public static class BotConfig
         => GetParamByName<string>("DEFAULT_AVATAR_FILE");
 
 
-    public static readonly string DATABASE_CONNECTION_STRING = GetParamByName<string>("DATABASE_CONNECTION_STRING");
-
     public static readonly string SAKURA_AI_EMOJI = GetParamByName<string>("SAKURA_AI_EMOJI");
 
     public static readonly string CHARACTER_AI_EMOJI = GetParamByName<string>("CHARACTER_AI_EMOJI");

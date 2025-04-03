@@ -4,6 +4,7 @@ using System.Reflection;
 using CharacterEngine.App.Exceptions;
 using CharacterEngine.App.Handlers;
 using CharacterEngine.App.Handlers.SlashCommands.Explicit;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Helpers.Masters;
 using CharacterEngine.App.Infrastructure;
@@ -49,7 +50,7 @@ public sealed class CharacterEngineBot
         services.AddTransient<MessagesHandler>();
         services.AddTransient<ButtonsHandler>();
         services.AddTransient<ModalsHandler>();
-        services.AddTransient<AppDbContext>(_ => new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING));
+        services.AddTransient<AppDbContext>(_ => new AppDbContext(DatabaseHelper.DbConnectionString));
 
         services.AddTransient<CharactersDbRepository>();
         services.AddTransient<IntegrationsDbRepository>();
@@ -200,7 +201,7 @@ public sealed class CharacterEngineBot
     {
         var characters = Task.Run(async () =>
         {
-            await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+            await using var db = new AppDbContext(DatabaseHelper.DbConnectionString);
             await using var cacheRepository = new CacheRepository(db);
             await using var charactersRepository = new CharactersDbRepository(db);
 
@@ -222,7 +223,7 @@ public sealed class CharacterEngineBot
 
         var users = Task.Run(async () =>
         {
-            await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+            await using var db = new AppDbContext(DatabaseHelper.DbConnectionString);
             await using var cacheRepository = new CacheRepository(db);
 
             var allUsers = await db.DiscordUsers.AsNoTracking().Select(u => u.Id).ToArrayAsync();

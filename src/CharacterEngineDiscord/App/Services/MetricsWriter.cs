@@ -1,4 +1,5 @@
 using System.Text;
+using CharacterEngine.App.Helpers;
 using CharacterEngine.App.Helpers.Discord;
 using CharacterEngine.App.Infrastructure;
 using CharacterEngineDiscord.Domain.Models.Db;
@@ -58,7 +59,7 @@ public static class MetricsWriter
             _log.Info(msg.ToString());
         }
 
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+        await using var db = new AppDbContext(DatabaseHelper.DbConnectionString);
         db.Metrics.Add(metric);
         await db.SaveChangesAsync();
 

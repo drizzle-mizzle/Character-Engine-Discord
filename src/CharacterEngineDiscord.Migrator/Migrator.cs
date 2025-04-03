@@ -14,7 +14,7 @@ public class Migrator
 
 
     public static void Run(string connectionString)
-        => new Migrator().RunAsync(connectionString).Wait();
+        => new Migrator().RunAsync(connectionString).GetAwaiter().GetResult();
 
 
     private async Task RunAsync(string connectionString)

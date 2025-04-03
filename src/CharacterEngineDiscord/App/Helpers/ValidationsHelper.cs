@@ -29,7 +29,7 @@ public static class ValidationsHelper
         var checkedIds = user.Roles.Select(r => r.Id).Append(user.Id).ToArray();
 
         // TODO: Cache
-        await using var db = new AppDbContext(BotConfig.DATABASE_CONNECTION_STRING);
+        await using var db = new AppDbContext(DatabaseHelper.DbConnectionString);
         return await db.GuildBotManagers
                        .Where(manager => manager.DiscordGuildId == user.Guild.Id)
                        .Select(manager => manager.DiscordUserOrRoleId) // ids of all manager-users and manager-roles
