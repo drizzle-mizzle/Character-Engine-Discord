@@ -1,0 +1,10 @@
+*.user
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*/.idea
+*.idea
+env.*
+.vs/
+.env
