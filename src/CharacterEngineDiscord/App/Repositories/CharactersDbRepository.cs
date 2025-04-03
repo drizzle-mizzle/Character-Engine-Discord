@@ -62,7 +62,7 @@ public class CharactersDbRepository : RepositoryBase
     }
 
 
-    public async Task<ISpawnedCharacter?> GetSpawnedCharacterByIdAsync(Guid spawnedCharacterId)
+    public async ValueTask<ISpawnedCharacter?> GetSpawnedCharacterByIdAsync(Guid spawnedCharacterId)
     {
         return await DB.SakuraAiSpawnedCharacters.FindAsync(spawnedCharacterId) as ISpawnedCharacter
             ?? await DB.CaiSpawnedCharacters.FindAsync(spawnedCharacterId) as ISpawnedCharacter

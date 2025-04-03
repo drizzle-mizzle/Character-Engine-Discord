@@ -53,11 +53,12 @@ public sealed class CachedCharacerInfoStorage
     }
 
 
-    public List<CachedCharacterInfo> ToList()
-        => _cachedCharacters.Values.ToList();
+    public ICollection<CachedCharacterInfo> GetAll()
+        => _cachedCharacters.Values;
 
-    public List<CachedCharacterInfo> ToList(ulong channelId)
-        => _cachedCharacters.Values.Where(c => c.ChannelId == channelId).ToList();
+
+    public IEnumerable<CachedCharacterInfo> GetAll(ulong channelId)
+        => GetAll().Where(c => c.ChannelId == channelId);
 }
 
 

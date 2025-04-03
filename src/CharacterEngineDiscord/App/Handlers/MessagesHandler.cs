@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using CharacterAi.Client.Exceptions;
 using CharacterEngine.App.Exceptions;
@@ -131,29 +132,29 @@ public class MessagesHandler
             var primaryChannelId = textChannel is SocketThreadChannel threadChannel ? threadChannel.ParentChannel.Id : textChannel.Id;
             var callTasks = new List<Task>();
 
-            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, primaryChannelId)
-                               ?? await FindCharacterByPrefixAsync(socketUserMessage, primaryChannelId);
+            var stringAuthorId = socketUserMessage.Author.Id.ToString();
+            var cachedCharacters = _cacheRepository.CachedCharacters
+                                                   .GetAll(primaryChannelId)
+                                                   .Where(c => !c.WebhookId.StartsWith(stringAuthorId, StringComparison.OrdinalIgnoreCase))
+                                                   .ToImmutableArray();
+
+            var taggedCharacter = await FindCharacterByReplyAsync(socketUserMessage, cachedCharacters)
+                               ?? await FindCharacterByPrefixAsync(socketUserMessage, cachedCharacters);
 
             if (taggedCharacter is not null)
             {
                 callTasks.Add(CallCharacterAsync(taggedCharacter, socketUserMessage, false));
             }
 
-            var cachedCharacters = _cacheRepository.CachedCharacters
-                                                   .ToList(primaryChannelId)
-                                                   .Where(c => c.FreewillFactor > 0 && c.WebhookId != socketUserMessage.Author.Id.ToString())
-                                                   .ToList();
-
-            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters);
-
+            var randomCharacter = await FindRandomCharacterAsync(socketUserMessage, cachedCharacters.Where(c => c.FreewillFactor > 0));
             if (randomCharacter is not null && randomCharacter.Id != taggedCharacter?.Id)
             {
                 callTasks.Add(CallCharacterAsync(randomCharacter, socketUserMessage, isIndirectCall: true));
             }
 
-            var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters);
+            var hunterCharacters = await FindHunterCharactersAsync(socketUserMessage, cachedCharacters.Where(c => c.HuntedUsers.Count != 0).ToImmutableArray());
 
-            if (hunterCharacters.Count != 0)
+            if (hunterCharacters.Length != 0)
             {
                 var callCharactersByHuntedUsersAsync = hunterCharacters.Select(hc => CallCharacterAsync(hc, socketUserMessage, isIndirectCall: false));
                 callTasks.AddRange(callCharactersByHuntedUsersAsync);
@@ -424,37 +425,38 @@ public class MessagesHandler
     }
 
 
-    private Task<ISpawnedCharacter?> FindCharacterByReplyAsync(SocketUserMessage socketUserMessage, ulong channelId)
+    private ValueTask<ISpawnedCharacter?> FindCharacterByReplyAsync(SocketUserMessage socketUserMessage, ImmutableArray<CachedCharacterInfo> cachedCharacters)
     {
-        if (socketUserMessage.ReferencedMessage?.Author?.Id is not ulong webhookId)
+        if (cachedCharacters.Length == 0 || socketUserMessage.ReferencedMessage?.Author?.Id is not ulong webhookId)
         {
-            return Task.FromResult<ISpawnedCharacter?>(null);
+            return ValueTask.FromResult<ISpawnedCharacter?>(null);
         }
 
-        var cachedCharacter = _cacheRepository.CachedCharacters.Find(webhookId.ToString(), channelId);
+        var stringWebhookId = webhookId.ToString();
+
+        var cachedCharacter = cachedCharacters.FirstOrDefault(cc => cc.WebhookId == stringWebhookId);
         if (cachedCharacter is null)
         {
-            return Task.FromResult<ISpawnedCharacter?>(null);
+            return ValueTask.FromResult<ISpawnedCharacter?>(null);
         }
 
         return _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
     }
 
 
-    private Task<ISpawnedCharacter?> FindCharacterByPrefixAsync(SocketUserMessage socketUserMessage, ulong channelId)
+    private ValueTask<ISpawnedCharacter?> FindCharacterByPrefixAsync(SocketUserMessage socketUserMessage, ImmutableArray<CachedCharacterInfo> cachedCharacters)
     {
-        var cachedCharacters = _cacheRepository.CachedCharacters.ToList(channelId);
-        if (cachedCharacters.Count == 0)
+        if (cachedCharacters.Length == 0)
         {
-            return Task.FromResult<ISpawnedCharacter?>(null);
+            return ValueTask.FromResult<ISpawnedCharacter?>(null);
         }
 
         var content = socketUserMessage.Content.Trim(' ', '\n');
 
-        var cachedCharacter = cachedCharacters.FirstOrDefault(c => c.WebhookId != socketUserMessage.Author.Id.ToString() && content.StartsWith(c.CallPrefix, StringComparison.Ordinal));
+        var cachedCharacter = cachedCharacters.FirstOrDefault(c => content.StartsWith(c.CallPrefix, StringComparison.Ordinal));
         if (cachedCharacter is null)
         {
-            return Task.FromResult<ISpawnedCharacter?>(null);
+            return ValueTask.FromResult<ISpawnedCharacter?>(null);
         }
 
         return _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
@@ -462,13 +464,8 @@ public class MessagesHandler
 
 
     private static readonly Random _random = new();
-    private async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
+    private async Task<ISpawnedCharacter?> FindRandomCharacterAsync(SocketUserMessage socketUserMessage, IEnumerable<CachedCharacterInfo> cachedCharacters)
     {
-        if (cachedCharacters.Count == 0)
-        {
-            return null;
-        }
-
         var randomlyCalledCharacters = new List<ISpawnedCharacter>();
         foreach (var cachedCharacter in cachedCharacters)
         {
@@ -508,23 +505,14 @@ public class MessagesHandler
     }
 
 
-    private async Task<List<ISpawnedCharacter>> FindHunterCharactersAsync(SocketUserMessage socketUserMessage, List<CachedCharacterInfo> cachedCharacters)
+    private async Task<ISpawnedCharacter[]> FindHunterCharactersAsync(SocketUserMessage socketUserMessage, IEnumerable<CachedCharacterInfo> cachedCharacters)
     {
-        if (cachedCharacters.Count == 0)
-        {
-            return [];
-        }
-
-        var spawnedCharacters = new List<ISpawnedCharacter>();
-        foreach (var cachedCharacter in cachedCharacters)
-        {
-            if (cachedCharacter.HuntedUsers.Contains(socketUserMessage.Author.Id))
-            {
-                var spawnedCharacter = await _charactersDbRepository.GetSpawnedCharacterByIdAsync(cachedCharacter.Id);
-                spawnedCharacters.Add(spawnedCharacter!);
-            }
-        }
-
-        return spawnedCharacters;
+        var hunterCharacters = cachedCharacters.Where(cc => cc.HuntedUsers.Contains(socketUserMessage.Author.Id));
+        var spawnedCharacters = await hunterCharacters.Select(hc => hc.Id)
+                                                      .ToAsyncEnumerable()
+                                                      .SelectAwait(async id => await _charactersDbRepository.GetSpawnedCharacterByIdAsync(id))
+                                                      .Where(sc => sc is not null)
+                                                      .ToArrayAsync();
+        return spawnedCharacters!;
     }
 }
