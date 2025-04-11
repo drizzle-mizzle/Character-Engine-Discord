@@ -44,6 +44,8 @@ namespace CharacterEngine
                 }
             };
 
+            _log.Info($"[ DB Connection: {DatabaseHelper.DbConnectionString} ]");
+
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             Migrator.Run(DatabaseHelper.DbConnectionString);
 
