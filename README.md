@@ -19,6 +19,8 @@
 ### ⛳ Supported platforms
 - [CharacterAI](https://character.ai/)
 - [SakuraAI](https://www.sakura.fm/)
+- [OpenRouter](https://openrouter.ai)
+- [ChubAI](https://chub.ai)
 
 ### 🕹 Features
 - Allows to spawn up to 15 characters in a single channel and unlimited amount on the whole server
