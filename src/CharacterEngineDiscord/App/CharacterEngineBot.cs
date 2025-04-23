@@ -164,7 +164,6 @@ public sealed class CharacterEngineBot
             GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | GatewayIntents.MessageContent,
             ConnectionTimeout = 30_000,
             DefaultRetryMode = RetryMode.RetryRatelimit,
-            AlwaysDownloadDefaultStickers = true,
             MaxWaitBetweenGuildAvailablesBeforeReady = (int)TimeSpan.FromMinutes(5).TotalMilliseconds,
         });
 
