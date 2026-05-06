@@ -1,6 +1,7 @@
 using CharacterEngineDiscord.Core.Extensions;
 using CharacterEngineDiscord.DataAccess.Extensions;
-using CharacterEngineDiscord.Extensions;
+using CharacterEngineDiscord.Messaging.Extensions;
+using CharacterEngineDiscord.Server.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,7 +25,9 @@ builder.Services.AddSerilog((sp, lc) => lc
 
 builder.Services.AddCharacterEngineCore(builder.Configuration);
 builder.Services.AddCharacterEngineDataAccess(builder.Configuration);
-builder.Services.AddCharacterEngineBot(builder.Configuration);
+builder.Services.AddCharacterEngineMessaging(builder.Configuration);
+builder.Services.AddCharacterEngineServer(builder.Configuration);
+builder.Services.AddRequestConsumer();
 
 var host = builder.Build();
 await host.RunAsync();

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 
-namespace CharacterEngineDiscord.Hosting;
+namespace CharacterEngineDiscord.DiscordBot.Hosting;
 
 /// <summary>
 /// Drives the lifecycle of the singleton <see cref="DiscordShardedClient"/>:

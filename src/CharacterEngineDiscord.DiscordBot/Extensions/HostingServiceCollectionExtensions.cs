@@ -1,16 +1,14 @@
-using CharacterEngineDiscord.Configuration;
 using CharacterEngineDiscord.Core.Abstractions.Logging;
 using CharacterEngineDiscord.Core.Configuration;
-using CharacterEngineDiscord.Hosting;
-using CharacterEngineDiscord.Logging;
+using CharacterEngineDiscord.DiscordBot.Hosting;
+using CharacterEngineDiscord.DiscordBot.Logging;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace CharacterEngineDiscord.Extensions;
+namespace CharacterEngineDiscord.DiscordBot.Extensions;
 
 /// <summary>
 /// DI registration entry-point for the Discord-bot hosting layer (the exe).
@@ -19,10 +17,10 @@ public static class HostingServiceCollectionExtensions
 {
     /// <summary>
     /// Wires up the Discord client (sharded), bot logging facade, gateway-event handlers,
-    /// configuration post-processing, and the hosted service that owns the connection.
-    /// Expects <see cref="CoreServiceCollectionExtensions"/> to have bound the options POCOs already.
+    /// and the hosted service that owns the connection.
+    /// Expects <see cref="CharacterEngineDiscord.Core.Extensions.CoreServiceCollectionExtensions"/> to have bound the options POCOs already.
     /// </summary>
-    public static IServiceCollection AddCharacterEngineBot(
+    public static IServiceCollection AddCharacterEngineDiscordBot(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -45,7 +43,6 @@ public static class HostingServiceCollectionExtensions
 
         services.AddSingleton<IDiscordLogger, DiscordLogger>();
         services.AddSingleton<GuildLifecycleHandler>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<MessagesOptions>, MessagesOptionsPostConfigure>());
         services.AddHostedService<CeDiscordBotHostedService>();
 
         return services;

@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/*.user
+**/.vs/
+**/logs/
+.env
+src/CharacterEngineDiscord.DiscordBot/Settings/appsettings.Development.json
+src/CharacterEngineDiscord.Server/Settings/appsettings.Development.json
+_src.old/

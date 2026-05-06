@@ -1,0 +1,17 @@
+# build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY src/Directory.Build.props ./
+COPY src/CharacterEngineDiscord.Core/ ./CharacterEngineDiscord.Core/
+COPY src/CharacterEngineDiscord.DataAccess/ ./CharacterEngineDiscord.DataAccess/
+COPY src/CharacterEngineDiscord.Contracts/ ./CharacterEngineDiscord.Contracts/
+COPY src/CharacterEngineDiscord.Messaging/ ./CharacterEngineDiscord.Messaging/
+COPY src/CharacterEngineDiscord.Server/ ./CharacterEngineDiscord.Server/
+RUN dotnet publish CharacterEngineDiscord.Server/CharacterEngineDiscord.Server.csproj \
+    -c Release -o /publish
+
+# runtime
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /publish .
+ENTRYPOINT ["dotnet", "CharacterEngineDiscord.Server.dll"]

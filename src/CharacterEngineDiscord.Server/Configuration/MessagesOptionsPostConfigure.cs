@@ -2,7 +2,7 @@ using CharacterEngineDiscord.Core.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CharacterEngineDiscord.Configuration;
+namespace CharacterEngineDiscord.Server.Configuration;
 
 /// <summary>
 /// Reads multi-line text templates referenced by <see cref="MessagesOptions"/> file-name

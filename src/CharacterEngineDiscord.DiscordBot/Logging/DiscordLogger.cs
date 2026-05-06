@@ -5,7 +5,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CharacterEngineDiscord.Logging;
+namespace CharacterEngineDiscord.DiscordBot.Logging;
 
 /// <summary>
 /// Default <see cref="IDiscordLogger"/> implementation. Best-effort posts a

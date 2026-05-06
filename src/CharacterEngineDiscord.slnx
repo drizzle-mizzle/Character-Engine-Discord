@@ -1,6 +1,9 @@
 <Solution>
   <Project Path="CharacterEngineDiscord.Core/CharacterEngineDiscord.Core.csproj" />
   <Project Path="CharacterEngineDiscord.DataAccess/CharacterEngineDiscord.DataAccess.csproj" />
+  <Project Path="CharacterEngineDiscord.Contracts/CharacterEngineDiscord.Contracts.csproj" />
+  <Project Path="CharacterEngineDiscord.Messaging/CharacterEngineDiscord.Messaging.csproj" />
+  <Project Path="CharacterEngineDiscord.DiscordBot/CharacterEngineDiscord.DiscordBot.csproj" />
+  <Project Path="CharacterEngineDiscord.Server/CharacterEngineDiscord.Server.csproj" />
   <Project Path="CharacterEngineDiscord.Tests/CharacterEngineDiscord.Tests.csproj" />
-  <Project Path="CharacterEngineDiscord/CharacterEngineDiscord.csproj" />
 </Solution>

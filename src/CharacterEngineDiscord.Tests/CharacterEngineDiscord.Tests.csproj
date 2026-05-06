@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CharacterEngineDiscord.Core\CharacterEngineDiscord.Core.csproj" />
+    <ProjectReference Include="..\CharacterEngineDiscord.Contracts\CharacterEngineDiscord.Contracts.csproj" />
+    <ProjectReference Include="..\CharacterEngineDiscord.Messaging\CharacterEngineDiscord.Messaging.csproj" />
   </ItemGroup>
 
 </Project>

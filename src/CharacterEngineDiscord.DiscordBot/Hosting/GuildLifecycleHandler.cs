@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace CharacterEngineDiscord.Hosting;
+namespace CharacterEngineDiscord.DiscordBot.Hosting;
 
 /// <summary>
 /// Bridges Discord <c>JoinedGuild</c> / <c>LeftGuild</c> gateway events into
