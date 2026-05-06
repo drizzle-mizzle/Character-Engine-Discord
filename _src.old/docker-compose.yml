@@ -2,8 +2,8 @@ services:
   character_engine:
     container_name: ce_app
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: _src.old/Dockerfile
     deploy:
       resources:
         limits:
@@ -12,7 +12,7 @@ services:
       db:
         condition: service_healthy
     env_file:
-      - .env
+      - ../.env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -23,7 +23,7 @@ services:
     image: postgres:latest
     container_name: pg
     env_file:
-      - .env
+      - ../.env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

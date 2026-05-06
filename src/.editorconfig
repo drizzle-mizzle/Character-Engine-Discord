@@ -1,0 +1,118 @@
+root = true
+
+###############################################################################
+# Common file-level settings
+###############################################################################
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,xml,csproj,props,targets,slnx,sln}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+###############################################################################
+# C#
+###############################################################################
+[*.{cs,csx}]
+
+# --- Indentation ---
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_indent_labels = flush_left
+
+# --- New line / brace placement (Allman EXCEPT object/array/collection initializers) ---
+csharp_new_line_before_open_brace = accessors, anonymous_methods, anonymous_types, control_blocks, events, indexers, lambdas, local_functions, methods, properties, types
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+csharp_new_line_between_query_expression_clauses = true
+
+# --- Force braces on every control-flow block (Roslyn) ---
+csharp_prefer_braces = true:warning
+
+# --- ReSharper / Rider: force braces ---
+resharper_csharp_braces_for_ifelse = required
+resharper_csharp_braces_for_for = required
+resharper_csharp_braces_for_foreach = required
+resharper_csharp_braces_for_while = required
+resharper_csharp_braces_for_dowhile = required
+resharper_csharp_braces_for_using = required
+resharper_csharp_braces_for_lock = required
+resharper_csharp_braces_for_fixed = required
+
+# --- ReSharper / Rider: brace placement ---
+resharper_csharp_brace_style = next_line
+resharper_csharp_anonymous_method_declaration_braces = next_line
+resharper_csharp_invocable_declaration_braces = next_line
+resharper_csharp_type_declaration_braces = next_line
+resharper_csharp_other_braces = next_line
+resharper_csharp_initializer_braces = end_of_line
+resharper_csharp_case_block_braces = next_line
+
+# --- var preferences (var everywhere) ---
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# --- "this." qualifier ---
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+# --- using directives ---
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# --- Modern C# ---
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_simple_using_statement = true:suggestion
+csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
+csharp_style_pattern_matching_over_as_with_null_check = true:suggestion
+csharp_style_throw_expression = true:suggestion
+csharp_style_prefer_null_check_over_type_check = true:suggestion
+
+###############################################################################
+# Naming
+###############################################################################
+
+# private fields → _camelCase
+dotnet_naming_rule.private_fields_with_underscore.severity = warning
+dotnet_naming_rule.private_fields_with_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_with_underscore.style = underscore_prefix
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_style.underscore_prefix.required_prefix = _
+dotnet_naming_style.underscore_prefix.capitalization = camel_case
+
+# interfaces → I-prefix
+dotnet_naming_rule.interfaces_with_i.severity = warning
+dotnet_naming_rule.interfaces_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_with_i.style = i_prefix
+
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+
+dotnet_naming_style.i_prefix.required_prefix = I
+dotnet_naming_style.i_prefix.capitalization = pascal_case
+
+# generic type parameters → T-prefix
+dotnet_naming_rule.type_parameters_with_t.severity = warning
+dotnet_naming_rule.type_parameters_with_t.symbols = type_parameters
+dotnet_naming_rule.type_parameters_with_t.style = t_prefix
+
+dotnet_naming_symbols.type_parameters.applicable_kinds = type_parameter
+
+dotnet_naming_style.t_prefix.required_prefix = T
+dotnet_naming_style.t_prefix.capitalization = pascal_case

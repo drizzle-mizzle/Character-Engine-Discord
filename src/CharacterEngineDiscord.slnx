@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CharacterEngineDiscord.Core/CharacterEngineDiscord.Core.csproj" />
+  <Project Path="CharacterEngineDiscord.DataAccess/CharacterEngineDiscord.DataAccess.csproj" />
+  <Project Path="CharacterEngineDiscord/CharacterEngineDiscord.csproj" />
+</Solution>
