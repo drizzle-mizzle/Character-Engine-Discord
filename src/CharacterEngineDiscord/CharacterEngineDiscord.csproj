@@ -10,4 +10,23 @@
     <ProjectReference Include="..\CharacterEngineDiscord.DataAccess\CharacterEngineDiscord.DataAccess.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.19.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.4" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Settings\appsettings.json" CopyToOutputDirectory="Always" />
+    <Content Include="Settings\messages_format.txt" CopyToOutputDirectory="Always" />
+    <Content Include="Settings\system_prompt.txt" CopyToOutputDirectory="Always" />
+    <None Include="Settings\appsettings.Development.json" CopyToOutputDirectory="Always" Condition="Exists('Settings\appsettings.Development.json')" />
+    <Content Include="Settings\img\**" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
 </Project>

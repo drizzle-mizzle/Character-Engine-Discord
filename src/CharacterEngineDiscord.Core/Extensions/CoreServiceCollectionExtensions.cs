@@ -33,11 +33,6 @@ public static class CoreServiceCollectionExtensions
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-        services.AddOptions<DatabaseOptions>()
-                .Bind(configuration.GetSection("Database"))
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
-
         services.AddOptions<MessagesOptions>()
                 .Bind(configuration.GetSection("Messages"))
                 .ValidateDataAnnotations()

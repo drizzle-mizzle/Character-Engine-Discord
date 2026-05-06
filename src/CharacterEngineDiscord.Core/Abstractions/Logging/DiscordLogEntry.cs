@@ -1,9 +1,9 @@
 namespace CharacterEngineDiscord.Core.Abstractions.Logging;
 
 /// <summary>
-/// Structured log payload carried by <see cref="ICeLogger"/>.
+/// Payload posted to a Discord admin channel by <see cref="IDiscordLogger"/>.
 /// </summary>
-public sealed record CeLogEntry
+public sealed record DiscordLogEntry
 {
     public required string Title { get; init; }
 
