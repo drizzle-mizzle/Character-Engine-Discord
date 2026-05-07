@@ -19,4 +19,8 @@
     <ProjectReference Include="..\CharacterEngineDiscord.Contracts\CharacterEngineDiscord.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CharacterEngineDiscord.Tests" />
+  </ItemGroup>
+
 </Project>

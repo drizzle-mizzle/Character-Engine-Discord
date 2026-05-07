@@ -18,6 +18,14 @@ public interface ICeMessageSerializer
         where T : IDomainMessage;
 
     /// <summary>
+    /// Channel-less overload of <see cref="Serialize{T}(IChannel,T)"/> intended for
+    /// in-memory round-trip scenarios (e.g. unit tests). Produces the same body and
+    /// <see cref="BasicProperties"/> shape as the channel overload.
+    /// </summary>
+    (ReadOnlyMemory<byte> Body, BasicProperties Properties) Serialize<T>(T message)
+        where T : IDomainMessage;
+
+    /// <summary>
     /// Reverse of <see cref="Serialize{T}"/>. Returns <c>null</c> when the AMQP <c>type</c>
     /// header is missing or refers to an unregistered CLR type — caller should reject without requeue.
     /// </summary>

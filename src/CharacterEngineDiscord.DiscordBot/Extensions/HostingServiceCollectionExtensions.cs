@@ -1,7 +1,13 @@
+using CharacterEngineDiscord.Contracts.Commands;
+using CharacterEngineDiscord.Contracts.Requests;
 using CharacterEngineDiscord.Core.Abstractions.Logging;
 using CharacterEngineDiscord.Core.Configuration;
+using CharacterEngineDiscord.DiscordBot.CommandHandlers;
+using CharacterEngineDiscord.DiscordBot.EventForwarders;
 using CharacterEngineDiscord.DiscordBot.Hosting;
 using CharacterEngineDiscord.DiscordBot.Logging;
+using CharacterEngineDiscord.Messaging.Extensions;
+using CharacterEngineDiscord.Messaging.Handlers;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
@@ -43,7 +49,18 @@ public static class HostingServiceCollectionExtensions
 
         services.AddSingleton<IDiscordLogger, DiscordLogger>();
         services.AddSingleton<GuildLifecycleHandler>();
+        services.AddSingleton<CeSlashCommandEventForwarder>();
+
+        // Followup uses the unauthenticated webhook endpoint, so no DefaultRequestHeaders.
+        services.AddHttpClient("ce-discord-followup");
+        services.AddScoped<ICeCommandHandler<RespondToInteractionCommand>, RespondToInteractionCommandHandler>();
+
+        // Bot publishes SlashCommandInvokedRequest and consumes RespondToInteractionCommand.
+        services.RegisterMessage<SlashCommandInvokedRequest>();
+        services.RegisterMessage<RespondToInteractionCommand>();
+
         services.AddHostedService<CeDiscordBotHostedService>();
+        services.AddHostedService<CeSlashCommandRegistrarHostedService>();
 
         return services;
     }

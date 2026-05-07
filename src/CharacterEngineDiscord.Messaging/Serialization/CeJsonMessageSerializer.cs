@@ -32,6 +32,12 @@ internal sealed class CeJsonMessageSerializer : ICeMessageSerializer
         where T : IDomainMessage
     {
         ArgumentNullException.ThrowIfNull(channel);
+        return Serialize(message);
+    }
+
+    public (ReadOnlyMemory<byte> Body, BasicProperties Properties) Serialize<T>(T message)
+        where T : IDomainMessage
+    {
         ArgumentNullException.ThrowIfNull(message);
 
         var runtimeType = message.GetType();

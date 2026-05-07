@@ -1,5 +1,6 @@
 using CharacterEngineDiscord.Core.Abstractions.Logging;
 using CharacterEngineDiscord.Core.Configuration;
+using CharacterEngineDiscord.DiscordBot.EventForwarders;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Hosting;
@@ -21,6 +22,7 @@ internal sealed class CeDiscordBotHostedService : IHostedService
     private readonly BotOptions _botOptions;
     private readonly IDiscordLogger _discordLogger;
     private readonly GuildLifecycleHandler _guildHandler;
+    private readonly CeSlashCommandEventForwarder _slashForwarder;
     private readonly ILogger<CeDiscordBotHostedService> _logger;
 
     public CeDiscordBotHostedService(
@@ -28,12 +30,14 @@ internal sealed class CeDiscordBotHostedService : IHostedService
         IOptions<BotOptions> botOptions,
         IDiscordLogger discordLogger,
         GuildLifecycleHandler guildHandler,
+        CeSlashCommandEventForwarder slashForwarder,
         ILogger<CeDiscordBotHostedService> logger)
     {
         _client = client;
         _botOptions = botOptions.Value;
         _discordLogger = discordLogger;
         _guildHandler = guildHandler;
+        _slashForwarder = slashForwarder;
         _logger = logger;
     }
 
@@ -43,6 +47,7 @@ internal sealed class CeDiscordBotHostedService : IHostedService
         _client.JoinedGuild += _guildHandler.OnJoinedGuildAsync;
         _client.LeftGuild += _guildHandler.OnLeftGuildAsync;
         _client.ShardReady += OnShardReadyAsync;
+        _client.SlashCommandExecuted += _slashForwarder.OnSlashCommandExecutedAsync;
 
         await _client.LoginAsync(TokenType.Bot, _botOptions.Token, validateToken: true);
         await _client.StartAsync();
@@ -59,6 +64,7 @@ internal sealed class CeDiscordBotHostedService : IHostedService
         _client.JoinedGuild -= _guildHandler.OnJoinedGuildAsync;
         _client.LeftGuild -= _guildHandler.OnLeftGuildAsync;
         _client.ShardReady -= OnShardReadyAsync;
+        _client.SlashCommandExecuted -= _slashForwarder.OnSlashCommandExecutedAsync;
 
         try
         {
