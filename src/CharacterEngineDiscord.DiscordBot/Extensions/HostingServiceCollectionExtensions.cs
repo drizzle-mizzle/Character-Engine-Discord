@@ -47,17 +47,22 @@ public static class HostingServiceCollectionExtensions
 
         services.AddSingleton(sp => new DiscordShardedClient(sp.GetRequiredService<DiscordSocketConfig>()));
 
-        services.AddSingleton<IDiscordLogger, DiscordLogger>();
-        services.AddSingleton<GuildLifecycleHandler>();
+        services.AddSingleton<IDiscordLogger, CeDiscordLogger>();
+        services.AddSingleton<CeGuildLifecycleEventForwarder>();
         services.AddSingleton<CeSlashCommandEventForwarder>();
 
         // Followup uses the unauthenticated webhook endpoint, so no DefaultRequestHeaders.
         services.AddHttpClient("ce-discord-followup");
         services.AddScoped<ICeCommandHandler<RespondToInteractionCommand>, RespondToInteractionCommandHandler>();
+        services.AddScoped<ICeCommandHandler<ReportLogToAdminChannelCommand>, ReportLogToAdminChannelCommandHandler>();
 
-        // Bot publishes SlashCommandInvokedRequest and consumes RespondToInteractionCommand.
+        // Bot publishes SlashCommandInvokedRequest + Guild lifecycle requests,
+        // consumes RespondToInteractionCommand + ReportLogToAdminChannelCommand.
         services.RegisterMessage<SlashCommandInvokedRequest>();
         services.RegisterMessage<RespondToInteractionCommand>();
+        services.RegisterMessage<GuildJoinedRequest>();
+        services.RegisterMessage<GuildLeftRequest>();
+        services.RegisterMessage<ReportLogToAdminChannelCommand>();
 
         services.AddHostedService<CeDiscordBotHostedService>();
         services.AddHostedService<CeSlashCommandRegistrarHostedService>();

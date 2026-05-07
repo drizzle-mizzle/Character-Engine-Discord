@@ -21,7 +21,7 @@ internal sealed class CeDiscordBotHostedService : IHostedService
     private readonly DiscordShardedClient _client;
     private readonly BotOptions _botOptions;
     private readonly IDiscordLogger _discordLogger;
-    private readonly GuildLifecycleHandler _guildHandler;
+    private readonly CeGuildLifecycleEventForwarder _guildForwarder;
     private readonly CeSlashCommandEventForwarder _slashForwarder;
     private readonly ILogger<CeDiscordBotHostedService> _logger;
 
@@ -29,14 +29,14 @@ internal sealed class CeDiscordBotHostedService : IHostedService
         DiscordShardedClient client,
         IOptions<BotOptions> botOptions,
         IDiscordLogger discordLogger,
-        GuildLifecycleHandler guildHandler,
+        CeGuildLifecycleEventForwarder guildForwarder,
         CeSlashCommandEventForwarder slashForwarder,
         ILogger<CeDiscordBotHostedService> logger)
     {
         _client = client;
         _botOptions = botOptions.Value;
         _discordLogger = discordLogger;
-        _guildHandler = guildHandler;
+        _guildForwarder = guildForwarder;
         _slashForwarder = slashForwarder;
         _logger = logger;
     }
@@ -44,8 +44,8 @@ internal sealed class CeDiscordBotHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _client.Log += OnDiscordLogAsync;
-        _client.JoinedGuild += _guildHandler.OnJoinedGuildAsync;
-        _client.LeftGuild += _guildHandler.OnLeftGuildAsync;
+        _client.JoinedGuild += _guildForwarder.OnJoinedGuildAsync;
+        _client.LeftGuild += _guildForwarder.OnLeftGuildAsync;
         _client.ShardReady += OnShardReadyAsync;
         _client.SlashCommandExecuted += _slashForwarder.OnSlashCommandExecutedAsync;
 
@@ -61,8 +61,8 @@ internal sealed class CeDiscordBotHostedService : IHostedService
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _client.Log -= OnDiscordLogAsync;
-        _client.JoinedGuild -= _guildHandler.OnJoinedGuildAsync;
-        _client.LeftGuild -= _guildHandler.OnLeftGuildAsync;
+        _client.JoinedGuild -= _guildForwarder.OnJoinedGuildAsync;
+        _client.LeftGuild -= _guildForwarder.OnLeftGuildAsync;
         _client.ShardReady -= OnShardReadyAsync;
         _client.SlashCommandExecuted -= _slashForwarder.OnSlashCommandExecutedAsync;
 
