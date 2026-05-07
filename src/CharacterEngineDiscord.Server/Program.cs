@@ -31,6 +31,7 @@ builder.Services.AddSerilog((sp, lc) => lc
 
 builder.Services.AddCharacterEngineCore(builder.Configuration);
 builder.Services.AddCharacterEngineDataAccess(builder.Configuration);
+builder.Services.AddCharacterEngineHangfire(builder.Configuration);
 builder.Services.AddCharacterEngineMessaging(builder.Configuration);
 builder.Services.AddCharacterEngineServer(builder.Configuration);
 builder.Services.AddRequestConsumer();

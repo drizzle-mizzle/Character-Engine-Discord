@@ -27,6 +27,19 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
+  <!--
+    Hangfire core packages are LGPL-3.0; this project is open-source so the
+    dynamic-linking exception applies. Do NOT add Hangfire.Pro / Hangfire.Pro.Redis
+    (commercial license).
+    Newtonsoft.Json is pinned directly here (MIT) to override the vulnerable 11.0.1
+    transitive pulled in by Hangfire (NU1903 advisory GHSA-5crp-9r3c-p9vr).
+  -->
+  <ItemGroup>
+    <PackageReference Include="Hangfire.NetCore" Version="1.8.23" />
+    <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
   <ItemGroup>
     <Content Include="Settings\appsettings.json" CopyToOutputDirectory="Always" />
     <Content Include="Settings\messages_format.txt" CopyToOutputDirectory="Always" />
