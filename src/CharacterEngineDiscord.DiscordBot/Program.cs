@@ -18,6 +18,12 @@ builder.Configuration.AddJsonFile(Path.Combine(settingsDir, $"appsettings.{build
 builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddCommandLine(args);
 
+builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
+{
+    ValidateScopes = true,
+    ValidateOnBuild = true,
+}));
+
 builder.Logging.ClearProviders();
 builder.Services.AddSerilog((sp, lc) => lc
     .ReadFrom.Configuration(builder.Configuration)

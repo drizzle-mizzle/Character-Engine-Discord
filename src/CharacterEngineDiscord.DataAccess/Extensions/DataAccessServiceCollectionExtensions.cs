@@ -27,6 +27,10 @@ public static class DataAccessServiceCollectionExtensions
             options.UseNpgsql(connectionString, npg =>
             {
                 npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name);
+                npg.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorCodesToAdd: null);
             });
             options.UseSnakeCaseNamingConvention();
         });

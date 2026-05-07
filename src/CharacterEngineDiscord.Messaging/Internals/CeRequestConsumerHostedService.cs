@@ -105,6 +105,11 @@ internal sealed class CeRequestConsumerHostedService : BackgroundService
                 return;
             }
 
+            // TODO Phase 4: idempotency by MessageEnvelope.MessageId.
+            // At-least-once delivery means the same message may be re-delivered
+            // (consumer crash before ack, requeue on transient failure, etc.).
+            // Add a `processed_messages` table or in-memory LRU cache and short-circuit
+            // dispatch here if MessageId was already processed.
             await _dispatcher.DispatchAsync(req, ct);
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, ct);
         }

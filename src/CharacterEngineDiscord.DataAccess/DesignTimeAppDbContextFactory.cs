@@ -16,7 +16,14 @@ internal sealed class DesignTimeAppDbContextFactory : IDesignTimeDbContextFactor
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
                 "Host=localhost;Database=ce_design_time;Username=postgres;Password=postgres",
-                npg => npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name))
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(AppDbContext).Assembly.GetName().Name);
+                    npg.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorCodesToAdd: null);
+                })
             .UseSnakeCaseNamingConvention()
             .Options;
 

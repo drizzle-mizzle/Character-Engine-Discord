@@ -59,6 +59,9 @@ internal sealed class CeRabbitConnection : IAsyncDisposable
                 Password = _options.Password,
                 VirtualHost = _options.VirtualHost,
                 RequestedHeartbeat = TimeSpan.FromSeconds(_options.RequestedHeartbeatSec),
+                AutomaticRecoveryEnabled = true,
+                TopologyRecoveryEnabled = true,
+                NetworkRecoveryInterval = TimeSpan.FromSeconds(5),
             };
 
             _connection = await factory.CreateConnectionAsync(cancellationToken);
