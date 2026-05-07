@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CharacterEngineDiscord.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CharacterEngineDiscord.Core\CharacterEngineDiscord.Core.csproj" />
     <ProjectReference Include="..\CharacterEngineDiscord.DataAccess\CharacterEngineDiscord.DataAccess.csproj" />
     <ProjectReference Include="..\CharacterEngineDiscord.Contracts\CharacterEngineDiscord.Contracts.csproj" />
