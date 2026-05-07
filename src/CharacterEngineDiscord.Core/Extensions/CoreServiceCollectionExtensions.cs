@@ -1,3 +1,4 @@
+using CharacterEngineDiscord.Core.Abstractions.Time;
 using CharacterEngineDiscord.Core.Configuration;
 using CharacterEngineDiscord.Core.Configuration.Validators;
 using Microsoft.Extensions.Configuration;
@@ -50,6 +51,11 @@ public static class CoreServiceCollectionExtensions
 
         services.AddSingleton<IValidateOptions<BotOptions>, BotOptionsValidator>();
         services.AddSingleton<IValidateOptions<AdminOptions>, AdminOptionsValidator>();
+
+        // SystemClock is internal to the Core assembly, so direct type-mapping cannot
+        // resolve it cross-assembly; an explicit factory keeps the type internal while
+        // exposing only the IClock contract.
+        services.AddSingleton<IClock>(_ => new SystemClock());
 
         return services;
     }

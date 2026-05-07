@@ -6,6 +6,7 @@ using CharacterEngineDiscord.DiscordBot.CommandHandlers;
 using CharacterEngineDiscord.DiscordBot.EventForwarders;
 using CharacterEngineDiscord.DiscordBot.Hosting;
 using CharacterEngineDiscord.DiscordBot.Logging;
+using CharacterEngineDiscord.DiscordBot.RateLimiting;
 using CharacterEngineDiscord.Messaging.Extensions;
 using CharacterEngineDiscord.Messaging.Handlers;
 using Discord;
@@ -63,6 +64,13 @@ public static class HostingServiceCollectionExtensions
         services.RegisterMessage<GuildJoinedRequest>();
         services.RegisterMessage<GuildLeftRequest>();
         services.RegisterMessage<ReportLogToAdminChannelCommand>();
+
+        // Per-user rate limiter for Discord interactions. One singleton, two type-mappings:
+        // public callers consume the interface, the cleanup hosted service consumes the
+        // concrete type so it can call internal EvictIdle.
+        services.AddSingleton<CeWatchDog>();
+        services.AddSingleton<ICeWatchDog>(sp => sp.GetRequiredService<CeWatchDog>());
+        services.AddHostedService<CeWatchDogCleanupHostedService>();
 
         services.AddHostedService<CeDiscordBotHostedService>();
         services.AddHostedService<CeSlashCommandRegistrarHostedService>();

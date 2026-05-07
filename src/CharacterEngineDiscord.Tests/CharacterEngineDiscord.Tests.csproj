@@ -30,6 +30,7 @@
     <ProjectReference Include="..\CharacterEngineDiscord.Messaging\CharacterEngineDiscord.Messaging.csproj" />
     <ProjectReference Include="..\CharacterEngineDiscord.DataAccess\CharacterEngineDiscord.DataAccess.csproj" />
     <ProjectReference Include="..\CharacterEngineDiscord.Server\CharacterEngineDiscord.Server.csproj" />
+    <ProjectReference Include="..\CharacterEngineDiscord.DiscordBot\CharacterEngineDiscord.DiscordBot.csproj" />
   </ItemGroup>
 
 </Project>
